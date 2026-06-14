@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { mockPatients } from './mockData';
+import { mockPatients, initialMetrics } from './mockData';
 
 dotenv.config();
 
@@ -12,6 +12,10 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.get('/api/metrics', (req, res) => {
+  res.json(initialMetrics);
+});
+
 app.get('/api/patients', (req, res) => {
   res.json(mockPatients);
 });
@@ -23,6 +27,27 @@ app.get('/api/patients/:id', (req, res) => {
   } else {
     res.status(404).json({ message: 'Patient not found' });
   }
+});
+
+// Update patient info (mock)
+app.put('/api/patients/:id', (req, res) => {
+  const index = mockPatients.findIndex(p => p.id === req.params.id);
+  if (index !== -1) {
+    mockPatients[index] = { ...mockPatients[index], ...req.body };
+    res.json(mockPatients[index]);
+  } else {
+    res.status(404).json({ message: 'Patient not found' });
+  }
+});
+
+// Add new patient (mock)
+app.post('/api/patients', (req, res) => {
+  const newPatient = {
+    id: `patient-${Date.now()}`,
+    ...req.body
+  };
+  mockPatients.push(newPatient);
+  res.status(201).json(newPatient);
 });
 
 // Start server
