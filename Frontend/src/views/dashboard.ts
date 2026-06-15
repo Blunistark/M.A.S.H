@@ -1,39 +1,53 @@
 import { type View, Router } from '../router';
-import { mockPatients, initialMetrics, type Patient } from '../mockData';
+import { initialMetrics, mockProfiles, mockAppointments, type Appointment } from '../mockData';
 import { getIcon } from '../assets/icons';
 
-// Internal state to hold session appointments
-let queuePatients = [...mockPatients];
+// Internal state
+let queueAppointments = [...mockAppointments];
 let metrics = { ...initialMetrics };
+
+function formatTime(isoString: string): string {
+  const date = new Date(isoString);
+  let hours = date.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
 
 export class DashboardView implements View {
   public render(): string {
-    // Generate patient rows
-    const tableRows = queuePatients.map(patient => {
-      // Determine status pill color class
-      let statusClass = 'waiting';
-      if (patient.status === 'In Progress') {
-        statusClass = 'in-progress';
-      } else if (patient.status === 'Done') {
-        statusClass = 'done';
-      }
+    // Generate queue rows
+    const tableRows = queueAppointments.map(appt => {
+      const patient = mockProfiles.find(p => p.id === appt.patient_id);
+      if (!patient) return '';
 
-      // Determine avatar initials class based on ID
-      const avatarClass = `avatar-${patient.initials.toLowerCase()}`;
+      let statusClass = 'waiting';
+      if (appt.status === 'in_progress') statusClass = 'in-progress';
+      else if (appt.status === 'completed') statusClass = 'done';
+
+      const initials = getInitials(patient.full_name);
+      const avatarClass = `avatar-${initials.toLowerCase()}`;
+      const timeStr = formatTime(appt.scheduled_time);
 
       return `
         <tr class="patient-row-btn" data-patient-id="${patient.id}">
           <td>
             <div class="patient-cell">
               <div class="patient-initials-avatar ${avatarClass}">
-                ${patient.initials}
+                ${initials}
               </div>
-              <span class="patient-name-bold">${patient.name}</span>
+              <span class="patient-name-bold">${patient.full_name}</span>
             </div>
           </td>
-          <td>${patient.time || '12:00 PM'}</td>
+          <td>${timeStr}</td>
           <td>
-            <span class="status-pill ${statusClass}">${patient.status || 'Waiting'}</span>
+            <span class="status-pill ${statusClass}">${appt.status.replace('_', ' ')}</span>
           </td>
           <td>
             <button class="action-info-btn" data-patient-id="${patient.id}">
@@ -73,7 +87,6 @@ export class DashboardView implements View {
       <div class="page-content">
         <!-- Metrics Cards -->
         <section class="metrics-grid">
-          <!-- Card 1: Today's Appointments -->
           <div class="metric-card metric-appointments">
             <div class="metric-card-content">
               <span class="metric-label">Today's Appointments</span>
@@ -87,7 +100,6 @@ export class DashboardView implements View {
             </div>
           </div>
 
-          <!-- Card 2: Pending Reschedules -->
           <div class="metric-card metric-reschedules">
             <div class="metric-card-content">
               <span class="metric-label">Pending Reschedules</span>
@@ -100,7 +112,6 @@ export class DashboardView implements View {
             </div>
           </div>
 
-          <!-- Card 3: Notifications -->
           <div class="metric-card metric-notifications">
             <div class="metric-card-content">
               <span class="metric-label">Notifications</span>
@@ -114,7 +125,6 @@ export class DashboardView implements View {
             </div>
           </div>
 
-          <!-- Card 4: Stock Alerts -->
           <div class="metric-card metric-stock">
             <div class="metric-card-content">
               <span class="metric-label">Stock Alerts</span>
@@ -132,7 +142,6 @@ export class DashboardView implements View {
         <!-- Main Cards Grid Layout -->
         <div class="dashboard-grid">
           
-          <!-- Column Left: Today's Patient Queue -->
           <section class="dashboard-card">
             <div class="card-header">
               <h2 class="card-title">Today's Patient Queue</h2>
@@ -155,10 +164,8 @@ export class DashboardView implements View {
             </div>
           </section>
 
-          <!-- Column Right: Calendar & Upcoming Patient -->
           <aside class="dashboard-sidebar-column">
             
-            <!-- Card Calendar Widget -->
             <div class="dashboard-card calendar-card">
               <div class="card-header">
                 <h2 class="card-title">Calendar Widget</h2>
@@ -202,7 +209,6 @@ export class DashboardView implements View {
               </div>
             </div>
 
-            <!-- Card Upcoming Patient -->
             <div class="dashboard-card upcoming-patient-card">
               <h2 class="card-title" style="margin-bottom: 12px;">Upcoming Patient</h2>
               <div class="upcoming-patient-body">
@@ -238,11 +244,7 @@ export class DashboardView implements View {
                 <label class="form-label" for="patient-select">Patient</label>
                 <select class="form-select" id="patient-select" required>
                   <option value="">Select Patient...</option>
-                  <option value="john-doe">John Doe</option>
-                  <option value="alice-johnson">Alice Johnson</option>
-                  <option value="bob-smith">Bob Smith</option>
-                  <option value="carol-davis">Carol Davis</option>
-                  <option value="evan-wright">Evan Wright</option>
+                  ${mockProfiles.filter(p => p.role === 'patient').map(p => `<option value="${p.id}">${p.full_name}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
@@ -252,9 +254,9 @@ export class DashboardView implements View {
               <div class="form-group">
                 <label class="form-label" for="appointment-status">Status</label>
                 <select class="form-select" id="appointment-status" required>
-                  <option value="Waiting">Waiting</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Done">Done</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
                 </select>
               </div>
             </div>
@@ -269,34 +271,25 @@ export class DashboardView implements View {
   }
 
   public onMount(container: HTMLElement, router: Router): void {
-    // Navigate on row click (excluding the action column)
     const rows = container.querySelectorAll('.patient-row-btn');
     rows.forEach(row => {
       row.addEventListener('click', (e) => {
-        // Prevent click if we hit the info button itself
         const target = e.target as HTMLElement;
         if (target.closest('.action-info-btn')) return;
-
         const patientId = row.getAttribute('data-patient-id');
-        if (patientId) {
-          router.navigate('patient-profile', { patientId });
-        }
+        if (patientId) router.navigate('patient-profile', { patientId });
       });
     });
 
-    // Info buttons navigation
     const infoBtns = container.querySelectorAll('.action-info-btn');
     infoBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const patientId = btn.getAttribute('data-patient-id');
-        if (patientId) {
-          router.navigate('patient-profile', { patientId });
-        }
+        if (patientId) router.navigate('patient-profile', { patientId });
       });
     });
 
-    // View All Patients Link
     const viewAllLink = container.querySelector('#view-all-patients');
     if (viewAllLink) {
       viewAllLink.addEventListener('click', (e) => {
@@ -305,28 +298,21 @@ export class DashboardView implements View {
       });
     }
 
-    // Chat with upcoming patient
     const chatBtn = container.querySelector('#upcoming-chat-btn');
     if (chatBtn) {
       chatBtn.addEventListener('click', () => {
         const patientId = chatBtn.getAttribute('data-patient-id');
-        if (patientId) {
-          router.navigate('patient-profile', { patientId });
-        }
+        if (patientId) router.navigate('patient-profile', { patientId });
       });
     }
 
-    // Modal elements
     const appointmentModal = container.querySelector('#appointment-modal') as HTMLElement;
     const openModalBtn = container.querySelector('#open-appointment-btn') as HTMLElement;
     const closeModalBtn = container.querySelector('#close-modal-btn') as HTMLElement;
     const cancelModalBtn = container.querySelector('#cancel-modal-btn') as HTMLElement;
     const appointmentForm = container.querySelector('#new-appointment-form') as HTMLFormElement;
 
-    const openModal = () => {
-      appointmentModal.classList.add('open');
-    };
-
+    const openModal = () => appointmentModal.classList.add('open');
     const closeModal = () => {
       appointmentModal.classList.remove('open');
       appointmentForm.reset();
@@ -336,7 +322,6 @@ export class DashboardView implements View {
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
 
-    // Form submission
     if (appointmentForm) {
       appointmentForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -347,48 +332,38 @@ export class DashboardView implements View {
 
         const selectedPatientId = patientIdSelect.value;
         const timeVal = timeInput.value;
-        const statusVal = statusSelect.value as 'In Progress' | 'Waiting' | 'Done';
+        const statusVal = statusSelect.value as any;
 
-        // Find the patient blueprint from base patients list
-        const patientBlueprint = mockPatients.find(p => p.id === selectedPatientId);
-        if (!patientBlueprint) {
+        const patient = mockProfiles.find(p => p.id === selectedPatientId);
+        if (!patient) {
           closeModal();
           return;
         }
 
-        // Create a copy and insert into our active queue
-        const newPatientQueueItem: Patient = {
-          ...patientBlueprint,
-          time: formatTime(timeVal),
-          status: statusVal
+        const date = new Date();
+        const [hours, mins] = timeVal.split(':');
+        date.setHours(parseInt(hours, 10));
+        date.setMinutes(parseInt(mins, 10));
+
+        const newAppt: Appointment = {
+          id: `app-${Date.now()}`,
+          patient_id: selectedPatientId,
+          doctor_id: 'dr-smith',
+          scheduled_time: date.toISOString(),
+          status: statusVal,
+          created_at: new Date().toISOString()
         };
 
-        // Prepend to queue
-        queuePatients.unshift(newPatientQueueItem);
+        queueAppointments.unshift(newAppt);
 
-        // Update metrics
         metrics.todayAppointmentsCount += 1;
-        if (statusVal !== 'Done') {
+        if (statusVal !== 'completed') {
           metrics.remainingAppointmentsCount += 1;
         }
 
         closeModal();
-
-        // Rerender view in router
         router.navigate('dashboard');
       });
     }
   }
-}
-
-// Helpers
-function formatTime(time24: string): string {
-  if (!time24) return '09:00 AM';
-  const [hoursStr, minutesStr] = time24.split(':');
-  let hours = parseInt(hoursStr);
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12; // the hour '0' should be '12'
-  const minutes = minutesStr;
-  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 }

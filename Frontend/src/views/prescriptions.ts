@@ -1,8 +1,15 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
-import { mockPatients } from '../mockData';
+import { 
+  mockProfiles, 
+  mockMedicalRecords,
+  mockPrescriptions,
+  mockPrescriptionItems,
+  mockMedicineInventory
+} from '../mockData';
 
 interface RxItem {
+  medicine_id: string;
   name: string;
   dosage: string;
   frequency: string;
@@ -13,13 +20,11 @@ interface RxItem {
 }
 
 // Module-level state to hold prescriptions being edited per patient
-const rxState: Record<string, RxItem[]> = {
-  'john-doe': [
-    { name: 'Amoxicillin 500mg Capsule', dosage: '500mg', frequency: '1 cap TID', duration: 10, durationUnit: 'Days', stockStatus: 'In Stock' },
-    { name: 'Lisinopril 10mg Tablet', dosage: '10mg', frequency: '1 tab QD', duration: 30, durationUnit: 'Days', stockStatus: 'Out of Stock' },
-    { name: 'Atorvastatin 20mg Tablet', dosage: '20mg', frequency: '1 tab QHS', duration: 90, durationUnit: 'Days', stockStatus: 'In Stock' }
-  ]
-};
+const rxState: Record<string, RxItem[]> = {};
+
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
 
 export class PrescriptionsView implements View {
   private currentPatientId: string = 'john-doe';
@@ -28,21 +33,31 @@ export class PrescriptionsView implements View {
     const patientId = params?.patientId || this.currentPatientId;
     this.currentPatientId = patientId;
 
-    const patient = mockPatients.find(p => p.id === patientId) || mockPatients[0];
+    const patient = mockProfiles.find(p => p.id === patientId);
     
+    if (!patient) {
+      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+    }
+
+    const allergies = mockMedicalRecords.filter(r => r.patient_id === patientId && r.record_type === 'Allergy');
+
     // Ensure state exists for this patient
     if (!rxState[patient.id]) {
-      // Default to empty or copy from patient.medications
-      rxState[patient.id] = (patient.medications || []).map(m => {
-        const dosagePart = m.dosage.split(' - ')[0] || '500mg';
+      const activeRx = mockPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
+      const activeItems = mockPrescriptionItems.filter(i => activeRx.some(r => r.id === i.prescription_id));
+      
+      rxState[patient.id] = activeItems.map(m => {
+        const medInfo = mockMedicineInventory.find(inv => inv.id === m.medicine_id);
+        const dosagePart = m.dosage.split(' - ')[0] || m.dosage;
         const freqPart = m.dosage.split(' - ')[1] || 'Once daily';
         return {
-          name: m.name,
+          medicine_id: m.medicine_id,
+          name: medInfo?.medicine_name || 'Unknown',
           dosage: dosagePart,
           frequency: freqPart,
-          duration: 30,
+          duration: m.quantity,
           durationUnit: 'Days',
-          stockStatus: m.name.toLowerCase().includes('lisinopril') ? 'Out of Stock' : 'In Stock'
+          stockStatus: (medInfo?.current_stock || 0) > 0 ? 'In Stock' : 'Out of Stock'
         };
       });
     }
@@ -50,8 +65,8 @@ export class PrescriptionsView implements View {
     const items = rxState[patient.id];
 
     // Generate allergy badges
-    const allergiesHTML = (patient.allergies && patient.allergies.length > 0)
-      ? patient.allergies.map(a => `<span class="rx-allergy-badge">${a.name} Allergy</span>`).join('')
+    const allergiesHTML = (allergies.length > 0)
+      ? allergies.map(a => `<span class="rx-allergy-badge">${a.description} Allergy</span>`).join('')
       : '<span class="rx-allergy-badge none">NKDA (No Known Drug Allergies)</span>';
 
     // Generate current prescription rows
@@ -95,12 +110,12 @@ export class PrescriptionsView implements View {
         <!-- Top Patient Context Banner Card -->
         <div class="rx-patient-banner">
           <div class="rx-patient-info-left">
-            <div class="rx-patient-avatar">
-              ${patient.initials}
+            <div class="rx-patient-avatar" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+              ${getInitials(patient.full_name)}
             </div>
             <div class="rx-patient-text">
-              <h2 class="rx-patient-name">${patient.name}</h2>
-              <span class="rx-patient-meta">${patient.age} yrs &bull; ${patient.gender} &bull; ID: ${patient.id.toUpperCase()}</span>
+              <h2 class="rx-patient-name">${patient.full_name}</h2>
+              <span class="rx-patient-meta">Patient &bull; ID: ${patient.id.toUpperCase().substring(0, 8)}</span>
             </div>
           </div>
           <div class="rx-patient-allergies">
@@ -217,6 +232,7 @@ export class PrescriptionsView implements View {
         const notesInput = container.querySelector('#rx-notes') as HTMLTextAreaElement;
 
         const newRx: RxItem = {
+          medicine_id: `temp-${Date.now()}`,
           name: nameInput.value,
           dosage: dosageInput.value,
           frequency: freqInput.value,
@@ -278,16 +294,9 @@ export class PrescriptionsView implements View {
     if (sendBtn) {
       sendBtn.addEventListener('click', () => {
         // Find the patient object
-        const patient = mockPatients.find(p => p.id === patientId);
+        const patient = mockProfiles.find(p => p.id === patientId);
         if (patient) {
-          // Commit these medications back to patient's medical profile
-          patient.medications = (rxState[patientId] || []).map(item => ({
-            name: item.name,
-            dosage: `${item.dosage} - ${item.frequency}`,
-            active: true
-          }));
-          
-          alert(`Prescription for ${patient.name} has been sent to the pharmacy successfully!`);
+          alert(`Prescription for ${patient.full_name} has been sent to the pharmacy successfully!`);
           router.navigate('patient-profile', { patientId });
         } else {
           alert('Prescription sent to pharmacy successfully!');
