@@ -1,12 +1,13 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { 
-  mockProfiles, 
-  mockMedicalRecords,
-  mockPrescriptions,
-  mockPrescriptionItems,
-  mockMedicineInventory
-} from '../mockData';
+  fetchProfileById,
+  fetchMedicalRecords,
+  fetchPrescriptions,
+  fetchPrescriptionItems,
+  fetchMedicineInventory
+} from '../api';
+import type { Profile } from '../types';
 
 interface RxItem {
   medicine_id: string;
@@ -29,25 +30,31 @@ function getInitials(name: string): string {
 export class PrescriptionsView implements View {
   private currentPatientId: string = 'john-doe';
 
-  public render(params?: { patientId: string }): string {
+  public async render(params?: { patientId: string }): Promise<string> {
     const patientId = params?.patientId || this.currentPatientId;
     this.currentPatientId = patientId;
 
-    const patient = mockProfiles.find(p => p.id === patientId);
-    
-    if (!patient) {
+    let patient: Profile;
+    try {
+      patient = await fetchProfileById(patientId);
+    } catch (err) {
       return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
     }
 
-    const allergies = mockMedicalRecords.filter(r => r.patient_id === patientId && r.record_type === 'Allergy');
+    const allRecords = await fetchMedicalRecords();
+    const allergies = allRecords.filter(r => r.patient_id === patientId && r.record_type === 'Allergy');
 
     // Ensure state exists for this patient
     if (!rxState[patient.id]) {
-      const activeRx = mockPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
-      const activeItems = mockPrescriptionItems.filter(i => activeRx.some(r => r.id === i.prescription_id));
+      const activeRxList = await fetchPrescriptions();
+      const activeItemsList = await fetchPrescriptionItems();
+      const inventoryList = await fetchMedicineInventory();
+
+      const activeRx = activeRxList.filter(p => p.patient_id === patientId && p.status === 'active');
+      const activeItems = activeItemsList.filter(i => activeRx.some(r => r.id === i.prescription_id));
       
       rxState[patient.id] = activeItems.map(m => {
-        const medInfo = mockMedicineInventory.find(inv => inv.id === m.medicine_id);
+        const medInfo = inventoryList.find(inv => inv.id === m.medicine_id);
         const dosagePart = m.dosage.split(' - ')[0] || m.dosage;
         const freqPart = m.dosage.split(' - ')[1] || 'Once daily';
         return {
@@ -292,13 +299,13 @@ export class PrescriptionsView implements View {
     // Send to Pharmacy click
     const sendBtn = container.querySelector('#rx-send');
     if (sendBtn) {
-      sendBtn.addEventListener('click', () => {
+      sendBtn.addEventListener('click', async () => {
         // Find the patient object
-        const patient = mockProfiles.find(p => p.id === patientId);
-        if (patient) {
+        try {
+          const patient = await fetchProfileById(patientId);
           alert(`Prescription for ${patient.full_name} has been sent to the pharmacy successfully!`);
           router.navigate('patient-profile', { patientId });
-        } else {
+        } catch (err) {
           alert('Prescription sent to pharmacy successfully!');
         }
       });
