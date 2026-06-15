@@ -69,3 +69,63 @@ export async function fetchPrescriptionItems(): Promise<PrescriptionItem[]> {
 export async function fetchMedicineInventory(): Promise<MedicineInventory[]> {
   return fetchJson<MedicineInventory[]>(`${API_BASE}/medicine_inventory`);
 }
+
+export async function completeAppointmentForPatient(patientId: string): Promise<any> {
+  return fetchJson<any>(`${API_BASE}/appointments/patient/${patientId}/complete`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+}
+
+export async function fulfillPrescription(id: string): Promise<any> {
+  return fetchJson<any>(`${API_BASE}/prescriptions/${id}/fulfill`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+}
+
+export async function requestAlternativePrescription(id: string, comments: string): Promise<any> {
+  return fetchJson<any>(`${API_BASE}/prescriptions/${id}/alternative`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ comments })
+  });
+}
+
+export async function restockMedicine(id: string, amount: number): Promise<any> {
+  return fetchJson<any>(`${API_BASE}/medicine_inventory/${id}/restock`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ amount })
+  });
+}
+
+export async function sendPrescriptionToPharmacy(payload: {
+  patient_id: string;
+  doctor_id?: string;
+  items: { name: string; dosage: string; frequency: string; duration: number; quantity: number }[];
+  doctor_comments?: string;
+}): Promise<any> {
+  return fetchJson<any>(`${API_BASE}/prescriptions/send-to-pharmacy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchPharmacyData(): Promise<{
+  prescriptions: any[];
+  inventory: MedicineInventory[];
+}> {
+  return fetchJson<{ prescriptions: any[]; inventory: MedicineInventory[] }>(`${API_BASE}/pharmacy`);
+}

@@ -17,6 +17,29 @@ export class Router {
       throw new Error(`Container with ID #${appContainerId} not found`);
     }
     this.appContainer = container;
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', () => {
+      this.routeFromHash();
+    });
+  }
+
+  public routeFromHash() {
+    const hash = window.location.hash.replace('#', '') || 'dashboard';
+    if (hash === 'pharmacy') {
+      this.navigate('pharmacy');
+    } else if (hash.startsWith('patient-profile/')) {
+      const patientId = hash.split('/')[1];
+      this.navigate('patient-profile', { patientId });
+    } else if (hash === 'patients') {
+      this.navigate('patients');
+    } else if (hash === 'prescriptions') {
+      this.navigate('prescriptions');
+    } else if (hash === 'schedule') {
+      this.navigate('schedule');
+    } else {
+      this.navigate('dashboard');
+    }
   }
 
   public registerView(name: string, view: View) {
@@ -26,6 +49,17 @@ export class Router {
   public navigate(routeName: string, params: any = {}) {
     this.currentRoute = routeName;
     this.currentParams = params;
+    
+    // Sync hash with navigation state
+    let targetHash = routeName;
+    if (routeName === 'patient-profile' && params.patientId) {
+      targetHash = `patient-profile/${params.patientId}`;
+    }
+    
+    if (window.location.hash.replace('#', '') !== targetHash) {
+      window.location.hash = targetHash;
+    }
+
     this.renderCurrentView();
   }
 
@@ -33,6 +67,49 @@ export class Router {
     const view = this.views[this.currentRoute];
     if (!view) {
       console.error(`View ${this.currentRoute} not registered`);
+      return;
+    }
+
+    // SPECIAL CASE: Pharmacy Page - Separate Dashboard Layout
+    if (this.currentRoute === 'pharmacy') {
+      this.appContainer.className = 'app-container pharmacy-portal-container';
+      this.appContainer.innerHTML = `
+        <main class="pharmacy-viewport" id="viewport-container" style="width: 100%; min-height: 100vh; background-color: #f8fafc;"></main>
+      `;
+
+      const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
+      
+      // Loading state
+      viewport.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #64748b; font-family: var(--font-sans);">
+          <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <span>Loading pharmacy portal data...</span>
+        </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+
+      try {
+        const htmlContent = await view.render(this.currentParams);
+        viewport.innerHTML = htmlContent;
+      } catch (err) {
+        console.error('Render error:', err);
+        viewport.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #ef4444; font-family: var(--font-sans); text-align: center; padding: 20px;">
+            <span style="font-size: 40px; margin-bottom: 16px;">⚠️</span>
+            <h3 style="margin-bottom: 8px;">Failed to load pharmacy data</h3>
+            <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
+          </div>
+        `;
+      }
+
+      if (view.onMount) {
+        view.onMount(viewport, this);
+      }
       return;
     }
 

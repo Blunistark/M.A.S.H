@@ -1,6 +1,6 @@
 export type ProfileRole = 'patient' | 'doctor' | 'nurse' | 'admin';
 export type AppointmentStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-export type PrescriptionStatus = 'pending_check' | 'active' | 'completed';
+export type PrescriptionStatus = 'pending_check' | 'active' | 'completed' | 'pushed_to_pharma' | 'alternative_requested' | 'fulfilled';
 
 export interface Profile {
   id: string;
