@@ -1,42 +1,46 @@
 import { type View, Router } from '../router';
-import { mockPatients } from '../mockData';
+import { mockProfiles, mockMedicalRecords } from '../mockData';
 import { getIcon } from '../assets/icons';
 
 let searchQuery = '';
 
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
+
 export class PatientsListView implements View {
   public render(): string {
+    const patients = mockProfiles.filter(p => p.role === 'patient');
+
     // Filter patients based on search query
-    const filteredPatients = mockPatients.filter(patient => 
-      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.bloodType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.chronicConditions?.some(c => c.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    const filteredPatients = patients.filter(patient => {
+      const records = mockMedicalRecords.filter(r => r.patient_id === patient.id);
+      return patient.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             records.some(r => r.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    });
 
     // Generate patient cards
     const patientCards = filteredPatients.map(patient => {
+      const initials = getInitials(patient.full_name);
+      
       return `
         <div class="patient-profile-card">
-          <div class="patient-card-avatar-wrapper">
-            <img src="${patient.photo}" alt="${patient.name}" class="patient-card-avatar-img" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'"/>
+          <div class="patient-card-avatar-wrapper" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">
+            ${initials}
           </div>
-          <h3 class="patient-card-name">${patient.name}</h3>
+          <h3 class="patient-card-name">${patient.full_name}</h3>
           <div class="patient-card-details">
-            ${patient.age} yrs (${patient.dob}) &bull; ${patient.gender} &bull; Type ${patient.bloodType}
+            Patient
           </div>
 
           <div class="patient-card-contacts">
             <div class="patient-contact-item">
               ${getIcon('phone', 'patient-contact-icon')}
-              <span>${patient.phone}</span>
+              <span>${patient.contact_number || 'N/A'}</span>
             </div>
-            <div class="patient-contact-item">
+            <div class="patient-contact-item" style="opacity: 0.5;">
               ${getIcon('mail', 'patient-contact-icon')}
-              <span>${patient.email}</span>
-            </div>
-            <div class="patient-contact-item">
-              ${getIcon('map-pin', 'patient-contact-icon')}
-              <span>${patient.address}</span>
+              <span>No email provided</span>
             </div>
           </div>
 
@@ -58,7 +62,7 @@ export class PatientsListView implements View {
           <!-- Interactive Search Bar -->
           <div class="header-utility-icons" style="gap: 12px; background: #ffffff; padding: 6px 12px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; width: 300px;">
             ${getIcon('search', 'nav-icon')}
-            <input type="text" id="patient-search-input" placeholder="Search by name, blood type..." value="${searchQuery}" style="border: none; outline: none; font-size: 13px; width: 100%; font-family: var(--font-sans);" />
+            <input type="text" id="patient-search-input" placeholder="Search by name, conditions..." value="${searchQuery}" style="border: none; outline: none; font-size: 13px; width: 100%; font-family: var(--font-sans);" />
           </div>
           <div class="header-utility-icons">
             <button class="header-icon-btn">
@@ -81,7 +85,7 @@ export class PatientsListView implements View {
             : `
               <div style="text-align: center; padding: 60px; color: #64748b;">
                 <h3>No patients found</h3>
-                <p style="margin-top: 8px;">Try searching for a different name, condition, or blood type.</p>
+                <p style="margin-top: 8px;">Try searching for a different name or condition.</p>
               </div>
             `
         }

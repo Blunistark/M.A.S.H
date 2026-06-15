@@ -1,66 +1,100 @@
 import { type View, Router } from '../router';
-import { mockPatients } from '../mockData';
+import { 
+  mockProfiles, 
+  mockMedicalRecords, 
+  mockPrescriptions, 
+  mockPrescriptionItems, 
+  mockMedicineInventory,
+  mockDoctorDetails
+} from '../mockData';
 import { getIcon } from '../assets/icons';
+
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
 
 export class PatientProfileView implements View {
   public render(params?: { patientId: string }): string {
     const patientId = params?.patientId || 'john-doe';
-    const patient = mockPatients.find(p => p.id === patientId) || mockPatients[0];
+    const patient = mockProfiles.find(p => p.id === patientId);
 
-    // Care team list generator
-    const careTeamHTML = (patient.careTeam || [
-      {
-        name: 'Dr. Smith',
-        role: 'Primary Care',
-        avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150',
-        active: true
-      }
-    ]).map(member => `
-      <div class="care-team-badge ${member.active ? 'active' : ''}">
-        <img src="${member.avatar}" alt="${member.name}" class="care-team-avatar" />
-        <div class="care-team-text">
-          <div class="care-team-name">${member.name}</div>
-          <div class="care-team-role">${member.role}</div>
+    if (!patient) {
+      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+    }
+
+    const initials = getInitials(patient.full_name);
+
+    // Get medical records
+    const records = mockMedicalRecords.filter(r => r.patient_id === patientId);
+    const conditions = records.filter(r => r.record_type === 'Condition');
+    const allergies = records.filter(r => r.record_type === 'Allergy');
+    const vitals = records.filter(r => r.record_type === 'Vital');
+    const tests = records.filter(r => r.record_type === 'Test');
+    const surgeries = records.filter(r => r.record_type === 'Surgery');
+
+    // Care team list generator (derive from doctors in medical records or just mock a primary care)
+    const careTeamIds = new Set(records.map(r => r.doctor_id));
+    if (careTeamIds.size === 0) careTeamIds.add('dr-smith'); // fallback
+    const careTeamHTML = Array.from(careTeamIds).map(doctorId => {
+      const doctor = mockProfiles.find(p => p.id === doctorId);
+      const details = mockDoctorDetails.find(d => d.doctor_id === doctorId);
+      if (!doctor) return '';
+      return `
+        <div class="care-team-badge active">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--surface-200); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 8px;">
+            ${getInitials(doctor.full_name)}
+          </div>
+          <div class="care-team-text">
+            <div class="care-team-name">${doctor.full_name}</div>
+            <div class="care-team-role">${details?.specialty || 'Doctor'}</div>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
-    // Chronic conditions list
-    const conditionsHTML = (patient.chronicConditions || [])
-      .map(cond => `<li>${cond}</li>`)
+    const conditionsHTML = conditions
+      .map(cond => `<li>${cond.description}</li>`)
       .join('');
 
-    // Allergies list
-    const allergiesHTML = (patient.allergies || [])
-      .map(allergy => `
-        <li class="allergy-item">
-          ${allergy.name} <span class="allergy-severity">(${allergy.severity})</span>
-        </li>
-      `).join('');
+    const allergiesHTML = allergies
+      .map(allergy => {
+        const severity = allergy.metadata?.severity || 'Unknown severity';
+        return `
+          <li class="allergy-item">
+            ${allergy.description} <span class="allergy-severity">(${severity})</span>
+          </li>
+        `;
+      }).join('');
 
-    // Medications list
-    const medicationsHTML = (patient.medications || [])
-      .map(med => `
-        <div class="medication-item">
-          <div class="medication-info">
-            <span class="medication-name">${med.name}</span>
-            <span class="medication-dosage">${med.dosage}</span>
+    // Active prescriptions
+    const activePrescriptions = mockPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
+    const activeItems = mockPrescriptionItems.filter(i => activePrescriptions.some(p => p.id === i.prescription_id));
+    
+    const medicationsHTML = activeItems
+      .map(item => {
+        const med = mockMedicineInventory.find(m => m.id === item.medicine_id);
+        return `
+          <div class="medication-item">
+            <div class="medication-info">
+              <span class="medication-name">${med?.medicine_name || 'Unknown'}</span>
+              <span class="medication-dosage">${item.dosage}</span>
+            </div>
+            <div class="medication-check-circle">
+              ${getIcon('check-circle', 'nav-icon')}
+            </div>
           </div>
-          <div class="medication-check-circle">
-            ${getIcon('check-circle', 'nav-icon')}
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
     // Past tests rows
-    const testsHTML = (patient.pastTests || [])
+    const testsHTML = tests
       .map(test => `
         <tr>
-          <td>${test.date}</td>
-          <td><strong>${test.name}</strong></td>
-          <td><span class="test-result-pill ${test.resultClass}">${test.result}</span></td>
+          <td>${new Date(test.record_date).toLocaleDateString()}</td>
+          <td><strong>${test.description}</strong></td>
+          <td><span class="test-result-pill normal">Recorded</span></td>
           <td>
-            <a href="#" class="view-test-link" data-test="${test.name}">
+            <a href="#" class="view-test-link" data-test="${test.description}">
               View ${getIcon('eye', 'test-action-icon')}
             </a>
           </td>
@@ -68,24 +102,26 @@ export class PatientProfileView implements View {
       `).join('');
 
     // Surgical history timeline
-    const surgicalHTML = (patient.surgicalHistory || [])
+    const surgicalHTML = surgeries
       .map(surg => `
         <div class="timeline-item">
           <div class="timeline-marker-column">
-            <div class="timeline-dot ${surg.checked ? 'checked' : ''}">
-              ${surg.checked ? getIcon('check-circle', 'nav-icon') : ''}
+            <div class="timeline-dot checked">
+              ${getIcon('check-circle', 'nav-icon')}
             </div>
             <div class="timeline-connector"></div>
           </div>
           <div class="timeline-content-card">
             <div class="timeline-header">
-              <span class="timeline-title">${surg.name}</span>
-              <span class="timeline-date">${surg.date}</span>
+              <span class="timeline-title">${surg.description}</span>
+              <span class="timeline-date">${new Date(surg.record_date).toLocaleDateString()}</span>
             </div>
-            <p class="timeline-description">${surg.description}</p>
           </div>
         </div>
       `).join('');
+
+    // Get latest vitals
+    const latestVitals = vitals.length > 0 ? vitals[vitals.length - 1].metadata : null;
 
     return `
       <!-- Top banner backdrop (Deep dark gradient containing patient portrait) -->
@@ -118,7 +154,9 @@ export class PatientProfileView implements View {
         <!-- Centered Glowing Patient Photo inside banner -->
         <div class="patient-hero-content">
           <div class="patient-glowing-aura"></div>
-          <img src="${patient.photo}" alt="${patient.name}" class="patient-hero-avatar-large" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=300'"/>
+          <div class="patient-hero-avatar-large" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: bold; border-radius: 50%; width: 120px; height: 120px; border: 4px solid white;">
+            ${initials}
+          </div>
         </div>
 
       </section>
@@ -126,26 +164,18 @@ export class PatientProfileView implements View {
       <!-- Floating Patient Demographics Glass Card -->
       <section class="patient-floating-card">
         <div class="floating-patient-info">
-          <div class="floating-avatar-circle">
-            <img src="${patient.photo}" alt="${patient.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'"/>
+          <div class="floating-avatar-circle" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;">
+            ${initials}
           </div>
           <div class="floating-details-block">
-            <h2 class="floating-patient-name">${patient.name}</h2>
+            <h2 class="floating-patient-name">${patient.full_name}</h2>
             <div class="floating-demographics">
-              ${patient.age} yrs (DOB: ${patient.dob}) &bull; ${patient.gender} &bull; Blood Type: ${patient.bloodType}
+              Patient
             </div>
             <div class="floating-contacts-row">
               <div class="floating-contact-item">
                 ${getIcon('phone', 'floating-contact-icon')}
-                <span>${patient.phone}</span>
-              </div>
-              <div class="floating-contact-item">
-                ${getIcon('mail', 'floating-contact-icon')}
-                <span>${patient.email}</span>
-              </div>
-              <div class="floating-contact-item">
-                ${getIcon('map-pin', 'floating-contact-icon')}
-                <span>${patient.address}</span>
+                <span>${patient.contact_number || 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -211,17 +241,17 @@ export class PatientProfileView implements View {
             <div class="vital-signs-grid">
               <div class="vital-sign-card">
                 <span class="vital-sign-label">Blood Pressure</span>
-                <span class="vital-sign-value">${patient.vitals?.bp || 'N/A'}</span>
+                <span class="vital-sign-value">${latestVitals?.bp || 'N/A'}</span>
                 <span class="vital-sign-status">Normal</span>
               </div>
               <div class="vital-sign-card" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0.05) 100%);">
                 <span class="vital-sign-label">Heart Rate</span>
-                <span class="vital-sign-value">${patient.vitals?.hr || 'N/A'}</span>
+                <span class="vital-sign-value">${latestVitals?.hr || 'N/A'}</span>
                 <span class="vital-sign-status resting">Resting</span>
               </div>
               <div class="vital-sign-card" style="background: linear-gradient(135deg, rgba(30, 58, 138, 0.1) 0%, rgba(30, 58, 138, 0.05) 100%);">
                 <span class="vital-sign-label">Weight</span>
-                <span class="vital-sign-value">${patient.vitals?.weight || 'N/A'}</span>
+                <span class="vital-sign-value">${latestVitals?.weight || 'N/A'}</span>
                 <span class="vital-sign-status stable">Stable</span>
               </div>
             </div>
@@ -270,7 +300,6 @@ export class PatientProfileView implements View {
   }
 
   public onMount(container: HTMLElement, router: Router): void {
-    // Back navigation button
     const backBtn = container.querySelector('#back-to-patients-list');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
@@ -278,7 +307,6 @@ export class PatientProfileView implements View {
       });
     }
 
-    // Button actions alert placeholders
     const buttons = [
       '#book-appointment-action',
       '#view-history-btn',
@@ -297,7 +325,6 @@ export class PatientProfileView implements View {
       }
     });
 
-    // Write Prescription navigation
     const writeRxBtn = container.querySelector('#write-prescription-action') as HTMLElement;
     if (writeRxBtn) {
       writeRxBtn.addEventListener('click', (e) => {
@@ -316,7 +343,6 @@ export class PatientProfileView implements View {
       });
     }
 
-    // Test detail click
     const testLinks = container.querySelectorAll('.view-test-link');
     testLinks.forEach(link => {
       link.addEventListener('click', (e) => {
