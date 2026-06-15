@@ -14,7 +14,7 @@ class SummaryAgent {
         // Listen for requests to generate patient summaries
         this.agent.onEvent('GENERATE_SUMMARY', async (payload) => {
             Telemetry_1.Telemetry.trackEvent(this.agent.name, 'START_SUMMARY_GENERATION', { patientId: payload.patientId });
-            const summary = await this.callLLMForSummary(payload.history);
+            const summary = await this.callLLMForSummary(payload.history, payload.tests || [], payload.surgeries || []);
             // Update room state
             band_config_1.HealthcareOrchestrationRoom.updateState(`patient_summary_${payload.patientId}`, summary);
             // Full-duplex delegation: broadcast completion to the room
@@ -22,9 +22,16 @@ class SummaryAgent {
             band_config_1.HealthcareOrchestrationRoom.broadcast('SUMMARY_AVAILABLE', { patientId: payload.patientId, summary });
         });
     }
-    async callLLMForSummary(history) {
-        // Mocking Gemini/Mistral API call
-        return `Patient has a history of ${history.length} notable events. Last visit was regular. Recommended follow-up in 6 months.`;
+    async callLLMForSummary(history, tests, surgeries) {
+        // Generate summarized string including tests and surgeries
+        const historyText = history.length > 0 ? `History: ${history.join(', ')}.` : 'No significant medical history.';
+        const testsText = tests.length > 0
+            ? `Tests conducted: ${tests.map(t => `${t.name} on ${t.date} (${t.result})`).join('; ')}.`
+            : 'No diagnostic tests recorded.';
+        const surgeriesText = surgeries.length > 0
+            ? `Surgeries: ${surgeries.map(s => `${s.procedure} on ${s.date} (Outcome: ${s.outcome})`).join('; ')}.`
+            : 'No surgical history.';
+        return `Patient Summary:\n- ${historyText}\n- ${testsText}\n- ${surgeriesText}`;
     }
 }
 exports.SummaryAgent = SummaryAgent;

@@ -1,6 +1,18 @@
 import { HealthcareOrchestrationRoom, BandSDK, BandAgent } from './band_config';
 import { Telemetry } from './Telemetry';
 
+export interface TestRecord {
+  name: string;
+  date: string;
+  result: string;
+}
+
+export interface SurgeryRecord {
+  procedure: string;
+  date: string;
+  outcome: string;
+}
+
 export class SummaryAgent {
   private agent: BandAgent;
 
@@ -13,10 +25,15 @@ export class SummaryAgent {
 
   private setupListeners() {
     // Listen for requests to generate patient summaries
-    this.agent.onEvent('GENERATE_SUMMARY', async (payload: { patientId: string, history: any[] }) => {
+    this.agent.onEvent('GENERATE_SUMMARY', async (payload: {
+      patientId: string;
+      history: string[];
+      tests?: TestRecord[];
+      surgeries?: SurgeryRecord[];
+    }) => {
       Telemetry.trackEvent(this.agent.name, 'START_SUMMARY_GENERATION', { patientId: payload.patientId });
       
-      const summary = await this.callLLMForSummary(payload.history);
+      const summary = await this.callLLMForSummary(payload.history, payload.tests || [], payload.surgeries || []);
       
       // Update room state
       HealthcareOrchestrationRoom.updateState(`patient_summary_${payload.patientId}`, summary);
@@ -27,8 +44,16 @@ export class SummaryAgent {
     });
   }
 
-  private async callLLMForSummary(history: any[]) {
-    // Mocking Gemini/Mistral API call
-    return `Patient has a history of ${history.length} notable events. Last visit was regular. Recommended follow-up in 6 months.`;
+  private async callLLMForSummary(history: string[], tests: TestRecord[], surgeries: SurgeryRecord[]) {
+    // Generate summarized string including tests and surgeries
+    const historyText = history.length > 0 ? `History: ${history.join(', ')}.` : 'No significant medical history.';
+    const testsText = tests.length > 0 
+      ? `Tests conducted: ${tests.map(t => `${t.name} on ${t.date} (${t.result})`).join('; ')}.`
+      : 'No diagnostic tests recorded.';
+    const surgeriesText = surgeries.length > 0
+      ? `Surgeries: ${surgeries.map(s => `${s.procedure} on ${s.date} (Outcome: ${s.outcome})`).join('; ')}.`
+      : 'No surgical history.';
+
+    return `Patient Summary:\n- ${historyText}\n- ${testsText}\n- ${surgeriesText}`;
   }
 }
