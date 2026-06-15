@@ -1,0 +1,355 @@
+import { type View, Router } from '../router';
+import { 
+  mockProfiles, 
+  mockMedicalRecords, 
+  mockPrescriptions, 
+  mockPrescriptionItems, 
+  mockMedicineInventory,
+  mockDoctorDetails
+} from '../mockData';
+import { getIcon } from '../assets/icons';
+
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
+
+export class PatientProfileView implements View {
+  public render(params?: { patientId: string }): string {
+    const patientId = params?.patientId || 'john-doe';
+    const patient = mockProfiles.find(p => p.id === patientId);
+
+    if (!patient) {
+      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+    }
+
+    const initials = getInitials(patient.full_name);
+
+    // Get medical records
+    const records = mockMedicalRecords.filter(r => r.patient_id === patientId);
+    const conditions = records.filter(r => r.record_type === 'Condition');
+    const allergies = records.filter(r => r.record_type === 'Allergy');
+    const vitals = records.filter(r => r.record_type === 'Vital');
+    const tests = records.filter(r => r.record_type === 'Test');
+    const surgeries = records.filter(r => r.record_type === 'Surgery');
+
+    // Care team list generator (derive from doctors in medical records or just mock a primary care)
+    const careTeamIds = new Set(records.map(r => r.doctor_id));
+    if (careTeamIds.size === 0) careTeamIds.add('dr-smith'); // fallback
+    const careTeamHTML = Array.from(careTeamIds).map(doctorId => {
+      const doctor = mockProfiles.find(p => p.id === doctorId);
+      const details = mockDoctorDetails.find(d => d.doctor_id === doctorId);
+      if (!doctor) return '';
+      return `
+        <div class="care-team-badge active">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--surface-200); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 8px;">
+            ${getInitials(doctor.full_name)}
+          </div>
+          <div class="care-team-text">
+            <div class="care-team-name">${doctor.full_name}</div>
+            <div class="care-team-role">${details?.specialty || 'Doctor'}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const conditionsHTML = conditions
+      .map(cond => `<li>${cond.description}</li>`)
+      .join('');
+
+    const allergiesHTML = allergies
+      .map(allergy => {
+        const severity = allergy.metadata?.severity || 'Unknown severity';
+        return `
+          <li class="allergy-item">
+            ${allergy.description} <span class="allergy-severity">(${severity})</span>
+          </li>
+        `;
+      }).join('');
+
+    // Active prescriptions
+    const activePrescriptions = mockPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
+    const activeItems = mockPrescriptionItems.filter(i => activePrescriptions.some(p => p.id === i.prescription_id));
+    
+    const medicationsHTML = activeItems
+      .map(item => {
+        const med = mockMedicineInventory.find(m => m.id === item.medicine_id);
+        return `
+          <div class="medication-item">
+            <div class="medication-info">
+              <span class="medication-name">${med?.medicine_name || 'Unknown'}</span>
+              <span class="medication-dosage">${item.dosage}</span>
+            </div>
+            <div class="medication-check-circle">
+              ${getIcon('check-circle', 'nav-icon')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+    // Past tests rows
+    const testsHTML = tests
+      .map(test => `
+        <tr>
+          <td>${new Date(test.record_date).toLocaleDateString()}</td>
+          <td><strong>${test.description}</strong></td>
+          <td><span class="test-result-pill normal">Recorded</span></td>
+          <td>
+            <a href="#" class="view-test-link" data-test="${test.description}">
+              View ${getIcon('eye', 'test-action-icon')}
+            </a>
+          </td>
+        </tr>
+      `).join('');
+
+    // Surgical history timeline
+    const surgicalHTML = surgeries
+      .map(surg => `
+        <div class="timeline-item">
+          <div class="timeline-marker-column">
+            <div class="timeline-dot checked">
+              ${getIcon('check-circle', 'nav-icon')}
+            </div>
+            <div class="timeline-connector"></div>
+          </div>
+          <div class="timeline-content-card">
+            <div class="timeline-header">
+              <span class="timeline-title">${surg.description}</span>
+              <span class="timeline-date">${new Date(surg.record_date).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+    // Get latest vitals
+    const latestVitals = vitals.length > 0 ? vitals[vitals.length - 1].metadata : null;
+
+    return `
+      <!-- Top banner backdrop (Deep dark gradient containing patient portrait) -->
+      <section class="profile-top-banner">
+        
+        <!-- Navigation bar inside banner -->
+        <div class="profile-banner-nav">
+          <button class="back-link-btn" id="back-to-patients-list">
+            ${getIcon('chevron-left', 'nav-icon')}
+            <span>Back to list</span>
+          </button>
+          
+          <div class="profile-actions">
+            <button class="btn-secondary" id="write-prescription-action" data-patient-id="${patient.id}">Write Prescription</button>
+            <button class="btn-primary" id="book-appointment-action">
+              ${getIcon('plus', 'nav-icon')}
+              <span>New Appointment</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Care Team Badge row inside banner -->
+        <div class="care-team-section">
+          <span class="care-team-label">Care Team</span>
+          <div class="care-team-list">
+            ${careTeamHTML}
+          </div>
+        </div>
+
+        <!-- Centered Glowing Patient Photo inside banner -->
+        <div class="patient-hero-content">
+          <div class="patient-glowing-aura"></div>
+          <div class="patient-hero-avatar-large" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: bold; border-radius: 50%; width: 120px; height: 120px; border: 4px solid white;">
+            ${initials}
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Floating Patient Demographics Glass Card -->
+      <section class="patient-floating-card">
+        <div class="floating-patient-info">
+          <div class="floating-avatar-circle" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;">
+            ${initials}
+          </div>
+          <div class="floating-details-block">
+            <h2 class="floating-patient-name">${patient.full_name}</h2>
+            <div class="floating-demographics">
+              Patient
+            </div>
+            <div class="floating-contacts-row">
+              <div class="floating-contact-item">
+                ${getIcon('phone', 'floating-contact-icon')}
+                <span>${patient.contact_number || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="floating-actions-right">
+          <button class="btn-secondary-dark" id="view-history-btn">View History</button>
+          <button class="btn-secondary-dark" id="write-prescription-floating" data-patient-id="${patient.id}">Write Prescription</button>
+          <button class="btn-teal" id="book-appt-floating">Book Appointment</button>
+        </div>
+      </section>
+
+      <!-- Profile Grid Details -->
+      <div class="profile-content-layout">
+        
+        <!-- Left Column: Medical History & Medications -->
+        <div class="profile-column">
+          
+          <!-- Medical History -->
+          <div class="dashboard-card medical-history-card">
+            <div class="section-title">
+              ${getIcon('activity', 'nav-icon')}
+              <span>Medical History</span>
+            </div>
+            
+            <div class="history-subsection">
+              <div class="history-subsection-label">Chronic Conditions</div>
+              <ul class="history-list">
+                ${conditionsHTML || '<li>No documented chronic conditions.</li>'}
+              </ul>
+            </div>
+
+            <div class="history-subsection" style="margin-top: 24px;">
+              <div class="history-subsection-label">Allergies</div>
+              <ul class="history-list allergies">
+                ${allergiesHTML || '<li>No known drug or environmental allergies.</li>'}
+              </ul>
+            </div>
+          </div>
+
+          <!-- Current Medications -->
+          <div class="dashboard-card medications-card">
+            <div class="section-title" style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+              ${getIcon('pill', 'nav-icon')}
+              <span>Current Medications</span>
+            </div>
+            <div class="medications-list">
+              ${medicationsHTML || '<p style="font-size: 13px; color: #64748b;">No active medications.</p>'}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Column: Vitals, Tests & Timeline -->
+        <div class="profile-column">
+          
+          <!-- Vital Signs -->
+          <div class="dashboard-card vital-signs-section-card">
+            <div class="section-title" style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-size: 18px; font-weight: 600; color: #0f172a;">
+              ${getIcon('activity', 'nav-icon')}
+              <span>Vital Signs</span>
+            </div>
+            <div class="vital-signs-grid">
+              <div class="vital-sign-card">
+                <span class="vital-sign-label">Blood Pressure</span>
+                <span class="vital-sign-value">${latestVitals?.bp || 'N/A'}</span>
+                <span class="vital-sign-status">Normal</span>
+              </div>
+              <div class="vital-sign-card" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0.05) 100%);">
+                <span class="vital-sign-label">Heart Rate</span>
+                <span class="vital-sign-value">${latestVitals?.hr || 'N/A'}</span>
+                <span class="vital-sign-status resting">Resting</span>
+              </div>
+              <div class="vital-sign-card" style="background: linear-gradient(135deg, rgba(30, 58, 138, 0.1) 0%, rgba(30, 58, 138, 0.05) 100%);">
+                <span class="vital-sign-label">Weight</span>
+                <span class="vital-sign-value">${latestVitals?.weight || 'N/A'}</span>
+                <span class="vital-sign-status stable">Stable</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Past Tests -->
+          <div class="dashboard-card past-tests-card">
+            <div class="card-header" style="padding: 0 0 16px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+              <div class="section-title" style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-size: 18px; font-weight: 600; color: #0f172a; margin: 0;">
+                ${getIcon('flask', 'nav-icon')}
+                <span>Past Tests</span>
+              </div>
+              <a href="#" class="card-header-link" id="view-all-tests-btn">View All</a>
+            </div>
+            <table class="tests-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Test Name</th>
+                  <th>Result</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${testsHTML || '<tr><td colspan="4" style="text-align: center; color: #64748b; padding: 12px 0;">No test reports recorded.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Surgical History -->
+          <div class="dashboard-card surgical-history-card">
+            <div class="section-title" style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-size: 18px; font-weight: 600; color: #0f172a;">
+              ${getIcon('activity', 'nav-icon')}
+              <span>Surgical History</span>
+            </div>
+            
+            <div class="timeline-container">
+              ${surgicalHTML || '<p style="font-size: 13px; color: #64748b;">No surgical history documented.</p>'}
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    `;
+  }
+
+  public onMount(container: HTMLElement, router: Router): void {
+    const backBtn = container.querySelector('#back-to-patients-list');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        router.navigate('patients');
+      });
+    }
+
+    const buttons = [
+      '#book-appointment-action',
+      '#view-history-btn',
+      '#book-appt-floating',
+      '#view-all-tests-btn'
+    ];
+
+    buttons.forEach(selector => {
+      const btn = container.querySelector(selector);
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const actionText = btn.textContent?.trim() || 'action';
+          alert(`Triggering "${actionText}" operation...`);
+        });
+      }
+    });
+
+    const writeRxBtn = container.querySelector('#write-prescription-action') as HTMLElement;
+    if (writeRxBtn) {
+      writeRxBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const pId = writeRxBtn.getAttribute('data-patient-id');
+        router.navigate('prescriptions', { patientId: pId });
+      });
+    }
+
+    const writeRxFloatingBtn = container.querySelector('#write-prescription-floating') as HTMLElement;
+    if (writeRxFloatingBtn) {
+      writeRxFloatingBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const pId = writeRxFloatingBtn.getAttribute('data-patient-id');
+        router.navigate('prescriptions', { patientId: pId });
+      });
+    }
+
+    const testLinks = container.querySelectorAll('.view-test-link');
+    testLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const testName = link.getAttribute('data-test');
+        alert(`Opening diagnostic panel for: ${testName}`);
+      });
+    });
+  }
+}
