@@ -1,7 +1,7 @@
 import { getIcon } from './assets/icons';
 
 export interface View {
-  render(params?: any): string;
+  render(params?: any): string | Promise<string>;
   onMount?(container: HTMLElement, router: Router): void;
 }
 
@@ -29,7 +29,7 @@ export class Router {
     this.renderCurrentView();
   }
 
-  private renderCurrentView() {
+  private async renderCurrentView() {
     const view = this.views[this.currentRoute];
     if (!view) {
       console.error(`View ${this.currentRoute} not registered`);
@@ -105,8 +105,33 @@ export class Router {
       viewport.className = 'main-viewport';
     }
 
-    // Render the active view and mount
-    viewport.innerHTML = view.render(this.currentParams);
+    // Render the active view and mount with loading indicator
+    viewport.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: #64748b; font-family: var(--font-sans);">
+        <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+        <span>Loading portal data...</span>
+      </div>
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    `;
+
+    try {
+      const htmlContent = await view.render(this.currentParams);
+      viewport.innerHTML = htmlContent;
+    } catch (err) {
+      console.error('Render error:', err);
+      viewport.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: #ef4444; font-family: var(--font-sans); text-align: center; padding: 20px;">
+          <span style="font-size: 40px; margin-bottom: 16px;">⚠️</span>
+          <h3 style="margin-bottom: 8px;">Failed to load data</h3>
+          <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
+        </div>
+      `;
+    }
     
     if (view.onMount) {
       view.onMount(viewport, this);

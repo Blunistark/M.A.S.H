@@ -1,12 +1,14 @@
 import { type View, Router } from '../router';
 import { 
-  mockProfiles, 
-  mockMedicalRecords, 
-  mockPrescriptions, 
-  mockPrescriptionItems, 
-  mockMedicineInventory,
-  mockDoctorDetails
-} from '../mockData';
+  fetchProfiles,
+  fetchProfileById,
+  fetchMedicalRecords,
+  fetchPrescriptions,
+  fetchPrescriptionItems,
+  fetchMedicineInventory,
+  fetchDoctorDetails
+} from '../api';
+import type { Profile } from '../types';
 import { getIcon } from '../assets/icons';
 
 function getInitials(name: string): string {
@@ -14,30 +16,39 @@ function getInitials(name: string): string {
 }
 
 export class PatientProfileView implements View {
-  public render(params?: { patientId: string }): string {
+  public async render(params?: { patientId: string }): Promise<string> {
     const patientId = params?.patientId || 'john-doe';
-    const patient = mockProfiles.find(p => p.id === patientId);
-
-    if (!patient) {
+    let patient: Profile;
+    try {
+      patient = await fetchProfileById(patientId);
+    } catch (err) {
       return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
     }
 
     const initials = getInitials(patient.full_name);
 
-    // Get medical records
-    const records = mockMedicalRecords.filter(r => r.patient_id === patientId);
+    // Fetch database tables asynchronously
+    const allRecords = await fetchMedicalRecords();
+    const allPrescriptions = await fetchPrescriptions();
+    const allPrescriptionItems = await fetchPrescriptionItems();
+    const allInventory = await fetchMedicineInventory();
+    const allProfiles = await fetchProfiles();
+    const allDoctorDetails = await fetchDoctorDetails();
+
+    // Get medical records for this patient
+    const records = allRecords.filter(r => r.patient_id === patientId);
     const conditions = records.filter(r => r.record_type === 'Condition');
     const allergies = records.filter(r => r.record_type === 'Allergy');
     const vitals = records.filter(r => r.record_type === 'Vital');
     const tests = records.filter(r => r.record_type === 'Test');
     const surgeries = records.filter(r => r.record_type === 'Surgery');
 
-    // Care team list generator (derive from doctors in medical records or just mock a primary care)
+    // Care team list generator
     const careTeamIds = new Set(records.map(r => r.doctor_id));
     if (careTeamIds.size === 0) careTeamIds.add('dr-smith'); // fallback
     const careTeamHTML = Array.from(careTeamIds).map(doctorId => {
-      const doctor = mockProfiles.find(p => p.id === doctorId);
-      const details = mockDoctorDetails.find(d => d.doctor_id === doctorId);
+      const doctor = allProfiles.find(p => p.id === doctorId);
+      const details = allDoctorDetails.find(d => d.doctor_id === doctorId);
       if (!doctor) return '';
       return `
         <div class="care-team-badge active">
@@ -67,12 +78,12 @@ export class PatientProfileView implements View {
       }).join('');
 
     // Active prescriptions
-    const activePrescriptions = mockPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
-    const activeItems = mockPrescriptionItems.filter(i => activePrescriptions.some(p => p.id === i.prescription_id));
+    const activePrescriptions = allPrescriptions.filter(p => p.patient_id === patientId && p.status === 'active');
+    const activeItems = allPrescriptionItems.filter(i => activePrescriptions.some(p => p.id === i.prescription_id));
     
     const medicationsHTML = activeItems
       .map(item => {
-        const med = mockMedicineInventory.find(m => m.id === item.medicine_id);
+        const med = allInventory.find(m => m.id === item.medicine_id);
         return `
           <div class="medication-item">
             <div class="medication-info">
