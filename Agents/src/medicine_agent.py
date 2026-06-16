@@ -1,11 +1,12 @@
 from typing import Dict, Any
-from src.band_config import HealthcareOrchestrationRoom, BandSDK
+from src.band_config import HealthcareOrchestrationRoom, ClinicalConsultRoom, BandSDK
 from src.telemetry import Telemetry
 
 class MedicineManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("MedicineManagementAgent")
         HealthcareOrchestrationRoom.join(self.agent)
+        ClinicalConsultRoom.join(self.agent)
         self.setup_listeners()
 
     def setup_listeners(self):
@@ -33,8 +34,39 @@ class MedicineManagementAgent:
                 # Broadcast the resolution
                 HealthcareOrchestrationRoom.broadcast("PRESCRIPTION_UPDATED", {"patientId": patient_id, "resolution": human_response})
 
+        async def on_prescription_written(payload: Dict[str, Any]):
+            patient_id = payload["patientId"]
+            prescription = payload["prescription"]
+
+            Telemetry.track_event(self.agent.name, "CLINICAL_PRESCRIPTION_WRITTEN", {"patientId": patient_id})
+
+            is_stock_available = self.check_stock(prescription.get("medicine", ""))
+
+            if is_stock_available:
+                ClinicalConsultRoom.broadcast("PRESCRIPTION_SAFETY_PASSED", {
+                    "patientId": patient_id,
+                    "prescription": prescription,
+                    "status": "approved"
+                })
+            else:
+                human_response = await self.agent.request_human_intervention(
+                    f"Conflict: Medicine '{prescription.get('medicine')}' is out of stock. Alternate prescription required.",
+                    {"patientId": patient_id, "prescription": prescription}
+                )
+
+                Telemetry.track_event(self.agent.name, "CLINICAL_PRESCRIPTION_RESOLVED", human_response)
+
+                ClinicalConsultRoom.broadcast("PRESCRIPTION_SAFETY_PASSED", {
+                    "patientId": patient_id,
+                    "prescription": prescription,
+                    "status": "approved_via_intervention",
+                    "resolution": human_response
+                })
+
         self.agent.on_event("PROCESS_PRESCRIPTION", on_process_prescription)
+        self.agent.on_event("PRESCRIPTION_WRITTEN", on_prescription_written)
 
     def check_stock(self, medicine: str) -> bool:
         # Mock logic: anything with "rare" in the name is out of stock
         return "rare" not in medicine.lower()
+

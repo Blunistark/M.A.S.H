@@ -64,3 +64,4 @@ class BandSDK:
 
 HealthcareOrchestrationRoom = BandSDK.create_room("Healthcare-Orchestration-Room")
 ReceptionNavigationRoom = BandSDK.create_room("Reception-Navigation-Room")
+ClinicalConsultRoom = BandSDK.create_room("Clinical-Consult-Room")

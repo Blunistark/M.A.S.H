@@ -2,6 +2,7 @@ import asyncio
 from src import (
     HealthcareOrchestrationRoom,
     ReceptionNavigationRoom,
+    ClinicalConsultRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
@@ -77,6 +78,19 @@ async def main():
         return original_reception_broadcast(event, payload)
 
     ReceptionNavigationRoom.broadcast = wrapped_reception_broadcast
+
+    # Log simulation events for Clinical-Consult-Room
+    original_clinical_broadcast = ClinicalConsultRoom.broadcast
+
+    def wrapped_clinical_broadcast(event: str, payload: dict):
+        if event == 'PATIENT_HISTORY_COMPILED':
+            print(f"[CLINICAL RESPONSE] Compiled History for {payload['patientId']}:\n{payload['compiledHistory']}")
+        elif event == 'PRESCRIPTION_SAFETY_PASSED':
+            resolution_str = f" (via Intervention - Comments: {payload['resolution']['comments']})" if payload.get('resolution') else ''
+            print(f"[CLINICAL ALERT] Prescription Safety Check passed for {payload['patientId']}: {payload['prescription']['medicine']} (Status: {payload['status']}){resolution_str}")
+        return original_clinical_broadcast(event, payload)
+
+    ClinicalConsultRoom.broadcast = wrapped_clinical_broadcast
 
     # Example simulation of orchestration workflow:
     print("--- Simulating Workflow ---")
@@ -193,8 +207,39 @@ async def main():
         'currentLocation': 'Reception Desk'
     })
 
-    # Wait for final async tasks
+    # 11. Simulating Clinical-Consult-Room Workflow
     await asyncio.sleep(1)
+    print("\n--- Simulating Clinical-Consult-Room Workflow ---")
+
+    # 11.1 SUMMARIZE_PATIENT_HISTORY
+    print("\n[Simulation Step] Doctor requests compiled history for patient P-999")
+    ClinicalConsultRoom.broadcast('SUMMARIZE_PATIENT_HISTORY', {
+        'patientId': 'P-999',
+        'history': ['Hypertension since 2022', 'Penicillin allergy'],
+        'tests': [
+            { 'name': 'ECG', 'date': '2025-05-15', 'result': 'Sinus rhythm' }
+        ],
+        'surgeries': []
+    })
+
+    # 11.2 PRESCRIPTION_WRITTEN (Available medicine: Ibuprofen)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Doctor writes prescription for available medicine: Ibuprofen 400mg")
+    ClinicalConsultRoom.broadcast('PRESCRIPTION_WRITTEN', {
+        'patientId': 'P-999',
+        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+    })
+
+    # 11.3 PRESCRIPTION_WRITTEN (Out-of-stock medicine: Rare-Antibiotic)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Doctor writes prescription for out-of-stock medicine: Rare-Antibiotic 500mg")
+    ClinicalConsultRoom.broadcast('PRESCRIPTION_WRITTEN', {
+        'patientId': 'P-999',
+        'prescription': { 'medicine': 'Rare-Antibiotic 500mg' }
+    })
+
+    # Wait for final async tasks to resolve
+    await asyncio.sleep(4)
 
 if __name__ == "__main__":
     asyncio.run(main())
