@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
+import { Theme } from '../theme';
 
 interface ClinicMapProps {
   activePath: 'lobby' | 'pharmacy' | 'cardiology' | 'pediatrics' | 'dermatology' | null;
@@ -160,15 +161,15 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
       {/* Map Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#ccfbf1' }]} />
+          <View style={[styles.legendColor, { backgroundColor: '#e0f2fe', borderWidth: 1, borderColor: '#bae6fd' }]} />
           <Text style={styles.legendText}>Rooms</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#cbd5e1' }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.lightGray }]} />
           <Text style={styles.legendText}>Corridors</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#0d9488', borderRadius: 4 }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.secondary, borderRadius: 4 }]} />
           <Text style={styles.legendText}>Your Route</Text>
         </View>
       </View>
@@ -178,38 +179,38 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.roundness.lg, // 24px
+    padding: Theme.spacing.cardPadding, // 24px
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    borderColor: Theme.colors.lightGray,
+    shadowColor: Theme.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowRadius: 20,
     elevation: 4,
     width: '100%',
     alignItems: 'center',
   },
   title: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontSize: Theme.typography.bodyLg.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
     marginBottom: 12,
   },
   mapGrid: {
     width: 300,
     height: 320,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
+    backgroundColor: Theme.colors.background,
+    borderRadius: Theme.roundness.md,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: Theme.colors.lightGray,
     position: 'relative',
     overflow: 'hidden',
   },
   corridor: {
     position: 'absolute',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: Theme.colors.lightGray,
     borderRadius: 4,
   },
   room: {
@@ -217,15 +218,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0f2fe',
     borderWidth: 1.5,
     borderColor: '#bae6fd',
-    borderRadius: 8,
+    borderRadius: Theme.roundness.sm,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 4,
   },
   highlightedRoom: {
-    backgroundColor: '#ccfbf1',
-    borderColor: '#14b8a6',
-    shadowColor: '#14b8a6',
+    backgroundColor: Theme.colors.secondaryContainer,
+    borderColor: Theme.colors.secondary,
+    shadowColor: Theme.colors.secondary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -233,12 +234,13 @@ const styles = StyleSheet.create({
   },
   roomLabel: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
   },
   roomSub: {
     fontSize: 8,
-    color: '#64748b',
+    fontFamily: Theme.typography.fontFamily,
+    color: Theme.colors.onSurfaceVariant,
     marginTop: 1,
   },
   // Rooms placements
@@ -277,28 +279,28 @@ const styles = StyleSheet.create({
     bottom: 5,
     alignSelf: 'center',
     left: 110,
-    backgroundColor: '#475569',
+    backgroundColor: Theme.colors.onSurfaceVariant,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: Theme.roundness.sm - 4,
   },
   entranceText: {
-    color: '#ffffff',
+    color: Theme.colors.white,
     fontSize: 9,
-    fontWeight: 'bold',
+    fontFamily: Theme.typography.fontFamilyBold,
   },
   navDot: {
     position: 'absolute',
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#0d9488',
+    backgroundColor: Theme.colors.secondary,
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: Theme.colors.white,
     zIndex: 100,
     marginTop: -6,
     marginLeft: -6,
-    shadowColor: '#0d9488',
+    shadowColor: Theme.colors.secondary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
   },
   legend: {
     flexDirection: 'row',
-    marginTop: 14,
+    marginTop: 16,
     justifyContent: 'space-around',
     width: '100%',
   },
@@ -321,8 +323,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   legendText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '500',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyMedium,
+    color: Theme.colors.onSurfaceVariant,
   },
 });

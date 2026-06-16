@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
+import { Theme } from '../theme';
 import { Message } from '../types';
 
 interface ChatBubbleProps {
@@ -25,7 +26,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
         </View>
         
         {/* Render child cards if any (for assistant message details) */}
-        {children && <View style={styles.cardContainer}>{children}</View>}
+        {!!children && <View style={styles.cardContainer}>{children}</View>}
         
         <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
           {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -38,8 +39,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    marginVertical: 6,
-    paddingHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: Theme.spacing.containerPadding,
     maxWidth: '85%',
   },
   userContainer: {
@@ -53,12 +54,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#ccfbf1', // teal-100
+    backgroundColor: Theme.colors.secondaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#99f6e4',
+    borderColor: Theme.colors.secondary,
   },
   avatarText: {
     fontSize: 18,
@@ -67,49 +68,48 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bubble: {
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderRadius: Theme.roundness.lg, // 24px
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   userBubble: {
-    backgroundColor: '#0d9488', // teal-600
-    borderTopRightRadius: 4,
+    backgroundColor: Theme.colors.primary,
+    borderTopRightRadius: 6,
+    ...Theme.shadows.level1,
   },
   assistantBubble: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 4,
+    backgroundColor: Theme.colors.white,
+    borderTopLeftRadius: 6,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: Theme.colors.lightGray,
+    ...Theme.shadows.level1,
   },
   text: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: Theme.typography.bodyMd.fontSize,
+    lineHeight: Theme.typography.bodyMd.lineHeight,
+    fontFamily: Theme.typography.fontFamily,
   },
   userText: {
-    color: '#ffffff',
+    color: Theme.colors.white,
   },
   assistantText: {
-    color: '#1e293b', // slate-800
+    color: Theme.colors.onSurface,
   },
   cardContainer: {
-    marginTop: 8,
+    marginTop: 10,
   },
   timestamp: {
-    fontSize: 10,
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamily,
     marginTop: 4,
-    color: '#94a3b8', // slate-400
+    color: Theme.colors.outline,
   },
   userTimestamp: {
     textAlign: 'right',
-    marginRight: 4,
+    marginRight: 6,
   },
   assistantTimestamp: {
     textAlign: 'left',
-    marginLeft: 4,
+    marginLeft: 6,
   },
 });

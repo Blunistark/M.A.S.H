@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, ScrollView, View } from 'react-native';
+import { Theme } from '../theme';
 
 interface SuggestionChipsProps {
   onChipPress: (text: string) => void;
@@ -43,26 +44,26 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Theme.spacing.containerPadding,
     alignItems: 'center',
   },
   chip: {
-    backgroundColor: '#e0f2fe', // light sky blue
+    backgroundColor: Theme.colors.white,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: Theme.roundness.md, // 12px
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#bae6fd',
-    shadowColor: '#0284c7',
+    borderColor: Theme.colors.lightGray,
+    shadowColor: Theme.colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   chipText: {
-    color: '#0369a1', // dark sky blue text
-    fontSize: 14,
-    fontWeight: '600',
+    color: Theme.colors.onSurface,
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilyMedium,
   },
 });

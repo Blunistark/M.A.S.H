@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { Theme } from '../theme';
 import { Appointment } from '../types';
 
 interface AppointmentCardProps {
@@ -76,75 +77,75 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.roundness.lg, // 24px
+    padding: Theme.spacing.cardPadding, // 24px
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
+    borderColor: Theme.colors.lightGray,
+    shadowColor: Theme.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 6,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: Theme.colors.lightGray,
     paddingBottom: 10,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   statusIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10b981', // green-500
+    backgroundColor: Theme.colors.success, // teal green
     marginRight: 8,
   },
   title: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.outline,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   body: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   docName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: Theme.typography.bodyLg.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
   },
   specialty: {
-    fontSize: 14,
-    color: '#0d9488',
-    fontWeight: '600',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    color: Theme.colors.secondary, // Teal
     marginTop: 2,
   },
   timeSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
+    backgroundColor: Theme.colors.superLightGray,
+    padding: 12,
+    borderRadius: Theme.roundness.md, // 12px
+    marginTop: 12,
   },
   dateTimeText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilyMedium,
+    color: Theme.colors.onSurfaceVariant,
   },
   locationSection: {
-    marginTop: 10,
+    marginTop: 12,
   },
   locationText: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    color: Theme.colors.onSurfaceVariant,
   },
   footer: {
     flexDirection: 'row',
@@ -152,30 +153,31 @@ const styles = StyleSheet.create({
   },
   btn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    height: Theme.spacing.buttonHeight,
+    borderRadius: Theme.roundness.full, // pill shape
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryBtn: {
-    backgroundColor: '#0d9488',
+    backgroundColor: Theme.colors.primary, // Luminous blue
     marginRight: 6,
+    ...Theme.shadows.level1,
   },
   primaryBtnText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 13,
+    color: Theme.colors.white,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelMd.fontSize,
   },
   secondaryBtn: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Theme.colors.lightGray,
     marginLeft: 6,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Theme.colors.lightGray,
     flex: 0.4,
   },
   secondaryBtnText: {
-    color: '#64748b',
-    fontWeight: '600',
-    fontSize: 13,
+    color: Theme.colors.onSurfaceVariant,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelMd.fontSize,
   },
 });

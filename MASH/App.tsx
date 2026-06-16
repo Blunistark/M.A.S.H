@@ -12,6 +12,16 @@ import {
   Dimensions
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import {
+  useFonts,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+
+// Central Theme Import
+import { Theme } from './theme';
 
 // Component Imports
 import { VoiceOrb, OrbState } from './components/VoiceOrb';
@@ -31,11 +41,18 @@ const { width } = Dimensions.get('window');
 const PATIENT_ID = '10000000-0000-0000-0000-000000000000'; // Default test patient (Rahul Sharma)
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+  });
+
   const [activeTab, setActiveTab] = useState<'voice' | 'chat' | 'map'>('voice');
   const [orbState, setOrbState] = useState<OrbState>('idle');
   const [inputText, setInputText] = useState('');
   const [currentTranscription, setCurrentTranscription] = useState('');
-  
+
   // Indoor Wayfinding Map state
   const [activeMapPath, setActiveMapPath] = useState<'lobby' | 'pharmacy' | 'cardiology' | 'pediatrics' | 'dermatology' | null>(null);
   const [mapDirections, setMapDirections] = useState<string[]>([]);
@@ -170,15 +187,17 @@ export default function App() {
           />
         );
 
-      default:
-        return null;
     }
   };
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {/* Premium Header */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
@@ -198,7 +217,7 @@ export default function App() {
         >
           <Text style={[styles.tabText, activeTab === 'voice' && styles.activeTabText]}>🎤 Assistant</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.tab, activeTab === 'chat' && styles.activeTab]}
           onPress={() => setActiveTab('chat')}
@@ -260,7 +279,7 @@ export default function App() {
               contentContainerStyle={styles.chatListContent}
               renderItem={({ item }) => (
                 <ChatBubble message={item}>
-                  {item.cardType && renderCardContent(item.cardType, item.cardData)}
+                  {!!item.cardType && renderCardContent(item.cardType, item.cardData)}
                 </ChatBubble>
               )}
             />
@@ -304,7 +323,7 @@ export default function App() {
               <Text style={styles.directionsTitle}>
                 {mapDestName ? `🚶 Directions to ${mapDestName}` : '📍 Indoor Wayfinding'}
               </Text>
-              
+
               {mapDirections.length > 0 ? (
                 <FlatList
                   data={mapDirections}
@@ -319,7 +338,7 @@ export default function App() {
               ) : (
                 <View style={styles.noRouteContainer}>
                   <Text style={styles.noRouteText}>No active route loaded. Ask the Voice Assistant "Where is Room 302?" or "Where is the pharmacy?" to draw a path.</Text>
-                  
+
                   {/* Quick Map Routes Trigger */}
                   <View style={styles.quickRoutesBox}>
                     <Text style={styles.quickTitle}>Quick Test Routes:</Text>
@@ -359,72 +378,70 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc', // slate-50
+    backgroundColor: Theme.colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 40 : 10,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    paddingHorizontal: Theme.spacing.containerPadding,
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 16,
+    backgroundColor: Theme.colors.white,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.lightGray,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   logoText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.headlineSm.fontSize,
+    color: Theme.colors.onSurface,
   },
   onlineBadge: {
-    backgroundColor: '#e6fffa',
-    borderColor: '#319795',
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
+    backgroundColor: Theme.colors.secondaryContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Theme.roundness.sm,
     marginLeft: 8,
   },
   onlineText: {
-    color: '#319795',
-    fontSize: 9,
-    fontWeight: 'bold',
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.secondary,
+    fontSize: 10,
   },
   patientName: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
+    fontFamily: Theme.typography.fontFamilyMedium,
+    fontSize: Theme.typography.labelSm.fontSize,
+    color: Theme.colors.onSurfaceVariant,
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: Theme.colors.white,
+    paddingVertical: 12,
+    paddingHorizontal: Theme.spacing.containerPadding,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: Theme.colors.lightGray,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: Theme.roundness.full,
   },
   activeTab: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Theme.colors.superLightGray,
   },
   tabText: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    fontSize: Theme.typography.labelMd.fontSize,
+    color: Theme.colors.onSurfaceVariant,
   },
   activeTabText: {
-    color: '#0d9488', // teal-600
-    fontWeight: 'bold',
+    color: Theme.colors.primary,
+    fontFamily: Theme.typography.fontFamilyBold,
   },
   viewContainer: {
     flex: 1,
@@ -434,40 +451,44 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 30,
+    paddingVertical: Theme.spacing.containerPadding,
+    backgroundColor: Theme.colors.background,
   },
   statusBox: {
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: Theme.spacing.containerPadding,
   },
   assistantTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.headlineMd.fontSize,
+    lineHeight: Theme.typography.headlineMd.lineHeight,
+    color: Theme.colors.onSurface,
     textAlign: 'center',
   },
   subtext: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 6,
+    fontFamily: Theme.typography.fontFamily,
+    fontSize: Theme.typography.bodyMd.fontSize,
+    color: Theme.colors.onSurfaceVariant,
+    marginTop: 8,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: Theme.typography.bodyMd.lineHeight,
   },
   transcriptionBox: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: Theme.colors.white,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: Theme.roundness.lg,
     borderWidth: 1,
-    borderColor: '#ccfbf1',
-    maxWidth: width - 40,
+    borderColor: Theme.colors.lightGray,
+    maxWidth: width - 48,
     marginVertical: 10,
+    ...Theme.shadows.level1,
   },
   transcriptionText: {
-    color: '#0d9488',
-    fontSize: 15,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    color: Theme.colors.primary,
+    fontSize: Theme.typography.bodyMd.fontSize,
     fontStyle: 'italic',
-    fontWeight: '600',
     textAlign: 'center',
   },
   orbWrapper: {
@@ -480,18 +501,18 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   chipsTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#94a3b8',
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelSm.fontSize,
+    color: Theme.colors.outline,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    paddingLeft: 20,
-    marginBottom: -4,
+    paddingLeft: Theme.spacing.containerPadding,
+    marginBottom: 4,
   },
   // Chat Panel Styles
   chatView: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Theme.colors.background,
   },
   chatListContent: {
     paddingVertical: 12,
@@ -500,62 +521,65 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: Theme.spacing.containerPadding,
+    paddingVertical: 12,
+    backgroundColor: Theme.colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: Theme.colors.lightGray,
   },
   textInput: {
     flex: 1,
-    height: 40,
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    fontFamily: Theme.typography.fontFamily,
+    fontSize: Theme.typography.bodyMd.fontSize,
+    height: Theme.spacing.inputHeight,
+    backgroundColor: Theme.colors.superLightGray,
+    borderRadius: Theme.roundness.full,
+    paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    color: '#1e293b',
+    borderColor: Theme.colors.lightGray,
+    color: Theme.colors.onSurface,
     marginHorizontal: 8,
   },
   micBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#f1f5f9',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Theme.colors.superLightGray,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Theme.colors.lightGray,
   },
   micBtnActive: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5',
+    backgroundColor: Theme.colors.errorContainer,
+    borderColor: Theme.colors.error,
   },
   micBtnText: {
-    fontSize: 18,
+    fontSize: 20,
   },
   sendBtn: {
-    backgroundColor: '#0d9488',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    backgroundColor: Theme.colors.primary,
+    height: Theme.spacing.buttonHeight,
+    borderRadius: Theme.roundness.full,
+    paddingHorizontal: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Theme.shadows.level1,
   },
   sendBtnText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 14,
+    color: Theme.colors.white,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelMd.fontSize,
   },
   // Card slots inside Chat bubbles
   cardWrapper: {
-    marginTop: 8,
+    marginTop: 12,
     width: '100%',
   },
   cardLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    fontSize: Theme.typography.labelMd.fontSize,
+    color: Theme.colors.onSurfaceVariant,
     marginBottom: 8,
   },
   slotsGrid: {
@@ -563,61 +587,62 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   slotBtn: {
-    backgroundColor: '#e6fffa',
+    backgroundColor: Theme.colors.secondaryContainer,
+    borderRadius: Theme.roundness.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginRight: 8,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#b2f5ea',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginRight: 6,
-    marginBottom: 6,
+    borderColor: Theme.colors.secondary,
   },
   slotBtnText: {
-    color: '#0d9488',
-    fontSize: 12,
-    fontWeight: '700',
+    color: Theme.colors.secondary,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelSm.fontSize,
   },
   // Map Screen Styles
   mapView: {
     flex: 1,
-    padding: 16,
+    padding: Theme.spacing.containerPadding,
     justifyContent: 'space-between',
+    backgroundColor: Theme.colors.background,
   },
   mapDirectionsCard: {
     flex: 0.9,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.roundness.lg,
+    padding: Theme.spacing.cardPadding,
     marginTop: 16,
+    ...Theme.shadows.level1,
   },
   directionsTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#0f172a',
-    marginBottom: 10,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.bodyLg.fontSize,
+    color: Theme.colors.onSurface,
+    marginBottom: 12,
   },
   mapStepRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginVertical: 4,
+    marginVertical: 6,
   },
   mapStepNum: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#e0f2fe',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Theme.colors.secondaryContainer,
     textAlign: 'center',
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#0369a1',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.secondary,
     marginRight: 8,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   mapStepText: {
-    fontSize: 13,
-    color: '#334155',
+    fontFamily: Theme.typography.fontFamily,
+    fontSize: Theme.typography.bodyMd.fontSize,
+    color: Theme.colors.onSurfaceVariant,
     flex: 1,
   },
   noRouteContainer: {
@@ -627,21 +652,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   noRouteText: {
-    fontSize: 13,
-    color: '#94a3b8',
+    fontFamily: Theme.typography.fontFamily,
+    fontSize: Theme.typography.bodyMd.fontSize,
+    color: Theme.colors.outline,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: Theme.typography.bodyMd.lineHeight,
   },
   quickRoutesBox: {
-    marginTop: 20,
+    marginTop: 24,
     alignItems: 'center',
     width: '100%',
   },
   quickTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#64748b',
-    marginBottom: 8,
+    fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: Theme.typography.labelSm.fontSize,
+    color: Theme.colors.outline,
+    marginBottom: 10,
     textTransform: 'uppercase',
   },
   quickRoutesRow: {
@@ -649,17 +675,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickRouteBtn: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Theme.colors.superLightGray,
+    borderRadius: Theme.roundness.full,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    marginHorizontal: 6,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginHorizontal: 5,
+    borderColor: Theme.colors.lightGray,
   },
   quickRouteText: {
-    color: '#475569',
-    fontSize: 12,
-    fontWeight: '600',
+    color: Theme.colors.onSurfaceVariant,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    fontSize: Theme.typography.labelSm.fontSize,
   },
 });
