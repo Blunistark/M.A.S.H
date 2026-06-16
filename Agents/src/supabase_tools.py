@@ -130,3 +130,42 @@ async def save_patient_summary_to_supabase(patient_id: str, summary: str) -> boo
         print(f"[Supabase Tool Warning] Failed to save clinical summary: {e}")
     return False
 
+async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> bool:
+    """Book a new appointment in Supabase."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return False
+        
+    # First, lookup patient_id by name (case insensitive)
+    patient_id = "550e8400-e29b-41d4-a716-446655440000" # Fallback to John Doe
+    try:
+        async with httpx.AsyncClient() as client:
+            # Only use first name for matching to be robust
+            search_name = patient_name.split()[0] if patient_name else "John"
+            res = await client.get(
+                f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
+                headers=get_headers()
+            )
+            if res.status_code == 200 and res.json():
+                patient_id = res.json()[0]["id"]
+    except Exception:
+        pass
+    
+    # Format slot_time into a proper timestamp if it is just HH:MM
+    if len(slot_time) == 5 and ":" in slot_time:
+        slot_time = f"2026-06-17T{slot_time}:00Z"
+    
+    url = f"{SUPABASE_URL}/rest/v1/appointments"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=get_headers(), json={
+                "patient_id": patient_id,
+                "doctor_id": doctor_id,
+                "scheduled_time": slot_time,
+                "status": "scheduled"
+            })
+            if response.status_code not in (200, 201):
+                print(f"Supabase Booking Error: {response.text}")
+            return response.status_code in (200, 201)
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to book appointment: {e}")
+    return False

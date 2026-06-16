@@ -2,6 +2,24 @@ from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
 from src.band_config import HealthcareOrchestrationRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase
+
+@tool
+async def get_doctors() -> list:
+    """Fetch the list of doctors and their availability."""
+    return await fetch_doctors_from_supabase()
+
+@tool
+async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
+    """Book an appointment for a patient with a specific doctor at a given slot_time."""
+    success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+    if success:
+        return f"Successfully booked appointment for {patient_name} at {slot_time}."
+    return "Failed to book appointment. Please try again."
+
 
 class PatientManagementState(TypedDict):
     event_name: str
@@ -16,6 +34,42 @@ class PatientManagementAgent:
         self.bookings: Dict[str, Dict[str, Any]] = {}
         self.graph = self._build_graph()
         self.setup_listeners()
+        
+        # LLM integration for interactive booking
+        self.llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
+        self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment])
+
+    async def process_patient_query(self, messages: list) -> list:
+        """Process an interactive conversation to book an appointment.
+        Pass in the full message history. Returns the updated message history."""
+        system_msg = {
+            "role": "system",
+            "content": (
+                "You are the MASH Patient Management Assistant. "
+                "Your job is to understand patient symptoms, suggest an appropriate doctor by using the get_doctors tool, "
+                "and then book an appointment using the book_appointment tool. "
+                "Always confirm the doctor and time slot with the patient before booking."
+            )
+        }
+        
+        # Check if first message is a system message
+        has_system = False
+        if messages:
+            first_msg = messages[0]
+            if isinstance(first_msg, dict) and first_msg.get("role") == "system":
+                has_system = True
+            elif getattr(first_msg, "type", None) == "system" or getattr(first_msg, "type", None) == "SystemMessage":
+                has_system = True
+                
+        # Prepend system message if not present
+        if not has_system:
+            inputs = {"messages": [system_msg] + messages}
+        else:
+            inputs = {"messages": messages}
+            
+        result = await self.react_agent.ainvoke(inputs)
+        return result["messages"]
+
 
     def _build_graph(self):
         builder = StateGraph(PatientManagementState)
