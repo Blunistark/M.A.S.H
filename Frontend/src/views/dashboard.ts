@@ -1,5 +1,14 @@
 import { type View, Router } from '../router';
-import { fetchAppointments, fetchProfiles, fetchMetrics, createAppointment, createProfile } from '../api';
+import { 
+  fetchAppointments, 
+  fetchProfiles, 
+  fetchMetrics, 
+  createAppointment, 
+  createProfile,
+  fetchPrescriptions,
+  fetchPrescriptionItems,
+  fetchMedicineInventory
+} from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
 
@@ -14,13 +23,16 @@ let metrics: DashboardMetrics = {
   stockAlertsCount: 0
 };
 
+let selectedDate: Date = new Date('2026-06-17');
+let displayDate: Date = new Date('2026-06-17');
+
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  let hours = date.getHours();
+  let hours = date.getUTCHours();
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12;
-  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
   return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 }
 
@@ -33,9 +45,65 @@ export class DashboardView implements View {
     queueAppointments = await fetchAppointments();
     profiles = await fetchProfiles();
     metrics = await fetchMetrics();
+    const allPrescriptions = await fetchPrescriptions();
+    const allPrescriptionItems = await fetchPrescriptionItems();
+    const allInventory = await fetchMedicineInventory();
+
+    // Find all prescriptions with status 'alternative_requested'
+    const shortageRx = allPrescriptions.filter(rx => rx.status === 'alternative_requested');
+    
+    let alertsHTML = '';
+    if (shortageRx.length > 0) {
+      const alertCards = shortageRx.map(rx => {
+        const patient = profiles.find(p => p.id === rx.patient_id);
+        const patientName = patient ? patient.full_name : 'Unknown Patient';
+        
+        const rxItems = allPrescriptionItems.filter(item => item.prescription_id === rx.id);
+        const medNames = rxItems.map(item => {
+          const med = allInventory.find(m => m.id === item.medicine_id);
+          return med ? med.medicine_name : 'Medication';
+        }).join(', ');
+
+        const comments = rx.doctor_comments || 'Please check for alternatives due to stock constraints.';
+
+        return `
+          <div class="shortage-alert-card" style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px; box-shadow: var(--shadow-sm); border: 1px solid #fef3c7; border-left-width: 4px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <span style="font-size: 20px; margin-top: 2px;">⚠️</span>
+              <div style="text-align: left;">
+                <h4 style="margin: 0 0 4px 0; font-family: var(--font-heading); font-size: 15px; font-weight: 700; color: #78350f;">Prescription Shortage Alert</h4>
+                <p style="margin: 0; font-size: 13px; color: #92400e; line-height: 1.4;">
+                  Pharmacy reported a shortage of <strong>${medNames}</strong> for <strong>${patientName}</strong>.<br/>
+                  <span style="font-style: italic; color: #b45309; font-size: 12px;">Pharmacist Notes: "${comments}"</span>
+                </p>
+              </div>
+            </div>
+            <button class="btn-resolve-alert" data-patient-id="${rx.patient_id}" style="background: #d97706; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2); font-size: 12px; padding: 8px 16px; flex-shrink: 0; border: none; cursor: pointer; border-radius: 8px; font-weight: 600; color: white;">
+              Provide Alternative
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      alertsHTML = `
+        <div class="shortage-alerts-container" style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+          ${alertCards}
+        </div>
+      `;
+    }
+
+    // Filter queue by selected date (UTC comparison)
+    const selectedDateString = selectedDate.toISOString().split('T')[0];
+    const filteredAppts = queueAppointments.filter(appt => {
+      const apptDateString = new Date(appt.scheduled_time).toISOString().split('T')[0];
+      return apptDateString === selectedDateString;
+    });
+
+    const todayAppointmentsCount = filteredAppts.length;
+    const remainingAppointmentsCount = filteredAppts.filter(appt => appt.status === 'scheduled').length;
 
     // Generate queue rows
-    const tableRows = queueAppointments.map(appt => {
+    const tableRows = filteredAppts.map(appt => {
       const patient = profiles.find(p => p.id === appt.patient_id);
       if (!patient) return '';
 
@@ -70,12 +138,108 @@ export class DashboardView implements View {
       `;
     }).join('');
 
+    const formattedHeaderDate = selectedDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC'
+    });
+
+    // Calendar widget dynamic construction
+    const displayYear = displayDate.getFullYear();
+    const displayMonth = displayDate.getMonth();
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const firstDayOfMonth = new Date(displayYear, displayMonth, 1);
+    const startDayOfWeek = firstDayOfMonth.getDay();
+    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+    const prevMonthDays = new Date(displayYear, displayMonth, 0).getDate();
+
+    const calendarCells: string[] = [];
+
+    // Padding prev month (timezone-safe date strings)
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const dayNum = prevMonthDays - i;
+      const prevDate = new Date(displayYear, displayMonth - 1, dayNum);
+      const prevYear = prevDate.getFullYear();
+      const prevMonth = prevDate.getMonth();
+      const cellDateStr = `${prevYear}-${(prevMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
+      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      calendarCells.push(`
+        <div class="calendar-day prev-month ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
+      `);
+    }
+
+    // Current month days (timezone-safe date strings)
+    for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+      const cellDateStr = `${displayYear}-${(displayMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
+      const isSelected = selectedDate.getUTCDate() === dayNum && selectedDate.getUTCMonth() === displayMonth && selectedDate.getUTCFullYear() === displayYear;
+      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      calendarCells.push(`
+        <div class="calendar-day current-month ${isSelected ? 'active' : ''} ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
+      `);
+    }
+
+    // Next month padding (timezone-safe date strings)
+    const totalCells = calendarCells.length;
+    const nextMonthPadding = 42 - totalCells;
+    for (let dayNum = 1; dayNum <= nextMonthPadding; dayNum++) {
+      const nextDate = new Date(displayYear, displayMonth + 1, dayNum);
+      const nextYear = nextDate.getFullYear();
+      const nextMonth = nextDate.getMonth();
+      const cellDateStr = `${nextYear}-${(nextMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
+      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      calendarCells.push(`
+        <div class="calendar-day next-month ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
+      `);
+    }
+
+    const calendarDaysHTML = calendarCells.join('');
+
+    // Upcoming Patient dynamic creation
+    const upcomingAppt = filteredAppts.find(appt => appt.status === 'scheduled');
+    let upcomingPatientHTML = '';
+    if (upcomingAppt) {
+      const patient = profiles.find(p => p.id === upcomingAppt.patient_id);
+      if (patient) {
+        const timeStr = formatTime(upcomingAppt.scheduled_time);
+        const initials = getInitials(patient.full_name);
+        upcomingPatientHTML = `
+          <div class="upcoming-patient-body">
+            <div class="upcoming-patient-info">
+              <div class="patient-avatar-wrapper" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; width: 44px; height: 44px; border-radius: 50%;">
+                ${initials}
+              </div>
+              <div class="upcoming-patient-text">
+                <span class="upcoming-patient-name">${patient.full_name}</span>
+                <span class="upcoming-patient-schedule">${timeStr} - Consultation</span>
+              </div>
+            </div>
+            <button class="chat-bubble-btn" id="upcoming-chat-btn" data-patient-id="${patient.id}">
+              ${getIcon('message-square', 'nav-icon')}
+            </button>
+          </div>
+        `;
+      }
+    } else {
+      upcomingPatientHTML = `
+        <div style="padding: 16px 20px; color: #64748b; font-size: 13px; text-align: center;">
+          No upcoming scheduled patients for this day.
+        </div>
+      `;
+    }
+
     return `
       <!-- Header -->
       <header class="main-header">
         <div class="header-title-section">
           <h1 class="header-title">Good morning, Dr. Smith</h1>
-          <span class="header-subtitle">Sunday, June 14, 2026</span>
+          <span class="header-subtitle">${formattedHeaderDate}</span>
         </div>
         <div class="header-actions">
           <button class="btn-primary" id="open-appointment-btn">
@@ -103,8 +267,8 @@ export class DashboardView implements View {
             <div class="metric-card-content">
               <span class="metric-label">Today's Appointments</span>
               <div class="metric-number-row">
-                <span class="metric-value">${metrics.todayAppointmentsCount}</span>
-                <span class="metric-badge green">${metrics.remainingAppointmentsCount} Remaining</span>
+                <span class="metric-value">${todayAppointmentsCount}</span>
+                <span class="metric-badge green">${remainingAppointmentsCount} Remaining</span>
               </div>
             </div>
             <div class="metric-icon-wrapper">
@@ -151,6 +315,8 @@ export class DashboardView implements View {
           </div>
         </section>
 
+        ${alertsHTML}
+
         <!-- Main Cards Grid Layout -->
         <div class="dashboard-grid">
           
@@ -170,7 +336,7 @@ export class DashboardView implements View {
                   </tr>
                 </thead>
                 <tbody id="queue-table-body">
-                  ${tableRows}
+                  ${tableRows || `<tr><td colspan="4" style="text-align: center; color: #64748b; padding: 40px 0;">No appointments scheduled for this day.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -180,7 +346,7 @@ export class DashboardView implements View {
             
             <div class="dashboard-card calendar-card">
               <div class="card-header">
-                <h2 class="card-title">Calendar Widget</h2>
+                <h2 class="card-title">${monthNames[displayMonth]} ${displayYear}</h2>
                 <div class="calendar-navigation">
                   <button class="calendar-arrow-btn">${getIcon('chevron-left', 'nav-icon')}</button>
                   <button class="calendar-arrow-btn">${getIcon('chevron-right', 'nav-icon')}</button>
@@ -191,13 +357,7 @@ export class DashboardView implements View {
                   <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
                 </div>
                 <div class="calendar-days-grid">
-                  <div class="calendar-day">28</div>
-                  <div class="calendar-day">29</div>
-                  <div class="calendar-day">30</div>
-                  <div class="calendar-day current-month">1</div>
-                  <div class="calendar-day current-month">2</div>
-                  <div class="calendar-day current-month active has-event">3</div>
-                  <div class="calendar-day current-month">4</div>
+                  ${calendarDaysHTML}
                 </div>
                 <div class="upcoming-today-section">
                   <div class="upcoming-section-title">Upcoming Today</div>
@@ -223,20 +383,7 @@ export class DashboardView implements View {
 
             <div class="dashboard-card upcoming-patient-card">
               <h2 class="card-title" style="margin-bottom: 12px;">Upcoming Patient</h2>
-              <div class="upcoming-patient-body">
-                <div class="upcoming-patient-info">
-                  <div class="patient-avatar-wrapper">
-                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150" alt="Alice Johnson" class="patient-avatar-img" />
-                  </div>
-                  <div class="upcoming-patient-text">
-                    <span class="upcoming-patient-name">Alice Johnson</span>
-                    <span class="upcoming-patient-schedule">09:00 AM - Checkup</span>
-                  </div>
-                </div>
-                <button class="chat-bubble-btn" id="upcoming-chat-btn" data-patient-id="alice-johnson">
-                  ${getIcon('message-square', 'nav-icon')}
-                </button>
-              </div>
+              ${upcomingPatientHTML}
             </div>
 
           </aside>
@@ -333,6 +480,35 @@ export class DashboardView implements View {
       });
     }
 
+    // Calendar month navigation
+    const prevMonthBtn = container.querySelector('.calendar-arrow-btn:first-child');
+    const nextMonthBtn = container.querySelector('.calendar-arrow-btn:last-child');
+    if (prevMonthBtn) {
+      prevMonthBtn.addEventListener('click', () => {
+        displayDate.setMonth(displayDate.getMonth() - 1);
+        router.navigate('dashboard');
+      });
+    }
+    if (nextMonthBtn) {
+      nextMonthBtn.addEventListener('click', () => {
+        displayDate.setMonth(displayDate.getMonth() + 1);
+        router.navigate('dashboard');
+      });
+    }
+
+    // Calendar day selection
+    const dayElements = container.querySelectorAll('.calendar-day');
+    dayElements.forEach(dayEl => {
+      dayEl.addEventListener('click', () => {
+        const dateStr = dayEl.getAttribute('data-date');
+        if (dateStr) {
+          selectedDate = new Date(dateStr);
+          displayDate = new Date(selectedDate);
+          router.navigate('dashboard');
+        }
+      });
+    });
+
     const appointmentModal = container.querySelector('#appointment-modal') as HTMLElement;
     const openModalBtn = container.querySelector('#open-appointment-btn') as HTMLElement;
     const closeModalBtn = container.querySelector('#close-modal-btn') as HTMLElement;
@@ -391,10 +567,12 @@ export class DashboardView implements View {
         const timeVal = timeInput.value;
         const statusVal = statusSelect.value;
 
-        const date = new Date();
+        const date = new Date(selectedDate);
         const [hours, mins] = timeVal.split(':');
-        date.setHours(parseInt(hours, 10));
-        date.setMinutes(parseInt(mins, 10));
+        date.setUTCHours(parseInt(hours, 10));
+        date.setUTCMinutes(parseInt(mins, 10));
+        date.setUTCSeconds(0);
+        date.setUTCMilliseconds(0);
 
         let targetPatientId = '';
 
@@ -436,5 +614,16 @@ export class DashboardView implements View {
         }
       });
     }
+
+    // Shortage alert resolve handlers
+    const resolveBtns = container.querySelectorAll('.btn-resolve-alert');
+    resolveBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const patientId = btn.getAttribute('data-patient-id');
+        if (patientId) {
+          router.navigate('prescriptions', { patientId, forceReload: true });
+        }
+      });
+    });
   }
 }

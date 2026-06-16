@@ -1,6 +1,7 @@
 import { type View, Router } from '../router';
-import { fetchProfiles, fetchMedicalRecords } from '../api';
+import { fetchProfiles, fetchMedicalRecords, fetchAppointments } from '../api';
 import { getIcon } from '../assets/icons';
+import { supabase } from '../supabase';
 
 let searchQuery = '';
 
@@ -12,8 +13,51 @@ export class PatientsListView implements View {
   public async render(): Promise<string> {
     const allProfiles = await fetchProfiles();
     const allRecords = await fetchMedicalRecords();
+    const allAppointments = await fetchAppointments();
 
-    const patients = allProfiles.filter(p => p.role === 'patient');
+    // Determine active doctor ID
+    let activeDoctorId = 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd'; // fallback
+    let userName = 'Dr. Smith';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        activeDoctorId = user.id;
+        userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Dr. Smith';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+      }
+    } catch (e) {
+      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+      }
+    }
+
+    // Collect all unique patient IDs assigned to this doctor
+    const assignedPatientIds = new Set<string>();
+    allAppointments.forEach(a => {
+      if (a.doctor_id === activeDoctorId) {
+        assignedPatientIds.add(a.patient_id);
+      }
+    });
+    allRecords.forEach(r => {
+      if (r.doctor_id === activeDoctorId) {
+        assignedPatientIds.add(r.patient_id);
+      }
+    });
+
+    const patients = allProfiles.filter(p => {
+      if (p.role !== 'patient' || !assignedPatientIds.has(p.id)) {
+        return false;
+      }
+      
+      // Filter out patients whose appointments are all completed
+      const patientAppts = allAppointments.filter(a => a.patient_id === p.id && a.doctor_id === activeDoctorId);
+      if (patientAppts.length > 0 && patientAppts.every(a => a.status === 'completed')) {
+        return false;
+      }
+      
+      return true;
+    });
 
     // Filter patients based on search query
     const filteredPatients = patients.filter(patient => {
@@ -73,8 +117,8 @@ export class PatientsListView implements View {
               <div class="badge-dot"></div>
             </button>
             <div class="user-quick-profile">
-              <span class="user-name">Dr. Smith</span>
-              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="Dr. Smith" class="user-avatar" />
+              <span class="user-name">${userName}</span>
+              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="${userName}" class="user-avatar" />
             </div>
           </div>
         </div>
@@ -85,12 +129,19 @@ export class PatientsListView implements View {
         ${
           filteredPatients.length > 0 
             ? `<div class="patients-grid-layout">${patientCards}</div>`
-            : `
-              <div style="text-align: center; padding: 60px; color: #64748b;">
-                <h3>No patients found</h3>
-                <p style="margin-top: 8px;">Try searching for a different name or condition.</p>
-              </div>
-            `
+            : patients.length === 0
+              ? `
+                <div style="text-align: center; padding: 60px; color: #64748b;">
+                  <h3>No patients assigned</h3>
+                  <p style="margin-top: 8px;">There are no patients currently assigned to your account.</p>
+                </div>
+              `
+              : `
+                <div style="text-align: center; padding: 60px; color: #64748b;">
+                  <h3>No patients found</h3>
+                  <p style="margin-top: 8px;">Try searching for a different name or condition.</p>
+                </div>
+              `
         }
       </div>
     `;

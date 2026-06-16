@@ -823,6 +823,19 @@ a {
   align-items: center;
   justify-content: center;
   position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-day:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 50%;
+  color: var(--primary-blue-light);
+}
+
+.calendar-day.active:hover {
+  background-color: var(--primary-blue);
+  color: #ffffff;
 }
 
 .calendar-day.current-month {
@@ -2789,4 +2802,18 @@ a {
   font-size: 40px;
   margin-bottom: 12px;
   display: block;
+}
+
+/* Pharmacy Medicine Inventory Scrolling & Sticky Header */
+.rx-inventory-card {
+  max-height: 580px;
+  overflow-y: auto;
+}
+
+.rx-inventory-card .rx-table th {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 10;
+  box-shadow: 0 1px 0 #e2e8f0;
 }
