@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, Animated, TouchableOpacity, Easing, Platform } from 'react-native';
+import { Theme } from '../theme';
 
 export type OrbState = 'idle' | 'listening' | 'processing' | 'speaking';
 
@@ -147,13 +148,13 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ state, onPress }) => {
   const getOrbColor = () => {
     switch (state) {
       case 'listening':
-        return '#06b6d4'; // teal-400
+        return Theme.colors.secondary; // Teal
       case 'processing':
-        return '#0d9488'; // teal-600
+        return Theme.colors.primaryContainer; // Darker Blue
       case 'speaking':
-        return '#0891b2'; // cyan-600
+        return Theme.colors.primary; // Primary Blue
       default:
-        return '#14b8a6'; // teal-500
+        return Theme.colors.primary; // Primary Blue
     }
   };
 
@@ -179,8 +180,8 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ state, onPress }) => {
       {/* Ripple Rings for Listening */}
       {state === 'listening' && (
         <>
-          <Animated.View style={[styles.ripple, getRippleStyle(ripple1Anim), { borderColor: '#06b6d4' }]} />
-          <Animated.View style={[styles.ripple, getRippleStyle(ripple2Anim), { borderColor: '#22d3ee' }]} />
+          <Animated.View style={[styles.ripple, getRippleStyle(ripple1Anim), { borderColor: Theme.colors.secondary }]} />
+          <Animated.View style={[styles.ripple, getRippleStyle(ripple2Anim), { borderColor: Theme.colors.secondaryContainer }]} />
         </>
       )}
 
@@ -259,10 +260,10 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0891b2',
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: Theme.colors.primary,
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.35,
-    shadowRadius: 20,
+    shadowRadius: 24,
     elevation: 10,
   },
   ripple: {
@@ -299,15 +300,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tapText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 10,
-    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
+    fontFamily: Theme.typography.fontFamilyBold,
     letterSpacing: 1.5,
     marginTop: 12,
   },
   activeText: {
     color: '#ffffff',
-    fontWeight: 'bold',
   },
   // Spinner / Processing Style
   spinnerContainer: {

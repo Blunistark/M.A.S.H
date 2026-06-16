@@ -9,7 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "expo": "~54.0.34",
+    "expo-google-fonts": "^0.0.0",
     "expo-speech": "~13.0.1",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",

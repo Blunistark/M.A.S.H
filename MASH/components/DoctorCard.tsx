@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity } from 'react-native';
+import { Theme } from '../theme';
 import { Doctor } from '../types';
 
 interface DoctorCardProps {
@@ -46,18 +47,18 @@ export const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, onBookPress }) =
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.roundness.lg, // 24px
+    padding: Theme.spacing.cardPadding, // 24px
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
+    borderColor: Theme.colors.lightGray,
+    shadowColor: Theme.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 6,
   },
   header: {
     flexDirection: 'row',
@@ -67,21 +68,21 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Theme.colors.superLightGray,
   },
   info: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 16,
   },
   name: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a', // slate-900
+    fontSize: Theme.typography.bodyLg.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
   },
   specialty: {
-    fontSize: 14,
-    color: '#0d9488', // teal-600
-    fontWeight: '600',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    color: Theme.colors.secondary, // Teal
     marginTop: 2,
   },
   metaRow: {
@@ -90,38 +91,40 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   metaText: {
-    fontSize: 12,
-    color: '#64748b', // slate-500
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamily,
+    color: Theme.colors.onSurfaceVariant,
   },
   metaDivider: {
-    fontSize: 12,
-    color: '#cbd5e1',
+    fontSize: Theme.typography.labelSm.fontSize,
+    color: Theme.colors.outlineVariant,
     marginHorizontal: 6,
   },
   roomBadge: {
-    backgroundColor: '#f0fdf4', // light green
+    backgroundColor: Theme.colors.secondaryContainer,
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Theme.roundness.sm,
     marginTop: 6,
   },
   roomText: {
     fontSize: 11,
-    color: '#166534', // dark green
-    fontWeight: '600',
+    color: Theme.colors.secondary,
+    fontFamily: Theme.typography.fontFamilyBold,
   },
   button: {
-    backgroundColor: '#0d9488', // teal-600
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: Theme.colors.primary,
+    borderRadius: Theme.roundness.full,
+    height: Theme.spacing.buttonHeight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 16,
+    ...Theme.shadows.level1,
   },
   buttonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Theme.colors.white,
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
   },
 });

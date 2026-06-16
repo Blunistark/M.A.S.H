@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
+import { Theme } from '../theme';
 import { Prescription } from '../types';
 
 interface PrescriptionCardProps {
@@ -10,13 +11,13 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
   const getStatusStyle = () => {
     switch (prescription.status) {
       case 'fulfilled':
-        return { bg: '#d1fae5', text: '#065f46', label: 'Fulfilled & Ready' };
+        return { bg: Theme.colors.secondaryContainer, text: Theme.colors.secondary, label: 'Fulfilled & Ready' };
       case 'pushed_to_pharma':
-        return { bg: '#e0f2fe', text: '#0369a1', label: 'Processing at Pharmacy' };
+        return { bg: '#e0f2fe', text: Theme.colors.primary, label: 'Processing at Pharmacy' };
       case 'alternative_requested':
         return { bg: '#fef3c7', text: '#92400e', label: 'Alternative Requested' };
       default:
-        return { bg: '#f1f5f9', text: '#475569', label: 'Pending' };
+        return { bg: Theme.colors.superLightGray, text: Theme.colors.onSurfaceVariant, label: 'Pending' };
     }
   };
 
@@ -33,14 +34,14 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
 
       <Text style={styles.doctorName}>From: {prescription.doctor_name}</Text>
       
-      {prescription.doctor_comments && (
+      {!!prescription.doctor_comments && (
         <Text style={styles.comments}>💬 "{prescription.doctor_comments}"</Text>
       )}
 
       <View style={styles.divider} />
 
       <Text style={styles.sectionTitle}>Prescribed Items:</Text>
-      {prescription.items.map((item, index) => (
+      {prescription.items.map((item: any, index: number) => (
         <View key={index} style={styles.itemRow}>
           <View style={styles.itemDetails}>
             <Text style={styles.medName}>🔹 {item.medicine_name}</Text>
@@ -48,8 +49,8 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
           </View>
           <View style={styles.itemMeta}>
             <Text style={styles.medQty}>Qty: {item.quantity}</Text>
-            <View style={[styles.stockBadge, { backgroundColor: item.inStock !== false ? '#d1fae5' : '#fee2e2' }]}>
-              <Text style={[styles.stockText, { color: item.inStock !== false ? '#065f46' : '#991b1b' }]}>
+            <View style={[styles.stockBadge, { backgroundColor: item.inStock !== false ? Theme.colors.secondaryContainer : Theme.colors.errorContainer }]}>
+              <Text style={[styles.stockText, { color: item.inStock !== false ? Theme.colors.secondary : Theme.colors.error }]}>
                 {item.inStock !== false ? 'In Stock' : 'Low Stock'}
               </Text>
             </View>
@@ -62,84 +63,86 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.roundness.lg, // 24px
+    padding: Theme.spacing.cardPadding, // 24px
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
+    borderColor: Theme.colors.lightGray,
+    shadowColor: Theme.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 6,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Theme.roundness.sm,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
   },
   doctorName: {
-    fontSize: 14,
-    color: '#475569',
-    fontWeight: '500',
+    fontSize: Theme.typography.bodyMd.fontSize,
+    color: Theme.colors.onSurfaceVariant,
+    fontFamily: Theme.typography.fontFamilyMedium,
   },
   comments: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: Theme.typography.labelMd.fontSize,
+    fontFamily: Theme.typography.fontFamily,
+    color: Theme.colors.onSurfaceVariant,
     fontStyle: 'italic',
-    marginTop: 6,
-    backgroundColor: '#f8fafc',
-    padding: 8,
-    borderRadius: 6,
+    marginTop: 8,
+    backgroundColor: Theme.colors.superLightGray,
+    padding: 10,
+    borderRadius: Theme.roundness.sm,
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 12,
+    backgroundColor: Theme.colors.lightGray,
+    marginVertical: 14,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#94a3b8',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.outline,
     textTransform: 'uppercase',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
+    borderBottomColor: Theme.colors.superLightGray,
   },
   itemDetails: {
     flex: 1,
   },
   medName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
+    fontSize: Theme.typography.bodyMd.fontSize,
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    color: Theme.colors.onSurface,
   },
   medDosage: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamily,
+    color: Theme.colors.onSurfaceVariant,
     marginLeft: 14,
     marginTop: 2,
   },
@@ -147,18 +150,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   medQty: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#475569',
+    fontSize: Theme.typography.labelSm.fontSize,
+    fontFamily: Theme.typography.fontFamilyMedium,
+    color: Theme.colors.onSurfaceVariant,
   },
   stockBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Theme.roundness.sm,
     marginTop: 4,
   },
   stockText: {
-    fontSize: 9,
-    fontWeight: 'bold',
+    fontSize: Theme.typography.labelSm.fontSize - 2,
+    fontFamily: Theme.typography.fontFamilyBold,
   },
 });
