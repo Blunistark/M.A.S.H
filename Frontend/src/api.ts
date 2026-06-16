@@ -31,6 +31,16 @@ export async function fetchProfileById(id: string): Promise<Profile> {
   return fetchJson<Profile>(`${API_BASE}/profiles/${id}`);
 }
 
+export async function createProfile(profile: { full_name: string; contact_number?: string }): Promise<Profile> {
+  return fetchJson<Profile>(`${API_BASE}/profiles`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(profile)
+  });
+}
+
 export async function fetchDoctorDetails(): Promise<DoctorDetails[]> {
   return fetchJson<DoctorDetails[]>(`${API_BASE}/doctor_details`);
 }

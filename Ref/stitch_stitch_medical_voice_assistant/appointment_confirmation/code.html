@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Appointment Confirmation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#62fae3",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#fffbff",
+                    "surface-dim": "#d8dadc",
+                    "secondary-fixed-dim": "#3cddc7",
+                    "inverse-surface": "#2d3133",
+                    "on-secondary-fixed": "#00201c",
+                    "on-surface-variant": "#414755",
+                    "background": "#f7f9fb",
+                    "surface-bright": "#f7f9fb",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#e0e3e5",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#d8e2ff",
+                    "error-container": "#ffdad6",
+                    "surface-container": "#eceef0",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed-variant": "#005047",
+                    "inverse-on-surface": "#eff1f3",
+                    "tertiary-fixed-dim": "#ffb595",
+                    "secondary": "#006b5f",
+                    "on-tertiary-fixed-variant": "#7c2e00",
+                    "on-secondary-container": "#007165",
+                    "on-primary": "#ffffff",
+                    "on-primary-container": "#fefcff",
+                    "surface-container-low": "#f2f4f6",
+                    "on-primary-fixed-variant": "#004493",
+                    "on-secondary": "#ffffff",
+                    "tertiary": "#9e3d00",
+                    "on-background": "#191c1e",
+                    "primary": "#0058bc",
+                    "inverse-primary": "#adc6ff",
+                    "primary-fixed-dim": "#adc6ff",
+                    "surface-container-high": "#e6e8ea",
+                    "tertiary-container": "#c64f00",
+                    "on-tertiary-fixed": "#351000",
+                    "outline-variant": "#c1c6d7",
+                    "surface-container-highest": "#e0e3e5",
+                    "primary-container": "#0070eb",
+                    "error": "#ba1a1a",
+                    "on-primary-fixed": "#001a41",
+                    "on-surface": "#191c1e",
+                    "secondary-container": "#62fae3",
+                    "surface": "#f7f9fb",
+                    "tertiary-fixed": "#ffdbcc",
+                    "outline": "#717786",
+                    "surface-tint": "#005bc1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit": "8px",
+                    "touch-target-min": "48px",
+                    "container-padding": "24px",
+                    "card-padding": "24px",
+                    "stack-gap": "16px"
+            },
+            "fontFamily": {
+                    "label-md": ["Plus Jakarta Sans"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "body-lg": ["Plus Jakarta Sans"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "headline-sm": ["Plus Jakarta Sans"],
+                    "headline-md": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-nav-bg {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .soft-elevation {
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-surface sticky top-0 z-50 flex justify-between items-center w-full px-container-padding py-unit h-touch-target-min">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container">
+<!-- User Avatar Placeholder -->
+<div class="w-full h-full flex items-center justify-center text-primary-container bg-primary-fixed">
+<span class="material-symbols-outlined">person</span>
+</div>
+</div>
+<h1 class="font-headline-sm text-headline-sm text-on-surface">Good morning, Alex</h1>
+</div>
+<button class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors active:scale-95 duration-150">
+<span class="material-symbols-outlined text-outline">notifications</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow px-container-padding py-8 max-w-lg mx-auto w-full flex flex-col gap-8">
+<!-- Confirmation Header -->
+<div class="text-center space-y-2">
+<div class="inline-flex items-center justify-center w-16 h-16 bg-secondary-container text-on-secondary-container rounded-full mb-4">
+<span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Confirmed!</h2>
+<p class="font-body-md text-body-md text-outline">Your health is our priority. See you tomorrow.</p>
+</div>
+<!-- Appointment Card -->
+<div class="bg-surface-container-lowest rounded-lg p-card-padding soft-elevation flex flex-col gap-stack-gap">
+<!-- Doctor Info -->
+<div class="flex items-center gap-4 pb-4 border-b border-surface-variant">
+<img alt="Dr. Sarah Smith" class="w-20 h-20 rounded-lg object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5IFHWEnpObxb75uuKR8L35XggTBHRSoEJtlAqcf5dymKb14AcajPMHzBjTk-3jJwqIfn3N3jM551a77Ci3509kCtDQi9vC3CjlmBbCBKqNKyuSb7xu_IthGbdgWV2kit9-1m8U0t63Fuq1gDg786VFqbTY0QftMN69lguUabaJ3vtF9GL79QVDbUJlhhv5-KRhOc96KrZAETY8tBYVilG4UAh7P2pcxX_AUBSvEUH6jb6BiIJjBxCKWUciYJV0TppYkodHO_XHTlU"/>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Dr. Sarah Smith</h3>
+<p class="font-label-md text-label-md text-secondary">General Practitioner</p>
+</div>
+</div>
+<!-- Details List -->
+<div class="space-y-4 pt-2">
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-primary">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline">Date &amp; Time</p>
+<p class="font-body-lg text-body-lg font-semibold text-on-surface">Tomorrow, 10:00 AM</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-primary">
+<span class="material-symbols-outlined">location_on</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline">Location</p>
+<p class="font-body-lg text-body-lg font-semibold text-on-surface">Room 204, 2nd Floor</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons Section -->
+<div class="flex flex-col gap-4 mt-auto pb-12">
+<!-- Get Directions (Primary Teal) -->
+<button class="w-full h-14 bg-secondary-container text-on-secondary-container rounded-full font-label-md text-label-md flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined">directions</span>
+                Get Directions
+            </button>
+<!-- Reschedule (Outline) -->
+<button class="w-full h-14 border-2 border-outline-variant text-primary rounded-full font-label-md text-label-md flex items-center justify-center gap-2 active:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined">event_repeat</span>
+                Reschedule
+            </button>
+<!-- Cancel (Ghost Red) -->
+<button class="w-full h-14 text-error rounded-full font-label-md text-label-md flex items-center justify-center gap-2 hover:bg-error-container/10 transition-all">
+<span class="material-symbols-outlined">close</span>
+                Cancel Appointment
+            </button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-lowest dark:bg-inverse-surface flex justify-around items-center px-4 pb-8 pt-4 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] rounded-t-lg">
+<!-- Home (Inactive) -->
+<button class="flex flex-col items-center justify-center text-outline px-6 py-2 hover:text-primary transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</button>
+<!-- Chat (Inactive) -->
+<button class="flex flex-col items-center justify-center text-outline px-6 py-2 hover:text-primary transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</button>
+<!-- Profile (Active - Semantic Mapping for Personal Health Record) -->
+<button class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-6 py-2 active:scale-90 duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</button>
+</nav>
+<!-- Floating Action Hub (Contextual Suppression Logic applied, but placeholder logic for future navigation) -->
+<!-- Not rendered on confirmation screen to keep focus on confirmation action buttons -->
+<script>
+        // Micro-interaction for feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const icon = this.querySelector('.material-symbols-outlined');
+                if (icon) {
+                    icon.style.transform = 'scale(1.2)';
+                    setTimeout(() => icon.style.transform = 'scale(1)', 200);
+                }
+            });
+        });
+    </script>
+</body></html>
