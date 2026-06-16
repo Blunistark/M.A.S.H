@@ -1,4 +1,10 @@
 import asyncio
+import os
+import logging
+from dotenv import load_dotenv
+
+# Configure logging to see band-sdk execution details
+logging.basicConfig(level=logging.INFO)
 from src import (
     HealthcareOrchestrationRoom,
     ReceptionNavigationRoom,
@@ -32,6 +38,13 @@ def format_js_object(obj):
     return str(obj)
 
 async def main():
+    load_dotenv()
+    use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
+    if use_real_band:
+        from src.band_config import BandSDK
+        print("Connecting to real Band platform...")
+        await BandSDK.init_real_band()
+
     print("Initializing Band of Agents mesh...")
 
     # Instantiate Agents (TelemetryAgent first to capture other agents joining)
@@ -137,9 +150,18 @@ async def main():
     # Example simulation of orchestration workflow:
     print("--- Simulating Workflow ---")
 
+    # Define dynamic test parameters based on whether we are running in real mode or mock mode
+    patient_id_1 = "53129b25-f3c1-46c3-a3d5-3c41feca402f" if use_real_band else "P-12345"
+    patient_id_2 = "8e114db7-e409-4511-8f4a-d8dcf9661488" if use_real_band else "P-67890"
+    patient_id_3 = "3a1d6743-a49c-40b1-b7d8-09432aaac4f9" if use_real_band else "P-999"
+    med_in_stock = "Amoxicillin 500mg Capsule" if use_real_band else "Ibuprofen 400mg"
+    med_out_of_stock = "Lisinopril 10mg Tablet" if use_real_band else "Rare-Antibiotic 500mg"
+    doctor_id = "22222222-2222-2222-2222-222222222222" if use_real_band else "doc-1"
+    doctor_name = "Dr. Anita Desai" if use_real_band else "Dr. Smith"
+
     # 1. Patient data arrives, trigger summary
     HealthcareOrchestrationRoom.broadcast('GENERATE_SUMMARY', { 
-        'patientId': 'P-12345', 
+        'patientId': patient_id_1, 
         'history': ['Checkup 2024', 'Vaccination 2025'],
         'tests': [
             { 'name': 'Blood Panel', 'date': '2025-11-10', 'result': 'Normal' },
@@ -152,23 +174,23 @@ async def main():
 
     # 2. Prescription written for an available medicine (1st usage)
     HealthcareOrchestrationRoom.broadcast('PROCESS_PRESCRIPTION', {
-        'patientId': 'P-12345',
-        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+        'patientId': patient_id_1,
+        'prescription': { 'medicine': med_in_stock }
     })
 
     # 3. Prescription written for an out-of-stock medicine (triggers Human-in-the-Loop)
     await asyncio.sleep(1)
     HealthcareOrchestrationRoom.broadcast('PROCESS_PRESCRIPTION', {
-        'patientId': 'P-12345',
-        'prescription': { 'medicine': 'Rare-Antibiotic 500mg' }
+        'patientId': patient_id_1,
+        'prescription': { 'medicine': med_out_of_stock }
     })
 
     # 4. Repeated prescription of the same medicine to trigger Stock Reorder Suggestion (2nd usage)
     await asyncio.sleep(1)
-    print("\n--- Triggering repeated usage of Ibuprofen to test Stock Management Agent ---")
+    print(f"\n--- Triggering repeated usage of {med_in_stock} to test Stock Management Agent ---")
     HealthcareOrchestrationRoom.broadcast('PROCESS_PRESCRIPTION', {
-        'patientId': 'P-67890',
-        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+        'patientId': patient_id_2,
+        'prescription': { 'medicine': med_in_stock }
     })
 
     # 5. Query current stock stats
@@ -185,9 +207,9 @@ async def main():
     await asyncio.sleep(1)
     print("\n--- Requesting Rescheduling (Successful Flow) ---")
     HealthcareOrchestrationRoom.broadcast('RESCHEDULE_APPOINTMENT', {
-        'patientId': 'P-12345',
-        'doctorId': 'doc-1',
-        'doctorName': 'Dr. Smith',
+        'patientId': patient_id_1,
+        'doctorId': doctor_id,
+        'doctorName': doctor_name,
         'requestedSlot': '10:00'
     })
 
@@ -195,18 +217,18 @@ async def main():
     await asyncio.sleep(1)
     print("\n--- Requesting Rescheduling with Slot Conflict (Human-in-the-Loop) ---")
     HealthcareOrchestrationRoom.broadcast('RESCHEDULE_APPOINTMENT', {
-        'patientId': 'P-12345',
-        'doctorId': 'doc-1',
-        'doctorName': 'Dr. Smith',
+        'patientId': patient_id_1,
+        'doctorId': doctor_id,
+        'doctorName': doctor_name,
         'requestedSlot': '11:00'
     })
 
     # 9. Navigation workflow: Request routing directions to see doctor
     await asyncio.sleep(1)
-    print("\n--- Requesting Navigation Guidance to see Dr. Smith ---")
+    print(f"\n--- Requesting Navigation Guidance to see {doctor_name} ---")
     HealthcareOrchestrationRoom.broadcast('REQUEST_NAVIGATION', {
-        'patientId': 'P-12345',
-        'doctorId': 'doc-1',
+        'patientId': patient_id_1,
+        'doctorId': doctor_id,
         'currentLocation': 'Main Entrance Lobby'
     })
 
@@ -217,35 +239,35 @@ async def main():
     print("\n--- Simulating Reception-Navigation-Room Workflow ---")
 
     # 10.1 REQUEST_DOCTOR_MATCH
-    print("\n[Simulation Step] Patient P-999 describes symptoms: 'chest pain' (expects Cardiology: Dr. Smith)")
+    print(f"\n[Simulation Step] Patient {patient_id_3} describes symptoms: 'chest pain' (expects Cardiology: {doctor_name})")
     ReceptionNavigationRoom.broadcast('REQUEST_DOCTOR_MATCH', {
-        'patientId': 'P-999',
+        'patientId': patient_id_3,
         'symptoms': 'chest pain',
         'requestedSlot': '10:00'
     })
 
     # 10.2 PATIENT_CHECK_IN
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Patient P-999 physically arrives at the facility and checks in")
+    print(f"\n[Simulation Step] Patient {patient_id_3} physically arrives at the facility and checks in")
     ReceptionNavigationRoom.broadcast('PATIENT_CHECK_IN', {
-        'patientId': 'P-999'
+        'patientId': patient_id_3
     })
 
-    # 10.3 DOCTOR_ROOM_CHANGE (Dr. Smith relocates to Room 405 on 4th Floor)
+    # 10.3 DOCTOR_ROOM_CHANGE (Dr. Anita Desai relocates to Room 405 on 4th Floor)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Dr. Smith clinic room is updated dynamically")
+    print(f"\n[Simulation Step] {doctor_name} clinic room is updated dynamically")
     ReceptionNavigationRoom.broadcast('DOCTOR_ROOM_CHANGE', {
-        'doctorId': 'doc-1',
+        'doctorId': doctor_id,
         'room': 'Room 405',
         'floor': '4th Floor'
     })
 
-    # 10.4 Patient checks in again or requests navigation to see Dr. Smith again to check dynamic room route update
+    # 10.4 Patient checks in again or requests navigation to see doctor again to check dynamic room route update
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Patient P-999 requests navigation guidance again after doctor relocation")
+    print(f"\n[Simulation Step] Patient {patient_id_3} requests navigation guidance again after doctor relocation")
     ReceptionNavigationRoom.broadcast('NAVIGATE_TO_ROOM', {
-        'patientId': 'P-999',
-        'doctorId': 'doc-1',
+        'patientId': patient_id_3,
+        'doctorId': doctor_id,
         'currentLocation': 'Reception Desk'
     })
 
@@ -254,9 +276,9 @@ async def main():
     print("\n--- Simulating Clinical-Consult-Room Workflow ---")
 
     # 11.1 SUMMARIZE_PATIENT_HISTORY
-    print("\n[Simulation Step] Doctor requests compiled history for patient P-999")
+    print(f"\n[Simulation Step] Doctor requests compiled history for patient {patient_id_3}")
     ClinicalConsultRoom.broadcast('SUMMARIZE_PATIENT_HISTORY', {
-        'patientId': 'P-999',
+        'patientId': patient_id_3,
         'history': ['Hypertension since 2022', 'Penicillin allergy'],
         'tests': [
             { 'name': 'ECG', 'date': '2025-05-15', 'result': 'Sinus rhythm' }
@@ -264,20 +286,20 @@ async def main():
         'surgeries': []
     })
 
-    # 11.2 PRESCRIPTION_WRITTEN (Available medicine: Ibuprofen)
+    # 11.2 PRESCRIPTION_WRITTEN (Available medicine)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Doctor writes prescription for available medicine: Ibuprofen 400mg")
+    print(f"\n[Simulation Step] Doctor writes prescription for available medicine: {med_in_stock}")
     ClinicalConsultRoom.broadcast('PRESCRIPTION_WRITTEN', {
-        'patientId': 'P-999',
-        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+        'patientId': patient_id_3,
+        'prescription': { 'medicine': med_in_stock }
     })
 
-    # 11.3 PRESCRIPTION_WRITTEN (Out-of-stock medicine: Rare-Antibiotic)
+    # 11.3 PRESCRIPTION_WRITTEN (Out-of-stock medicine)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Doctor writes prescription for out-of-stock medicine: Rare-Antibiotic 500mg")
+    print(f"\n[Simulation Step] Doctor writes prescription for out-of-stock medicine: {med_out_of_stock}")
     ClinicalConsultRoom.broadcast('PRESCRIPTION_WRITTEN', {
-        'patientId': 'P-999',
-        'prescription': { 'medicine': 'Rare-Antibiotic 500mg' }
+        'patientId': patient_id_3,
+        'prescription': { 'medicine': med_out_of_stock }
     })
 
     # Wait for clinical consult async tasks to resolve
@@ -286,35 +308,35 @@ async def main():
     # 12. Simulating Pharmacy-Inventory-Room Workflow
     print("\n--- Simulating Pharmacy-Inventory-Room Workflow ---")
 
-    # 12.1 CHECK_MEDICINE_AVAILABILITY (Available medicine: Ibuprofen)
-    print("\n[Simulation Step] Check availability for Ibuprofen 400mg")
+    # 12.1 CHECK_MEDICINE_AVAILABILITY (Available medicine)
+    print(f"\n[Simulation Step] Check availability for {med_in_stock}")
     PharmacyInventoryRoom.broadcast('CHECK_MEDICINE_AVAILABILITY', {
-        'patientId': 'P-999',
-        'medicine': 'Ibuprofen 400mg'
+        'patientId': patient_id_3,
+        'medicine': med_in_stock
     })
 
-    # 12.2 CHECK_MEDICINE_AVAILABILITY (Out-of-stock medicine: Rare-Antibiotic)
+    # 12.2 CHECK_MEDICINE_AVAILABILITY (Out-of-stock medicine)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Check availability for Rare-Antibiotic 500mg")
+    print(f"\n[Simulation Step] Check availability for {med_out_of_stock}")
     PharmacyInventoryRoom.broadcast('CHECK_MEDICINE_AVAILABILITY', {
-        'patientId': 'P-999',
-        'medicine': 'Rare-Antibiotic 500mg'
+        'patientId': patient_id_3,
+        'medicine': med_out_of_stock
     })
 
-    # 12.3 ROUTE_TO_PHARMACY (1st usage of Ibuprofen 400mg in this room)
+    # 12.3 ROUTE_TO_PHARMACY (1st usage in this room)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Route Ibuprofen 400mg order to Pharmacy (1st usage)")
+    print(f"\n[Simulation Step] Route {med_in_stock} order to Pharmacy (1st usage)")
     PharmacyInventoryRoom.broadcast('ROUTE_TO_PHARMACY', {
-        'patientId': 'P-999',
-        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+        'patientId': patient_id_3,
+        'prescription': { 'medicine': med_in_stock }
     })
 
-    # 12.4 ROUTE_TO_PHARMACY (2nd usage of Ibuprofen 400mg in this room -> triggers warning)
+    # 12.4 ROUTE_TO_PHARMACY (2nd usage in this room -> triggers warning)
     await asyncio.sleep(1)
-    print("\n[Simulation Step] Route Ibuprofen 400mg order to Pharmacy again (2nd usage -> triggers warning)")
+    print(f"\n[Simulation Step] Route {med_in_stock} order to Pharmacy again (2nd usage -> triggers warning)")
     PharmacyInventoryRoom.broadcast('ROUTE_TO_PHARMACY', {
-        'patientId': 'P-999',
-        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+        'patientId': patient_id_3,
+        'prescription': { 'medicine': med_in_stock }
     })
 
     # Wait for final async tasks to resolve
@@ -324,6 +346,10 @@ async def main():
     print("\n--- Generating Clinic Audit Report ---")
     print(telemetry_agent.generate_audit_report())
     print("--------------------------------------")
+
+    if use_real_band:
+        from src.band_config import BandSDK
+        await BandSDK.stop_real_band()
 
 if __name__ == "__main__":
     asyncio.run(main())

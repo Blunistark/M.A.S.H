@@ -1,6 +1,12 @@
-from typing import Dict, Any
+from typing import Dict, Any, TypedDict
+from langgraph.graph import StateGraph, START, END
 from src.band_config import HealthcareOrchestrationRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
+
+class PatientManagementState(TypedDict):
+    event_name: str
+    payload: Dict[str, Any]
+    bookings: Dict[str, Dict[str, Any]]
 
 class PatientManagementAgent:
     def __init__(self):
@@ -8,10 +14,41 @@ class PatientManagementAgent:
         HealthcareOrchestrationRoom.join(self.agent)
         ReceptionNavigationRoom.join(self.agent)
         self.bookings: Dict[str, Dict[str, Any]] = {}
+        self.graph = self._build_graph()
         self.setup_listeners()
 
-    def setup_listeners(self):
-        async def on_reschedule_appointment(payload: Dict[str, Any]):
+    def _build_graph(self):
+        builder = StateGraph(PatientManagementState)
+
+        def doctor_assigned_node(state: PatientManagementState) -> Dict[str, Any]:
+            payload = state["payload"]
+            bookings = dict(state["bookings"])
+            patient_id = payload["patientId"]
+            bookings[patient_id] = {
+                "doctorId": payload["doctorId"],
+                "doctorName": payload["doctorName"],
+                "specialty": payload["specialty"],
+                "slot": payload["slot"]
+            }
+            return {"bookings": bookings}
+
+        def patient_check_in_node(state: PatientManagementState) -> PatientManagementState:
+            payload = state["payload"]
+            patient_id = payload["patientId"]
+            Telemetry.track_event(self.agent.name, "PATIENT_CHECKED_IN", {"patientId": patient_id})
+
+            booking = state["bookings"].get(patient_id)
+            doctor_id = booking["doctorId"] if booking else "unknown"
+
+            ReceptionNavigationRoom.broadcast("NAVIGATE_TO_ROOM", {
+                "patientId": patient_id,
+                "doctorId": doctor_id,
+                "currentLocation": "Reception Desk"
+            })
+            return state
+
+        async def reschedule_appointment_node(state: PatientManagementState) -> PatientManagementState:
+            payload = state["payload"]
             patient_id = payload["patientId"]
             doctor_id = payload["doctorId"]
             requested_slot = payload["requestedSlot"]
@@ -43,30 +80,63 @@ class PatientManagementAgent:
                     "status": "confirmed_via_intervention",
                     "comments": human_response.get("comments")
                 })
+            return state
+
+        def route_event(state: PatientManagementState) -> str:
+            event_name = state.get("event_name")
+            if event_name == "DOCTOR_ASSIGNED":
+                return "doctor_assigned"
+            elif event_name == "PATIENT_CHECK_IN":
+                return "patient_check_in"
+            elif event_name == "RESCHEDULE_APPOINTMENT":
+                return "reschedule_appointment"
+            return END
+
+        builder.add_node("doctor_assigned", doctor_assigned_node)
+        builder.add_node("patient_check_in", patient_check_in_node)
+        builder.add_node("reschedule_appointment", reschedule_appointment_node)
+
+        builder.add_conditional_edges(
+            START,
+            route_event,
+            {
+                "doctor_assigned": "doctor_assigned",
+                "patient_check_in": "patient_check_in",
+                "reschedule_appointment": "reschedule_appointment",
+                END: END
+            }
+        )
+        builder.add_edge("doctor_assigned", END)
+        builder.add_edge("patient_check_in", END)
+        builder.add_edge("reschedule_appointment", END)
+
+        return builder.compile()
+
+    def setup_listeners(self):
+        async def on_reschedule_appointment(payload: Dict[str, Any]):
+            res = await self.graph.ainvoke({
+                "event_name": "RESCHEDULE_APPOINTMENT",
+                "payload": payload,
+                "bookings": self.bookings
+            })
+            self.bookings = res.get("bookings", self.bookings)
 
         def on_doctor_assigned(payload: Dict[str, Any]):
-            patient_id = payload["patientId"]
-            self.bookings[patient_id] = {
-                "doctorId": payload["doctorId"],
-                "doctorName": payload["doctorName"],
-                "specialty": payload["specialty"],
-                "slot": payload["slot"]
-            }
+            res = self.graph.invoke({
+                "event_name": "DOCTOR_ASSIGNED",
+                "payload": payload,
+                "bookings": self.bookings
+            })
+            self.bookings = res.get("bookings", self.bookings)
 
         def on_patient_check_in(payload: Dict[str, Any]):
-            patient_id = payload["patientId"]
-            Telemetry.track_event(self.agent.name, "PATIENT_CHECKED_IN", {"patientId": patient_id})
-
-            booking = self.bookings.get(patient_id)
-            doctor_id = booking["doctorId"] if booking else "unknown"
-
-            ReceptionNavigationRoom.broadcast("NAVIGATE_TO_ROOM", {
-                "patientId": patient_id,
-                "doctorId": doctor_id,
-                "currentLocation": "Reception Desk"
+            res = self.graph.invoke({
+                "event_name": "PATIENT_CHECK_IN",
+                "payload": payload,
+                "bookings": self.bookings
             })
+            self.bookings = res.get("bookings", self.bookings)
 
         self.agent.on_event("RESCHEDULE_APPOINTMENT", on_reschedule_appointment)
         self.agent.on_event("DOCTOR_ASSIGNED", on_doctor_assigned)
         self.agent.on_event("PATIENT_CHECK_IN", on_patient_check_in)
-

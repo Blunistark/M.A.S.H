@@ -1,52 +1,141 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TypedDict
+from langgraph.graph import StateGraph, START, END
 from src.band_config import TelemetryAuditRoom, BandSDK
 from src.telemetry import Telemetry
+
+class TelemetryState(TypedDict):
+    event_name: str
+    payload: Dict[str, Any]
+    audit_log: List[Dict[str, Any]]
 
 class TelemetryAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("TelemetryAgent")
         TelemetryAuditRoom.join(self.agent)
         self.audit_log: List[Dict[str, Any]] = []
+        self.graph = self._build_graph()
         self.setup_listeners()
 
-    def setup_listeners(self):
-        def on_agent_joined(payload: Dict[str, Any]):
+    def _build_graph(self):
+        builder = StateGraph(TelemetryState)
+
+        def agent_joined_node(state: TelemetryState) -> Dict[str, Any]:
+            payload = state["payload"]
+            audit_log = list(state["audit_log"])
             entry = {
                 "type": "AGENT_JOINED",
                 "room": payload.get("room"),
                 "agent": payload.get("agent")
             }
-            self.audit_log.append(entry)
+            audit_log.append(entry)
             Telemetry.track_event(self.agent.name, "AUDIT_AGENT_JOINED", entry)
+            return {"audit_log": audit_log}
 
-        def on_state_updated(payload: Dict[str, Any]):
+        def state_updated_node(state: TelemetryState) -> Dict[str, Any]:
+            payload = state["payload"]
+            audit_log = list(state["audit_log"])
             entry = {
                 "type": "STATE_UPDATED",
                 "room": payload.get("room"),
                 "key": payload.get("key"),
                 "value": payload.get("value")
             }
-            self.audit_log.append(entry)
+            audit_log.append(entry)
             Telemetry.track_event(self.agent.name, "AUDIT_STATE_UPDATED", entry)
+            return {"audit_log": audit_log}
 
-        def on_human_intervention_requested(payload: Dict[str, Any]):
+        def intervention_requested_node(state: TelemetryState) -> Dict[str, Any]:
+            payload = state["payload"]
+            audit_log = list(state["audit_log"])
             entry = {
                 "type": "HUMAN_INTERVENTION_REQUESTED",
                 "agent": payload.get("agent"),
                 "reason": payload.get("reason"),
                 "context": payload.get("context")
             }
-            self.audit_log.append(entry)
+            audit_log.append(entry)
             Telemetry.track_event(self.agent.name, "AUDIT_HUMAN_INTERVENTION_REQUESTED", entry)
+            return {"audit_log": audit_log}
 
-        def on_resolved(payload: Dict[str, Any]):
+        def resolved_node(state: TelemetryState) -> Dict[str, Any]:
+            payload = state["payload"]
+            audit_log = list(state["audit_log"])
             entry = {
                 "type": "RESOLVED",
                 "agent": payload.get("agent"),
                 "resolution": payload.get("resolution")
             }
-            self.audit_log.append(entry)
+            audit_log.append(entry)
             Telemetry.track_event(self.agent.name, "AUDIT_RESOLVED", entry)
+            return {"audit_log": audit_log}
+
+        def route_event(state: TelemetryState) -> str:
+            event_name = state.get("event_name")
+            if event_name == "AGENT_JOINED":
+                return "agent_joined"
+            elif event_name == "STATE_UPDATED":
+                return "state_updated"
+            elif event_name == "HUMAN_INTERVENTION_REQUESTED":
+                return "intervention_requested"
+            elif event_name == "RESOLVED":
+                return "resolved"
+            return END
+
+        builder.add_node("agent_joined", agent_joined_node)
+        builder.add_node("state_updated", state_updated_node)
+        builder.add_node("intervention_requested", intervention_requested_node)
+        builder.add_node("resolved", resolved_node)
+
+        builder.add_conditional_edges(
+            START,
+            route_event,
+            {
+                "agent_joined": "agent_joined",
+                "state_updated": "state_updated",
+                "intervention_requested": "intervention_requested",
+                "resolved": "resolved",
+                END: END
+            }
+        )
+        builder.add_edge("agent_joined", END)
+        builder.add_edge("state_updated", END)
+        builder.add_edge("intervention_requested", END)
+        builder.add_edge("resolved", END)
+
+        return builder.compile()
+
+    def setup_listeners(self):
+        def on_agent_joined(payload: Dict[str, Any]):
+            res = self.graph.invoke({
+                "event_name": "AGENT_JOINED",
+                "payload": payload,
+                "audit_log": self.audit_log
+            })
+            self.audit_log = res.get("audit_log", self.audit_log)
+
+        def on_state_updated(payload: Dict[str, Any]):
+            res = self.graph.invoke({
+                "event_name": "STATE_UPDATED",
+                "payload": payload,
+                "audit_log": self.audit_log
+            })
+            self.audit_log = res.get("audit_log", self.audit_log)
+
+        def on_human_intervention_requested(payload: Dict[str, Any]):
+            res = self.graph.invoke({
+                "event_name": "HUMAN_INTERVENTION_REQUESTED",
+                "payload": payload,
+                "audit_log": self.audit_log
+            })
+            self.audit_log = res.get("audit_log", self.audit_log)
+
+        def on_resolved(payload: Dict[str, Any]):
+            res = self.graph.invoke({
+                "event_name": "RESOLVED",
+                "payload": payload,
+                "audit_log": self.audit_log
+            })
+            self.audit_log = res.get("audit_log", self.audit_log)
 
         self.agent.on_event("AGENT_JOINED", on_agent_joined)
         self.agent.on_event("STATE_UPDATED", on_state_updated)
