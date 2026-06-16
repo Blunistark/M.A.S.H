@@ -1,5 +1,5 @@
 import { type View, Router } from '../router';
-import { mockProfiles, mockMedicalRecords } from '../mockData';
+import { fetchProfiles, fetchMedicalRecords } from '../api';
 import { getIcon } from '../assets/icons';
 
 let searchQuery = '';
@@ -9,12 +9,15 @@ function getInitials(name: string): string {
 }
 
 export class PatientsListView implements View {
-  public render(): string {
-    const patients = mockProfiles.filter(p => p.role === 'patient');
+  public async render(): Promise<string> {
+    const allProfiles = await fetchProfiles();
+    const allRecords = await fetchMedicalRecords();
+
+    const patients = allProfiles.filter(p => p.role === 'patient');
 
     // Filter patients based on search query
     const filteredPatients = patients.filter(patient => {
-      const records = mockMedicalRecords.filter(r => r.patient_id === patient.id);
+      const records = allRecords.filter(r => r.patient_id === patient.id);
       return patient.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
              records.some(r => r.description.toLowerCase().includes(searchQuery.toLowerCase()));
     });

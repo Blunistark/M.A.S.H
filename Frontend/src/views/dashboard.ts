@@ -1,10 +1,18 @@
 import { type View, Router } from '../router';
-import { initialMetrics, mockProfiles, mockAppointments, type Appointment } from '../mockData';
+import { fetchAppointments, fetchProfiles, fetchMetrics, createAppointment } from '../api';
+import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
 
 // Internal state
-let queueAppointments = [...mockAppointments];
-let metrics = { ...initialMetrics };
+let queueAppointments: Appointment[] = [];
+let profiles: Profile[] = [];
+let metrics: DashboardMetrics = {
+  todayAppointmentsCount: 0,
+  remainingAppointmentsCount: 0,
+  pendingReschedulesCount: 0,
+  notificationsCount: 0,
+  stockAlertsCount: 0
+};
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
@@ -21,10 +29,14 @@ function getInitials(name: string): string {
 }
 
 export class DashboardView implements View {
-  public render(): string {
+  public async render(): Promise<string> {
+    queueAppointments = await fetchAppointments();
+    profiles = await fetchProfiles();
+    metrics = await fetchMetrics();
+
     // Generate queue rows
     const tableRows = queueAppointments.map(appt => {
-      const patient = mockProfiles.find(p => p.id === appt.patient_id);
+      const patient = profiles.find(p => p.id === appt.patient_id);
       if (!patient) return '';
 
       let statusClass = 'waiting';
@@ -244,7 +256,7 @@ export class DashboardView implements View {
                 <label class="form-label" for="patient-select">Patient</label>
                 <select class="form-select" id="patient-select" required>
                   <option value="">Select Patient...</option>
-                  ${mockProfiles.filter(p => p.role === 'patient').map(p => `<option value="${p.id}">${p.full_name}</option>`).join('')}
+                  ${profiles.filter(p => p.role === 'patient').map(p => `<option value="${p.id}">${p.full_name}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
@@ -332,9 +344,9 @@ export class DashboardView implements View {
 
         const selectedPatientId = patientIdSelect.value;
         const timeVal = timeInput.value;
-        const statusVal = statusSelect.value as any;
+        const statusVal = statusSelect.value;
 
-        const patient = mockProfiles.find(p => p.id === selectedPatientId);
+        const patient = profiles.find(p => p.id === selectedPatientId);
         if (!patient) {
           closeModal();
           return;
@@ -345,24 +357,19 @@ export class DashboardView implements View {
         date.setHours(parseInt(hours, 10));
         date.setMinutes(parseInt(mins, 10));
 
-        const newAppt: Appointment = {
-          id: `app-${Date.now()}`,
+        createAppointment({
           patient_id: selectedPatientId,
           doctor_id: 'dr-smith',
           scheduled_time: date.toISOString(),
-          status: statusVal,
-          created_at: new Date().toISOString()
-        };
-
-        queueAppointments.unshift(newAppt);
-
-        metrics.todayAppointmentsCount += 1;
-        if (statusVal !== 'completed') {
-          metrics.remainingAppointmentsCount += 1;
-        }
-
-        closeModal();
-        router.navigate('dashboard');
+          status: statusVal
+        }).then(() => {
+          closeModal();
+          router.navigate('dashboard');
+        }).catch(err => {
+          console.error(err);
+          alert('Failed to save appointment to the database.');
+          closeModal();
+        });
       });
     }
   }

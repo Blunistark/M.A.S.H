@@ -5,6 +5,7 @@ import { PatientsListView } from './views/patientsList';
 import { PatientProfileView } from './views/patientProfile';
 import { PrescriptionsView } from './views/prescriptions';
 import { ScheduleView } from './views/schedule';
+import { PharmacyView } from './views/pharmacy';
 
 // Instantiate the router targeting the main #app div
 const router = new Router('app');
@@ -15,6 +16,7 @@ router.registerView('patients', new PatientsListView());
 router.registerView('patient-profile', new PatientProfileView());
 router.registerView('prescriptions', new PrescriptionsView());
 router.registerView('schedule', new ScheduleView());
+router.registerView('pharmacy', new PharmacyView());
 
-// Boot the application on the dashboard screen
-router.navigate('dashboard');
+// Boot the application using the current URL hash
+router.routeFromHash();
