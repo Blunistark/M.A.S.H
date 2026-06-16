@@ -1,5 +1,5 @@
 import { type View, Router } from '../router';
-import { fetchAppointments, fetchProfiles, fetchMetrics, createAppointment } from '../api';
+import { fetchAppointments, fetchProfiles, fetchMetrics, createAppointment, createProfile } from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
 
@@ -253,11 +253,26 @@ export class DashboardView implements View {
           <form id="new-appointment-form">
             <div class="modal-body">
               <div class="form-group">
-                <label class="form-label" for="patient-select">Patient</label>
-                <select class="form-select" id="patient-select" required>
-                  <option value="">Select Patient...</option>
-                  ${profiles.filter(p => p.role === 'patient').map(p => `<option value="${p.id}">${p.full_name}</option>`).join('')}
-                </select>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="form-label" style="margin-bottom: 0;">Patient</label>
+                  <button type="button" id="toggle-patient-mode-btn" style="background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 12px; font-weight: 600; padding: 0;">+ Create New Patient</button>
+                </div>
+                <div id="select-patient-wrapper">
+                  <select class="form-select" id="patient-select" required>
+                    <option value="">Select Patient...</option>
+                    ${profiles.filter(p => p.role === 'patient').map(p => `<option value="${p.id}">${p.full_name}</option>`).join('')}
+                  </select>
+                </div>
+                <div id="create-patient-wrapper" style="display: none; border: 1px dashed #cbd5e1; padding: 12px; border-radius: 8px; margin-top: 4px; background: #f8fafc; gap: 8px; flex-direction: column;">
+                  <div class="form-group" style="margin-bottom: 8px;">
+                    <label class="form-label" for="new-patient-name" style="font-size: 11px; margin-bottom: 4px;">Patient Full Name *</label>
+                    <input type="text" class="form-input" id="new-patient-name" placeholder="Enter full name" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="new-patient-phone" style="font-size: 11px; margin-bottom: 4px;">Contact Number</label>
+                    <input type="text" class="form-input" id="new-patient-phone" placeholder="e.g. (555) 000-0000" />
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="appointment-time">Time</label>
@@ -324,10 +339,43 @@ export class DashboardView implements View {
     const cancelModalBtn = container.querySelector('#cancel-modal-btn') as HTMLElement;
     const appointmentForm = container.querySelector('#new-appointment-form') as HTMLFormElement;
 
+    let isCreatingPatient = false;
+    const toggleBtn = container.querySelector('#toggle-patient-mode-btn') as HTMLButtonElement;
+    const selectWrapper = container.querySelector('#select-patient-wrapper') as HTMLElement;
+    const createWrapper = container.querySelector('#create-patient-wrapper') as HTMLElement;
+    const patientIdSelect = container.querySelector('#patient-select') as HTMLSelectElement;
+    const newPatientNameInput = container.querySelector('#new-patient-name') as HTMLInputElement;
+    const newPatientPhoneInput = container.querySelector('#new-patient-phone') as HTMLInputElement;
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        isCreatingPatient = !isCreatingPatient;
+        if (isCreatingPatient) {
+          selectWrapper.style.display = 'none';
+          createWrapper.style.display = 'flex';
+          patientIdSelect.removeAttribute('required');
+          newPatientNameInput.setAttribute('required', 'true');
+          toggleBtn.textContent = 'Select Existing Patient';
+        } else {
+          selectWrapper.style.display = 'block';
+          createWrapper.style.display = 'none';
+          patientIdSelect.setAttribute('required', 'true');
+          newPatientNameInput.removeAttribute('required');
+          toggleBtn.textContent = '+ Create New Patient';
+        }
+      });
+    }
+
     const openModal = () => appointmentModal.classList.add('open');
     const closeModal = () => {
       appointmentModal.classList.remove('open');
       appointmentForm.reset();
+      isCreatingPatient = false;
+      selectWrapper.style.display = 'block';
+      createWrapper.style.display = 'none';
+      patientIdSelect.setAttribute('required', 'true');
+      newPatientNameInput.removeAttribute('required');
+      if (toggleBtn) toggleBtn.textContent = '+ Create New Patient';
     };
 
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
@@ -335,41 +383,57 @@ export class DashboardView implements View {
     if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
 
     if (appointmentForm) {
-      appointmentForm.addEventListener('submit', (e) => {
+      appointmentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const patientIdSelect = container.querySelector('#patient-select') as HTMLSelectElement;
         const timeInput = container.querySelector('#appointment-time') as HTMLInputElement;
         const statusSelect = container.querySelector('#appointment-status') as HTMLSelectElement;
-
-        const selectedPatientId = patientIdSelect.value;
         const timeVal = timeInput.value;
         const statusVal = statusSelect.value;
-
-        const patient = profiles.find(p => p.id === selectedPatientId);
-        if (!patient) {
-          closeModal();
-          return;
-        }
 
         const date = new Date();
         const [hours, mins] = timeVal.split(':');
         date.setHours(parseInt(hours, 10));
         date.setMinutes(parseInt(mins, 10));
 
-        createAppointment({
-          patient_id: selectedPatientId,
-          doctor_id: 'dr-smith',
-          scheduled_time: date.toISOString(),
-          status: statusVal
-        }).then(() => {
+        let targetPatientId = '';
+
+        try {
+          if (isCreatingPatient) {
+            const nameVal = newPatientNameInput.value.trim();
+            const phoneVal = newPatientPhoneInput.value.trim();
+            if (!nameVal) return;
+
+            // 1. Create the new patient profile in the DB
+            const newProfile = await createProfile({ full_name: nameVal, contact_number: phoneVal });
+            targetPatientId = newProfile.id;
+          } else {
+            targetPatientId = patientIdSelect.value;
+          }
+
+          if (!targetPatientId) {
+            closeModal();
+            return;
+          }
+
+          // 2. Resolve a valid doctor UUID from the database profiles list to prevent constraint errors
+          const docProfile = profiles.find(p => p.role === 'doctor');
+          const doctorId = docProfile ? docProfile.id : 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
+
+          await createAppointment({
+            patient_id: targetPatientId,
+            doctor_id: doctorId,
+            scheduled_time: date.toISOString(),
+            status: statusVal
+          });
+
           closeModal();
           router.navigate('dashboard');
-        }).catch(err => {
+        } catch (err) {
           console.error(err);
-          alert('Failed to save appointment to the database.');
+          alert('Failed to save appointment or create patient in the database.');
           closeModal();
-        });
+        }
       });
     }
   }

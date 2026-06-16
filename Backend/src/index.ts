@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import { supabase } from './config/supabase';
 
 dotenv.config();
@@ -12,6 +13,125 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+
+// POST /api/auth/signup
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { email, password, full_name, contact_number } = req.body;
+    if (!email || !password || !full_name) {
+      return res.status(400).json({ message: 'Email, password and full name are required' });
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    const authUser = data.user;
+    if (!authUser) {
+      return res.status(400).json({ message: 'Signup failed to create user' });
+    }
+
+    // Insert profile
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: authUser.id,
+          full_name,
+          role: 'patient',
+          contact_number: contact_number || null,
+        }
+      ])
+      .select()
+      .single();
+
+    if (profileErr) {
+      return res.status(500).json({ message: `Profile creation failed: ${profileErr.message}` });
+    }
+
+    res.status(201).json({
+      user: authUser,
+      profile,
+      session: data.session,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    const authUser = data.user;
+    if (!authUser) {
+      return res.status(400).json({ message: 'Login failed' });
+    }
+
+    // Fetch profile
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+
+    let userProfile = profile;
+    if (profileErr) {
+      console.warn('Profile not found for authenticated user, creating default profile');
+      const { data: newProfile } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: authUser.id,
+            full_name: email.split('@')[0],
+            role: 'patient',
+          }
+        ])
+        .select()
+        .single();
+      userProfile = newProfile;
+    }
+
+    res.json({
+      user: authUser,
+      profile: userProfile,
+      session: data.session,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
 
 // GET /api/metrics
 app.get('/api/metrics', async (req, res) => {
@@ -80,6 +200,82 @@ app.get('/api/profiles/:id', async (req, res) => {
   }
 });
 
+// POST /api/profiles
+app.post('/api/profiles', async (req, res) => {
+  try {
+    const { full_name, contact_number } = req.body;
+    if (!full_name) {
+      return res.status(400).json({ message: 'Full name is required' });
+    }
+
+    const newId = crypto.randomUUID();
+
+    // Create profile
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: newId,
+          full_name,
+          role: 'patient',
+          contact_number: contact_number || null,
+        }
+      ])
+      .select()
+      .single();
+
+    if (profileErr) {
+      return res.status(500).json({ message: profileErr.message });
+    }
+
+    // Resolve a valid doctor ID dynamically from the database
+    const { data: doctors } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'doctor')
+      .limit(1);
+
+    const resolvedDoctorId = doctors && doctors.length > 0
+      ? doctors[0].id
+      : 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
+
+    // Insert default demographics record
+    const initials = full_name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+
+    const { error: mrErr } = await supabase.from('medical_records').insert([
+      {
+        patient_id: newId,
+        doctor_id: resolvedDoctorId,
+        record_type: 'demographics',
+        description: JSON.stringify({
+          dob: '01/01/1990',
+          gender: 'Not Specified',
+          bloodType: 'O+',
+          photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=300',
+          age: 30,
+          address: 'Not Provided',
+          email: 'notprovided@email.com',
+          initials
+        }),
+        record_date: new Date().toISOString().split('T')[0]
+      }
+    ]);
+
+    if (mrErr) {
+      console.error('Demographics creation warning:', mrErr);
+    }
+
+    res.status(201).json(profile);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
 // GET /api/doctor_details
 app.get('/api/doctor_details', async (req, res) => {
   try {
@@ -110,9 +306,30 @@ app.get('/api/appointments', async (req, res) => {
 app.post('/api/appointments', async (req, res) => {
   try {
     const { patient_id, doctor_id, scheduled_time, status } = req.body;
+
+    let resolvedDoctorId = doctor_id;
+    // Check if the doctor profile exists
+    const { data: doctorProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', doctor_id)
+      .single();
+
+    if (!doctorProfile) {
+      const { data: firstDoc } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'doctor')
+        .limit(1);
+
+      if (firstDoc && firstDoc.length > 0) {
+        resolvedDoctorId = firstDoc[0].id;
+      }
+    }
+
     const { data, error } = await supabase
       .from('appointments')
-      .insert([{ patient_id, doctor_id, scheduled_time, status }])
+      .insert([{ patient_id, doctor_id: resolvedDoctorId, scheduled_time, status }])
       .select()
       .single();
 
@@ -154,12 +371,34 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
       return res.status(400).json({ message: 'patient_id and items[] are required' });
     }
 
+    let resolvedDoctorId = doctor_id;
+    // Check if the doctor profile exists
+    const { data: doctorProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', doctor_id || '')
+      .single();
+
+    if (!doctorProfile) {
+      const { data: firstDoc } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'doctor')
+        .limit(1);
+
+      if (firstDoc && firstDoc.length > 0) {
+        resolvedDoctorId = firstDoc[0].id;
+      } else {
+        resolvedDoctorId = '22222222-2222-2222-2222-222222222222';
+      }
+    }
+
     // 1. Create the prescription with status 'pushed_to_pharma'
     const { data: rx, error: rxErr } = await supabase
       .from('prescriptions')
       .insert({
         patient_id,
-        doctor_id: doctor_id || '22222222-2222-2222-2222-222222222222',
+        doctor_id: resolvedDoctorId,
         status: 'pushed_to_pharma',
         doctor_comments: doctor_comments || null
       })
