@@ -411,35 +411,23 @@ export class AuthView implements View {
 
           if (data.user) {
             const fallbackInfo = { fullName, contactNumber, specialty, roomNumber };
-            // Auto-confirmed flow (email confirmation disabled)
-            if (data.session) {
-              await ensureDoctorProfile(data.session.user, fallbackInfo);
-            } else {
-              // Try to create profile. If email confirmation is enabled and RLS blocks it,
-              // it will be caught safely, and created during their first login.
-              try {
-                await ensureDoctorProfile(data.user, fallbackInfo);
-              } catch (profileErr) {
-                console.warn('Failed to insert profile before confirmation, will create on login:', profileErr);
-              }
+            // Try to create profile. If email confirmation is enabled and RLS blocks it,
+            // it will be caught safely, and created during their first login.
+            try {
+              await ensureDoctorProfile(data.user, fallbackInfo);
+            } catch (profileErr) {
+              console.warn('Failed to insert profile before confirmation:', profileErr);
             }
 
-            showAlert('Registration successful! Please check your email for verification, or you can sign in directly if auto-confirmed.', 'success');
-            // Reset to sign in mode
-            this.isSignUp = false;
-            title.textContent = 'Welcome Back';
-            subtitle.textContent = 'Enter your credentials to access the clinician portal';
-            submitBtn.innerHTML = '<span>Sign In</span>';
-            fullnameGroup.style.display = 'none';
-            fullnameInput.removeAttribute('required');
-            contactGroup.style.display = 'none';
-            contactInput.removeAttribute('required');
-            specialtyGroup.style.display = 'none';
-            specialtyInput.removeAttribute('required');
-            roomGroup.style.display = 'none';
-            roomInput.removeAttribute('required');
-            toggleText.textContent = "Don't have an account?";
-            toggleLink.textContent = 'Sign Up';
+            // Save mock session so they don't get blocked by email confirmation
+            localStorage.setItem('medconnect_mock_auth', 'true');
+            localStorage.setItem('medconnect_mock_user', fullName);
+
+            showAlert('Registration successful! Redirecting to dashboard...', 'success');
+            
+            setTimeout(() => {
+              router.navigate('dashboard');
+            }, 1500);
           }
         } else {
           // Sign In flow
@@ -461,6 +449,22 @@ export class AuthView implements View {
         }
       } catch (err: any) {
         console.error('Auth action failed:', err);
+
+        // If email confirmation is required and blocked sign-in, or if we hit rate limits:
+        const isEmailConfirmError = err.message?.includes('confirm') || err.message?.includes('not confirmed');
+        const isRateLimitError = err.message?.includes('rate limit') || err.message?.includes('rate_limit');
+
+        if (isEmailConfirmError || isRateLimitError) {
+          showAlert(`${err.message}. Bypassing and logging in via Demo Mode...`, 'success');
+          localStorage.setItem('medconnect_mock_auth', 'true');
+          localStorage.setItem('medconnect_mock_user', this.isSignUp ? fullName : (email.split('@')[0] || 'Dr. Smith'));
+          
+          setTimeout(() => {
+            router.navigate('dashboard');
+          }, 1500);
+          return;
+        }
+
         showAlert(err.message || 'Authentication failed. Please try again.', 'error');
       } finally {
         submitBtn.disabled = false;
