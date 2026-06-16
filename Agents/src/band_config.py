@@ -25,13 +25,30 @@ class BandAgent:
 
     async def request_human_intervention(self, reason: str, context: Any) -> Any:
         Telemetry.track_event(self.name, "HUMAN_INTERVENTION_REQUESTED", {"reason": reason, "context": context})
+        
+        # Broadcast request to TelemetryAuditRoom
+        TelemetryAuditRoom.broadcast("HUMAN_INTERVENTION_REQUESTED", {
+            "agent": self.name,
+            "reason": reason,
+            "context": context
+        })
+
         # Format printing to match TS console.log exactly
         # Note: in Python, print dictionary with keys/values formatted cleanly.
         # We can format reason and context matching the TS logging style.
         import json
         print(f"[Band API] Pause for Human Intervention: {reason}", json.dumps(context, separators=(',', ':')))
         await asyncio.sleep(3)
-        return {"status": "approved", "comments": "Doctor reviewed and approved."}
+        
+        response = {"status": "approved", "comments": "Doctor reviewed and approved."}
+        
+        # Broadcast resolution to TelemetryAuditRoom
+        TelemetryAuditRoom.broadcast("RESOLVED", {
+            "agent": self.name,
+            "resolution": response
+        })
+
+        return response
 
 class BandRoom:
     def __init__(self, name: str):
@@ -44,6 +61,8 @@ class BandRoom:
         self.agents.append(agent)
         agent.room = self
         Telemetry.track_event("BandSDK", "AGENT_JOINED", {"room": self.name, "agent": agent.name})
+        if self.name != "Telemetry-Audit-Room":
+            TelemetryAuditRoom.broadcast("AGENT_JOINED", {"room": self.name, "agent": agent.name})
 
     def broadcast(self, event: str, payload: Any):
         for agent in self.agents:
@@ -52,6 +71,8 @@ class BandRoom:
     def update_state(self, key: str, value: Any):
         self.state[key] = value
         Telemetry.track_event("BandRoom", "STATE_UPDATED", {"key": key, "value": value})
+        if self.name != "Telemetry-Audit-Room":
+            TelemetryAuditRoom.broadcast("STATE_UPDATED", {"room": self.name, "key": key, "value": value})
 
 class BandSDK:
     @staticmethod
@@ -66,3 +87,5 @@ HealthcareOrchestrationRoom = BandSDK.create_room("Healthcare-Orchestration-Room
 ReceptionNavigationRoom = BandSDK.create_room("Reception-Navigation-Room")
 ClinicalConsultRoom = BandSDK.create_room("Clinical-Consult-Room")
 PharmacyInventoryRoom = BandSDK.create_room("Pharmacy-Inventory-Room")
+TelemetryAuditRoom = BandSDK.create_room("Telemetry-Audit-Room")
+

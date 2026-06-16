@@ -4,13 +4,16 @@ from src import (
     ReceptionNavigationRoom,
     ClinicalConsultRoom,
     PharmacyInventoryRoom,
+    TelemetryAuditRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
     RegistrationAgent,
     PatientManagementAgent,
     PatientNavigationAgent,
+    TelemetryAgent,
 )
+
 
 
 def format_js_object(obj):
@@ -31,13 +34,15 @@ def format_js_object(obj):
 async def main():
     print("Initializing Band of Agents mesh...")
 
-    # Instantiate Agents (which automatically join the room and set up listeners)
+    # Instantiate Agents (TelemetryAgent first to capture other agents joining)
+    telemetry_agent = TelemetryAgent()
     summary_agent = SummaryAgent()
     medicine_agent = MedicineManagementAgent()
     stock_agent = StockManagementAgent()
     registration_agent = RegistrationAgent()
     patient_management_agent = PatientManagementAgent()
     patient_navigation_agent = PatientNavigationAgent()
+
 
     # Log simulation events for visibility
     original_broadcast = HealthcareOrchestrationRoom.broadcast
@@ -110,6 +115,23 @@ async def main():
         return original_pharmacy_broadcast(event, payload)
 
     PharmacyInventoryRoom.broadcast = wrapped_pharmacy_broadcast
+
+    # Log simulation events for Telemetry-Audit-Room
+    original_audit_broadcast = TelemetryAuditRoom.broadcast
+
+    def wrapped_audit_broadcast(event: str, payload: dict):
+        if event == 'AGENT_JOINED':
+            print(f"[AUDIT INFO] Audit: Agent '{payload['agent']}' successfully registered to room '{payload['room']}'")
+        elif event == 'STATE_UPDATED':
+            print(f"[AUDIT INFO] Audit: Room '{payload['room']}' state update detected: {payload['key']} = {payload['value']}")
+        elif event == 'HUMAN_INTERVENTION_REQUESTED':
+            print(f"[AUDIT ALERT] Audit: Human intervention requested by '{payload['agent']}' - Reason: {payload['reason']}")
+        elif event == 'RESOLVED':
+            print(f"[AUDIT ALERT] Audit: Human intervention resolved for '{payload['agent']}' - Status: {payload['resolution']['status']}")
+        return original_audit_broadcast(event, payload)
+
+    TelemetryAuditRoom.broadcast = wrapped_audit_broadcast
+
 
 
     # Example simulation of orchestration workflow:
@@ -298,6 +320,12 @@ async def main():
     # Wait for final async tasks to resolve
     await asyncio.sleep(4)
 
+    # 13. Generate Clinic Audit Report from Telemetry Agent
+    print("\n--- Generating Clinic Audit Report ---")
+    print(telemetry_agent.generate_audit_report())
+    print("--------------------------------------")
+
 if __name__ == "__main__":
     asyncio.run(main())
+
 
