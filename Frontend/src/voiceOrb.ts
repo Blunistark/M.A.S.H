@@ -1,5 +1,5 @@
 import { Router } from './router';
-import { fetchProfiles } from './api';
+import { fetchProfiles, askDoctorAssistant } from './api';
 import type { Profile } from './types';
 
 export class VoiceOrb {
@@ -7,7 +7,6 @@ export class VoiceOrb {
   private transcriptBubble: HTMLElement | null = null;
   private confirmBubble: HTMLElement | null = null;
   private orb: HTMLElement | null = null;
-  private hintLabel: HTMLElement | null = null;
   private suggestionChips: HTMLElement | null = null;
   private textBubble: HTMLElement | null = null;
   private textInput: HTMLInputElement | null = null;
@@ -22,11 +21,11 @@ export class VoiceOrb {
   private currentRoute = 'dashboard';
   private profilesCache: Profile[] = [];
   private ttsEnabled = true;
+  private chatHistory: { role: 'user' | 'model'; text: string }[] = [];
 
   // WebGL Shader variables
   private canvas: HTMLCanvasElement | null = null;
   private gl: WebGLRenderingContext | null = null;
-  private animationFrameId: number | null = null;
   private targetHover = 0;
   private currentHover = 0;
   private currentRot = 0;
@@ -65,7 +64,6 @@ export class VoiceOrb {
     this.transcriptBubble = this.container.querySelector('.transcript-bubble');
     this.confirmBubble = this.container.querySelector('.confirm-bubble');
     this.orb = this.container.querySelector('.mash-voice-orb');
-    this.hintLabel = document.getElementById('action-hint-label');
     this.suggestionChips = document.getElementById('mash-suggestion-chips');
     this.textBubble = document.getElementById('mash-text-bubble');
     this.textInput = document.getElementById('mash-text-input') as HTMLInputElement;
@@ -516,18 +514,33 @@ export class VoiceOrb {
       }
     }
 
+    if (!actionExecuted) {
+      try {
+        confirmMessage = await askDoctorAssistant(command, this.chatHistory);
+        this.chatHistory.push({ role: 'user', text: command });
+        this.chatHistory.push({ role: 'model', text: confirmMessage });
+        if (this.chatHistory.length > 30) {
+          this.chatHistory = this.chatHistory.slice(-30);
+        }
+      } catch (err) {
+        console.error('Doctor Assistant chatbot query failed:', err);
+        confirmMessage = "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
+      }
+    }
+
     // Set state to confirmed and show bubble
     this.isProcessing = false;
     this.setState('confirmed');
     this.showConfirmation(confirmMessage);
 
-    // Auto return to idle state after 3 seconds
+    // Auto return to idle state after a dynamic duration based on message length
+    const displayTimeout = Math.max(4000, confirmMessage.length * 60);
     setTimeout(() => {
       if (!this.isListening && !this.isProcessing) {
         this.setState('idle');
         this.stopActiveListening();
       }
-    }, 3000);
+    }, displayTimeout);
   }
 
   private extractPatientName(cmd: string): string | null {
@@ -853,10 +866,10 @@ export class VoiceOrb {
     }
 
     const renderLoop = (t: number) => {
-      this.animationFrameId = requestAnimationFrame(renderLoop);
+      requestAnimationFrame(renderLoop);
       this.renderWebGL(t);
     };
-    this.animationFrameId = requestAnimationFrame(renderLoop);
+    requestAnimationFrame(renderLoop);
   }
 
   private syncCanvasSize() {
