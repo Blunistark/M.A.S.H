@@ -7,6 +7,7 @@ import { PrescriptionsView } from './views/prescriptions';
 import { ScheduleView } from './views/schedule';
 import { PharmacyView } from './views/pharmacy';
 import { AuthView } from './views/auth';
+import { VoiceOrb } from './voiceOrb';
 
 // Instantiate the router targeting the main #app div
 const router = new Router('app');
@@ -20,5 +21,9 @@ router.registerView('prescriptions', new PrescriptionsView());
 router.registerView('schedule', new ScheduleView());
 router.registerView('pharmacy', new PharmacyView());
 
+// Initialize MASH Voice Orb
+new VoiceOrb(router);
+
 // Boot the application using the current URL hash
 router.routeFromHash();
+
