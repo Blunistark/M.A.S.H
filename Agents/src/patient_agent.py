@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph import StateGraph, START, END
-from src.band_config import HealthcareOrchestrationRoom, ReceptionNavigationRoom, BandSDK
+from src.band_config import PatientManagementRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
 
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
@@ -18,7 +18,7 @@ async def get_doctors() -> list:
     req_id = str(uuid.uuid4())
     PENDING_REQUESTS[req_id] = future
     
-    HealthcareOrchestrationRoom.broadcast("QUERY_DOCTORS", {"requestId": req_id})
+    PatientManagementRoom.broadcast("QUERY_DOCTORS", {"requestId": req_id})
     try:
         result = await asyncio.wait_for(future, timeout=10.0)
         docs = result.get("doctors", [])
@@ -36,7 +36,7 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, re
     req_id = str(uuid.uuid4())
     PENDING_REQUESTS[req_id] = future
     
-    HealthcareOrchestrationRoom.broadcast("BOOKING_REQUESTED", {
+    PatientManagementRoom.broadcast("BOOKING_REQUESTED", {
         "requestId": req_id,
         "patientName": patient_name,
         "doctorId": doctor_id,
@@ -57,7 +57,7 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
     req_id = str(uuid.uuid4())
     PENDING_REQUESTS[req_id] = future
     
-    HealthcareOrchestrationRoom.broadcast("RESCHEDULE_REQUESTED", {
+    PatientManagementRoom.broadcast("RESCHEDULE_REQUESTED", {
         "requestId": req_id,
         "patientName": patient_name,
         "newSlotTime": new_slot_time
@@ -76,7 +76,7 @@ class PatientManagementState(TypedDict):
 class PatientManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("PatientManagementAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         ReceptionNavigationRoom.join(self.agent)
         self.bookings: Dict[str, Dict[str, Any]] = {}
         self.graph = self._build_graph()
@@ -160,7 +160,7 @@ class PatientManagementAgent:
 
             if is_available:
                 Telemetry.track_handoff(self.agent.name, "ALL", {"action": "RESCHEDULE_SUCCESS", "patientId": patient_id})
-                HealthcareOrchestrationRoom.broadcast("APPOINTMENT_CONFIRMED", {
+                PatientManagementRoom.broadcast("APPOINTMENT_CONFIRMED", {
                     "patientId": patient_id,
                     "doctorId": doctor_id,
                     "slot": requested_slot,
@@ -173,7 +173,7 @@ class PatientManagementAgent:
                 )
 
                 Telemetry.track_event(self.agent.name, "RESCHEDULE_CONFLICT_RESOLVED", human_response)
-                HealthcareOrchestrationRoom.broadcast("APPOINTMENT_CONFIRMED", {
+                PatientManagementRoom.broadcast("APPOINTMENT_CONFIRMED", {
                     "patientId": patient_id,
                     "doctorId": doctor_id,
                     "slot": "14:00",

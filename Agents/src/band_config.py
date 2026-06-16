@@ -196,7 +196,8 @@ class BandSDK:
 
         # 2. Check and create any missing rooms
         required_rooms = [
-            "Healthcare-Orchestration-Room",
+            "Patient-Management-Room",
+            "Doctor-Dashboard-Room",
             "Reception-Navigation-Room",
             "Clinical-Consult-Room",
             "Pharmacy-Inventory-Room",
@@ -247,14 +248,16 @@ class BandSDK:
             BandSDK.real_agent = None
             print("[BandSDK] Stopped Real Agent connection.")
 
-HealthcareOrchestrationRoom = BandSDK.create_room("Healthcare-Orchestration-Room")
+PatientManagementRoom = BandSDK.create_room("Patient-Management-Room")
+DoctorDashboardRoom = BandSDK.create_room("Doctor-Dashboard-Room")
 ReceptionNavigationRoom = BandSDK.create_room("Reception-Navigation-Room")
 ClinicalConsultRoom = BandSDK.create_room("Clinical-Consult-Room")
 PharmacyInventoryRoom = BandSDK.create_room("Pharmacy-Inventory-Room")
 TelemetryAuditRoom = BandSDK.create_room("Telemetry-Audit-Room")
 
 MOCK_ROOMS = {
-    "Healthcare-Orchestration-Room": HealthcareOrchestrationRoom,
+    "Patient-Management-Room": PatientManagementRoom,
+    "Doctor-Dashboard-Room": DoctorDashboardRoom,
     "Reception-Navigation-Room": ReceptionNavigationRoom,
     "Clinical-Consult-Room": ClinicalConsultRoom,
     "Pharmacy-Inventory-Room": PharmacyInventoryRoom,

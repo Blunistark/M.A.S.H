@@ -250,3 +250,55 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
         return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
     else:
         return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."
+
+async def fetch_doctor_schedule_from_supabase(doctor_id: str) -> List[Dict[str, Any]]:
+    """Fetch the given doctor's appointments and patient details."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    
+    # Step 1: Fetch appointments (no join - keep it simple)
+    url = f"{SUPABASE_URL}/rest/v1/appointments?doctor_id=eq.{doctor_id}&status=in.(scheduled,in_progress)&select=scheduled_time,status,patient_id&order=scheduled_time.asc"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=get_headers())
+            print(f"[DEBUG schedule] status={response.status_code} body={response.text[:300]}")
+            if response.status_code != 200:
+                return []
+            appointments = response.json()
+            if not appointments:
+                return []
+
+            # Step 2: Fetch patient names for those patient_ids
+            patient_ids = list({a["patient_id"] for a in appointments if a.get("patient_id")})
+            patient_map: Dict[str, str] = {}
+            if patient_ids:
+                ids_filter = ",".join(patient_ids)
+                profiles_url = f"{SUPABASE_URL}/rest/v1/profiles?id=in.({ids_filter})&select=id,full_name"
+                pr = await client.get(profiles_url, headers=get_headers())
+                if pr.status_code == 200:
+                    for p in pr.json():
+                        patient_map[p["id"]] = p.get("full_name", "Unknown Patient")
+
+            parsed_schedule = []
+            for item in appointments:
+                st = item.get("scheduled_time")
+                time_str = st.replace("+00", "").replace("+05:30", "") if st else "Unknown"
+                parsed_schedule.append({
+                    "time": time_str,
+                    "status": item.get("status"),
+                    "patientName": patient_map.get(item.get("patient_id", ""), "Unknown Patient"),
+                    "patientId": item.get("patient_id", ""),
+                })
+            return parsed_schedule
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to fetch schedule: {e}")
+    return []
+
+@tool
+async def get_doctor_schedule(doctor_id: str) -> str:
+    """Fetch the schedule and appointments for a specific doctor. Pass the doctor's UUID."""
+    schedule = await fetch_doctor_schedule_from_supabase(doctor_id)
+    if not schedule:
+        return "No appointments found for today."
+    return json.dumps(schedule, indent=2)

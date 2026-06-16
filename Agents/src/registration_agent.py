@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import HealthcareOrchestrationRoom, ReceptionNavigationRoom, BandSDK
+from src.band_config import PatientManagementRoom, DoctorDashboardRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase, reschedule_appointment_in_supabase
 
@@ -11,7 +11,7 @@ class RegistrationState(TypedDict):
 class RegistrationAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("RegistrationAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         ReceptionNavigationRoom.join(self.agent)
         self.graph = self._build_graph()
         self.setup_listeners()
@@ -31,7 +31,7 @@ class RegistrationAgent:
             if req_id:
                 response_payload["requestId"] = req_id
                 
-            HealthcareOrchestrationRoom.broadcast("DOCTORS_LIST_RESPONSE", response_payload)
+            PatientManagementRoom.broadcast("DOCTORS_LIST_RESPONSE", response_payload)
             return state
 
         async def book_appointment_node(state: RegistrationState) -> RegistrationState:
@@ -46,10 +46,22 @@ class RegistrationAgent:
             
             if success:
                 msg = f"Successfully booked appointment for {patient_name} at {slot_time}."
-                HealthcareOrchestrationRoom.broadcast("BOOKING_CONFIRMED", {"requestId": req_id, "message": msg})
+                PatientManagementRoom.broadcast("BOOKING_CONFIRMED", {
+                    "requestId": req_id, 
+                    "message": msg,
+                    "doctorId": doctor_id,
+                    "patientName": patient_name,
+                    "slotTime": slot_time
+                })
+                # Relay to Doctor Dashboard so the DoctorAgent gets notified
+                DoctorDashboardRoom.broadcast("BOOKING_CONFIRMED", {
+                    "doctorId": doctor_id,
+                    "patientName": patient_name,
+                    "slotTime": slot_time
+                })
             else:
                 msg = "Failed to book appointment. Please try again."
-                HealthcareOrchestrationRoom.broadcast("BOOKING_FAILED", {"requestId": req_id, "message": msg})
+                PatientManagementRoom.broadcast("BOOKING_FAILED", {"requestId": req_id, "message": msg, "doctorId": doctor_id})
             return state
 
         async def reschedule_appointment_node(state: RegistrationState) -> RegistrationState:
@@ -62,10 +74,10 @@ class RegistrationAgent:
             
             if success:
                 msg = f"Successfully rescheduled appointment for {patient_name} to {new_slot_time}."
-                HealthcareOrchestrationRoom.broadcast("RESCHEDULE_CONFIRMED", {"requestId": req_id, "message": msg})
+                PatientManagementRoom.broadcast("RESCHEDULE_CONFIRMED", {"requestId": req_id, "message": msg})
             else:
                 msg = "Failed to reschedule appointment. Please try again."
-                HealthcareOrchestrationRoom.broadcast("RESCHEDULE_FAILED", {"requestId": req_id, "message": msg})
+                PatientManagementRoom.broadcast("RESCHEDULE_FAILED", {"requestId": req_id, "message": msg})
             return state
 
         async def check_availability_node(state: RegistrationState) -> RegistrationState:
@@ -83,7 +95,7 @@ class RegistrationAgent:
                 "slot": slot,
                 "isAvailable": is_available
             })
-            HealthcareOrchestrationRoom.broadcast("DOCTOR_AVAILABILITY_STATUS", {
+            PatientManagementRoom.broadcast("DOCTOR_AVAILABILITY_STATUS", {
                 "doctorId": doctor_id,
                 "slot": slot,
                 "isAvailable": is_available

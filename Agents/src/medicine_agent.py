@@ -1,6 +1,6 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import HealthcareOrchestrationRoom, ClinicalConsultRoom, PharmacyInventoryRoom, BandSDK
+from src.band_config import PatientManagementRoom, ClinicalConsultRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medicine_stock_from_supabase
 
@@ -32,7 +32,7 @@ class MedicineManagementAgent:
             if is_stock_available:
                 # Dual-branched handoff: Route directly to Pharma queue
                 Telemetry.track_handoff(self.agent.name, "PharmaQueue", {"patientId": patient_id, "prescription": prescription})
-                HealthcareOrchestrationRoom.broadcast("ROUTE_TO_PHARMA", {"patientId": patient_id, "prescription": prescription})
+                PatientManagementRoom.broadcast("ROUTE_TO_PHARMA", {"patientId": patient_id, "prescription": prescription})
             else:
                 # Dual-branched handoff: Raise Band event for Human-in-the-Loop
                 human_response = await self.agent.request_human_intervention(
@@ -43,7 +43,7 @@ class MedicineManagementAgent:
                 Telemetry.track_event(self.agent.name, "HUMAN_INTERVENTION_RESOLVED", human_response)
 
                 # Broadcast the resolution
-                HealthcareOrchestrationRoom.broadcast("PRESCRIPTION_UPDATED", {"patientId": patient_id, "resolution": human_response})
+                PatientManagementRoom.broadcast("PRESCRIPTION_UPDATED", {"patientId": patient_id, "resolution": human_response})
             return state
 
         async def prescription_written_node(state: MedicineManagementState) -> MedicineManagementState:

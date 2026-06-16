@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 # Configure logging to see band-sdk execution details
 logging.basicConfig(level=logging.INFO)
 from src import (
-    HealthcareOrchestrationRoom,
+    PatientManagementRoom,
+    DoctorDashboardRoom,
     ReceptionNavigationRoom,
     ClinicalConsultRoom,
     PharmacyInventoryRoom,
@@ -18,6 +19,7 @@ from src import (
     PatientManagementAgent,
     PatientNavigationAgent,
     TelemetryAgent,
+    DoctorAssistantAgent,
 )
 
 
@@ -55,10 +57,11 @@ async def main():
     registration_agent = RegistrationAgent()
     patient_management_agent = PatientManagementAgent()
     patient_navigation_agent = PatientNavigationAgent()
+    doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
 
 
     # Log simulation events for visibility
-    original_broadcast = HealthcareOrchestrationRoom.broadcast
+    original_broadcast = PatientManagementRoom.broadcast
 
     def wrapped_broadcast(event: str, payload: dict):
         if event == 'REORDER_SUGGESTION':
@@ -81,7 +84,7 @@ async def main():
         
         return original_broadcast(event, payload)
 
-    HealthcareOrchestrationRoom.broadcast = wrapped_broadcast
+    PatientManagementRoom.broadcast = wrapped_broadcast
 
     # Log simulation events for Reception-Navigation-Room
     original_reception_broadcast = ReceptionNavigationRoom.broadcast
@@ -157,6 +160,7 @@ async def main():
     med_in_stock = "Amoxicillin 500mg Capsule" if use_real_band else "Ibuprofen 400mg"
     med_out_of_stock = "Lisinopril 10mg Tablet" if use_real_band else "Rare-Antibiotic 500mg"
     doctor_id = "22222222-2222-2222-2222-222222222222" if use_real_band else "doc-1"
+    HealthcareOrchestrationRoom = PatientManagementRoom  # alias for simulation
     doctor_name = "Dr. Anita Desai" if use_real_band else "Dr. Smith"
 
     # 1. Patient data arrives, trigger summary

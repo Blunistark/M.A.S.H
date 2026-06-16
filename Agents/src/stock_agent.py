@@ -1,6 +1,6 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import HealthcareOrchestrationRoom, PharmacyInventoryRoom, BandSDK
+from src.band_config import PatientManagementRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medicine_stock_from_supabase, update_medicine_stock_in_supabase
 
@@ -43,7 +43,7 @@ class StockManagementAgent:
 
             if stock_usage[medicine] >= self.REORDER_THRESHOLD:
                 Telemetry.track_event(self.agent.name, "SUGGEST_STOCK_REORDER", {"medicine": medicine, "count": stock_usage[medicine]})
-                HealthcareOrchestrationRoom.broadcast("REORDER_SUGGESTION", {
+                PatientManagementRoom.broadcast("REORDER_SUGGESTION", {
                     "medicine": medicine,
                     "reason": f"Medicine '{medicine}' is repeatedly used ({stock_usage[medicine]} times). Suggest restocking.",
                     "currentUsage": stock_usage[medicine]
@@ -51,7 +51,7 @@ class StockManagementAgent:
             return {"stock_usage": stock_usage}
 
         def get_stock_stats_node(state: StockManagementState) -> StockManagementState:
-            HealthcareOrchestrationRoom.broadcast("STOCK_STATS_RESPONSE", {"stats": state["stock_usage"]})
+            PatientManagementRoom.broadcast("STOCK_STATS_RESPONSE", {"stats": state["stock_usage"]})
             return state
 
         async def route_to_pharmacy_node(state: StockManagementState) -> Dict[str, Any]:
