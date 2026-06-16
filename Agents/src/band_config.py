@@ -63,3 +63,4 @@ class BandSDK:
         return BandAgent(name)
 
 HealthcareOrchestrationRoom = BandSDK.create_room("Healthcare-Orchestration-Room")
+ReceptionNavigationRoom = BandSDK.create_room("Reception-Navigation-Room")

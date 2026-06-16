@@ -1,6 +1,7 @@
 import asyncio
 from src import (
     HealthcareOrchestrationRoom,
+    ReceptionNavigationRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
@@ -60,6 +61,22 @@ async def main():
         return original_broadcast(event, payload)
 
     HealthcareOrchestrationRoom.broadcast = wrapped_broadcast
+
+    # Log simulation events for Reception-Navigation-Room
+    original_reception_broadcast = ReceptionNavigationRoom.broadcast
+
+    def wrapped_reception_broadcast(event: str, payload: dict):
+        if event == 'DOCTOR_ASSIGNED':
+            print(f"[RECEPTION ALERT] Doctor Assigned for {payload['patientId']}: {payload['doctorName']} ({payload['specialty']}) at slot {payload['slot']}")
+        elif event == 'NAVIGATION_DIRECTIONS':
+            print(f"[RECEPTION RESPONSE] Navigation directions for {payload['patientId']}:\n{payload['directions']}")
+        elif event == 'DOCTOR_ROOM_CHANGE':
+            print(f"[RECEPTION INFO] Doctor clinic changed: Doctor {payload['doctorId']} moved to {payload['room']} ({payload['floor']})")
+        elif event == 'NAVIGATE_TO_ROOM':
+            print(f"[RECEPTION INFO] Room navigation triggered for patient {payload['patientId']} to see doctor {payload['doctorId']}")
+        return original_reception_broadcast(event, payload)
+
+    ReceptionNavigationRoom.broadcast = wrapped_reception_broadcast
 
     # Example simulation of orchestration workflow:
     print("--- Simulating Workflow ---")
@@ -139,6 +156,45 @@ async def main():
 
     # Wait for human intervention response simulation to fully resolve
     await asyncio.sleep(4)
+
+    # 10. Simulating Reception-Navigation-Room Workflow
+    print("\n--- Simulating Reception-Navigation-Room Workflow ---")
+
+    # 10.1 REQUEST_DOCTOR_MATCH
+    print("\n[Simulation Step] Patient P-999 describes symptoms: 'chest pain' (expects Cardiology: Dr. Smith)")
+    ReceptionNavigationRoom.broadcast('REQUEST_DOCTOR_MATCH', {
+        'patientId': 'P-999',
+        'symptoms': 'chest pain',
+        'requestedSlot': '10:00'
+    })
+
+    # 10.2 PATIENT_CHECK_IN
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Patient P-999 physically arrives at the facility and checks in")
+    ReceptionNavigationRoom.broadcast('PATIENT_CHECK_IN', {
+        'patientId': 'P-999'
+    })
+
+    # 10.3 DOCTOR_ROOM_CHANGE (Dr. Smith relocates to Room 405 on 4th Floor)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Dr. Smith clinic room is updated dynamically")
+    ReceptionNavigationRoom.broadcast('DOCTOR_ROOM_CHANGE', {
+        'doctorId': 'doc-1',
+        'room': 'Room 405',
+        'floor': '4th Floor'
+    })
+
+    # 10.4 Patient checks in again or requests navigation to see Dr. Smith again to check dynamic room route update
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Patient P-999 requests navigation guidance again after doctor relocation")
+    ReceptionNavigationRoom.broadcast('NAVIGATE_TO_ROOM', {
+        'patientId': 'P-999',
+        'doctorId': 'doc-1',
+        'currentLocation': 'Reception Desk'
+    })
+
+    # Wait for final async tasks
+    await asyncio.sleep(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
