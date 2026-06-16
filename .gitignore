@@ -7,3 +7,4 @@ build/
 *.log
 .gemini/
 .agents/
+Agents/src/__pycache__/*

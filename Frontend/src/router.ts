@@ -1,4 +1,5 @@
 import { getIcon } from './assets/icons';
+import { supabase } from './supabase';
 
 export interface View {
   render(params?: any): string | Promise<string>;
@@ -26,7 +27,9 @@ export class Router {
 
   public routeFromHash() {
     const hash = window.location.hash.replace('#', '') || 'dashboard';
-    if (hash === 'pharmacy') {
+    if (hash === 'auth') {
+      this.navigate('auth');
+    } else if (hash === 'pharmacy') {
       this.navigate('pharmacy');
     } else if (hash.startsWith('patient-profile/')) {
       const patientId = hash.split('/')[1];
@@ -46,7 +49,25 @@ export class Router {
     this.views[name] = view;
   }
 
-  public navigate(routeName: string, params: any = {}) {
+  private async checkAuth(): Promise<boolean> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) return true;
+    } catch (e) {
+      console.warn('Supabase getSession failed:', e);
+    }
+    return localStorage.getItem('medconnect_mock_auth') === 'true';
+  }
+
+  public async navigate(routeName: string, params: any = {}) {
+    const isAuthenticated = await this.checkAuth();
+    
+    if (!isAuthenticated && routeName !== 'auth') {
+      routeName = 'auth';
+    } else if (isAuthenticated && routeName === 'auth') {
+      routeName = 'dashboard';
+    }
+
     this.currentRoute = routeName;
     this.currentParams = params;
     
@@ -60,13 +81,54 @@ export class Router {
       window.location.hash = targetHash;
     }
 
-    this.renderCurrentView();
+    await this.renderCurrentView();
   }
 
   private async renderCurrentView() {
     const view = this.views[this.currentRoute];
     if (!view) {
       console.error(`View ${this.currentRoute} not registered`);
+      return;
+    }
+
+    // SPECIAL CASE: Auth Page - Separate Layout (no sidebar)
+    if (this.currentRoute === 'auth') {
+      this.appContainer.className = 'app-container auth-portal-container';
+      this.appContainer.innerHTML = `
+        <main class="auth-viewport" id="viewport-container" style="width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: var(--bg-main);"></main>
+      `;
+
+      const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
+      viewport.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #64748b; font-family: var(--font-sans);">
+          <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <span>Loading authentication...</span>
+        </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+
+      try {
+        const htmlContent = await view.render(this.currentParams);
+        viewport.innerHTML = htmlContent;
+      } catch (err) {
+        console.error('Render error:', err);
+        viewport.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #ef4444; font-family: var(--font-sans); text-align: center; padding: 20px;">
+            <span style="font-size: 40px; margin-bottom: 16px;">⚠️</span>
+            <h3 style="margin-bottom: 8px;">Failed to load authentication page</h3>
+          </div>
+        `;
+      }
+
+      if (view.onMount) {
+        view.onMount(viewport, this);
+      }
+      window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
 
@@ -110,6 +172,7 @@ export class Router {
       if (view.onMount) {
         view.onMount(viewport, this);
       }
+      window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
 
@@ -118,6 +181,24 @@ export class Router {
     // In patient profile.png, sidebar is light.
     const isDarkSidebar = this.currentRoute === 'dashboard';
     const sidebarThemeClass = isDarkSidebar ? 'theme-dark' : 'theme-light';
+
+    let userName = 'Dr. Smith';
+    let userSubText = 'Cardiologist';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Dr. Smith';
+        userSubText = user.email || 'Cardiologist';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        userSubText = 'Mock Clinician';
+      }
+    } catch (e) {
+      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        userSubText = 'Mock Clinician';
+      }
+    }
 
     // Set wrapper container layout
     this.appContainer.className = 'app-container';
@@ -133,11 +214,11 @@ export class Router {
           <!-- Doctor profile info card -->
           <div class="doctor-profile-badge">
             <div class="doctor-avatar-container">
-              <img src="/src/assets/dr-profile.jpg" alt="Dr. Smith" class="doctor-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'"/>
+              <img src="/src/assets/dr-profile.jpg" alt="${userName}" class="doctor-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'"/>
             </div>
             <div class="doctor-info-text">
-              <span class="doctor-name">Dr. Smith</span>
-              <span class="doctor-specialty">Cardiologist</span>
+              <span class="doctor-name">${userName}</span>
+              <span class="doctor-specialty">${userSubText}</span>
             </div>
           </div>
 
@@ -215,6 +296,7 @@ export class Router {
     }
 
     this.bindLayoutEvents();
+    window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
   }
 
   private bindLayoutEvents() {
@@ -233,8 +315,15 @@ export class Router {
     // Logout button binding
     const logoutBtn = this.appContainer.querySelector('.logout-btn');
     if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        alert('Logging out of MedConnect Pro...');
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {
+          console.warn('Supabase signOut failed:', e);
+        }
+        localStorage.removeItem('medconnect_mock_auth');
+        localStorage.removeItem('medconnect_mock_user');
+        this.navigate('auth');
       });
     }
   }

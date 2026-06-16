@@ -342,6 +342,28 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
+// PATCH /api/appointments/:id
+app.patch('/api/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scheduled_time, status } = req.body;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .update({ scheduled_time, status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ message: error.message });
+    }
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // PATCH /api/appointments/patient/:patientId/complete
 app.patch('/api/appointments/patient/:patientId/complete', async (req, res) => {
   try {
@@ -433,12 +455,12 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
 
     if (itemsErr) throw itemsErr;
 
-    // 4. Also update any existing active prescription for this patient to 'completed'
+    // 4. Also update any existing active or alternative_requested prescription for this patient to 'completed'
     await supabase
       .from('prescriptions')
       .update({ status: 'completed' })
       .eq('patient_id', patient_id)
-      .eq('status', 'active')
+      .in('status', ['active', 'alternative_requested'])
       .neq('id', rx.id);
 
     res.status(201).json(rx);
