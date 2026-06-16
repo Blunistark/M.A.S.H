@@ -188,12 +188,11 @@ export class PatientProfileView implements View {
             
             ${(() => {
               const patientAppointments = allAppointments.filter(a => a.patient_id === patientId);
-              const nextAppt = patientAppointments
-                .filter(a => a.status === 'scheduled')
-                .sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime())[0];
+              const latestAppt = patientAppointments
+                .sort((a, b) => new Date(b.scheduled_time).getTime() - new Date(a.scheduled_time).getTime())[0];
 
-              if (nextAppt) {
-                const apptDate = new Date(nextAppt.scheduled_time);
+              if (latestAppt) {
+                const apptDate = new Date(latestAppt.scheduled_time);
                 const formattedDate = apptDate.toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short',
@@ -207,12 +206,13 @@ export class PatientProfileView implements View {
                 hours = hours ? hours : 12;
                 const minutes = apptDate.getUTCMinutes().toString().padStart(2, '0');
                 const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+                const statusLabel = latestAppt.status.toUpperCase().replace('_', ' ');
 
                 return `
                   <div class="floating-contacts-row" style="margin-bottom: 8px;">
                     <div class="floating-contact-item" style="background: rgba(59, 130, 246, 0.1); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2); font-weight: 500;">
                       ${getIcon('calendar', 'floating-contact-icon')}
-                      <span style="color: var(--primary-blue);">Next Appointment: <strong>${formattedDate} at ${formattedTime}</strong></span>
+                      <span style="color: var(--primary-blue);">Appointment (${statusLabel}): <strong>${formattedDate} at ${formattedTime}</strong></span>
                     </div>
                   </div>
                 `;

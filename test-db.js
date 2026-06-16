@@ -10,13 +10,16 @@ const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function check() {
-  const { data: profiles } = await supabase.from('profiles').select('*');
-  const { data: appointments } = await supabase.from('appointments').select('*');
+  const { data: prescriptions } = await supabase.from('prescriptions').select('*');
+  const { data: items } = await supabase.from('prescription_items').select('*');
+  const { data: inventory } = await supabase.from('medicine_inventory').select('*');
   
-  console.log('--- PROFILES ---');
-  console.log(profiles);
-  console.log('--- APPOINTMENTS ---');
-  console.log(appointments);
+  console.log('--- PRESCRIPTIONS ---');
+  console.log(JSON.stringify(prescriptions, null, 2));
+  console.log('--- PRESCRIPTION ITEMS ---');
+  console.log(JSON.stringify(items, null, 2));
+  console.log('--- INVENTORY ---');
+  console.log(JSON.stringify(inventory, null, 2));
 }
 
 check();

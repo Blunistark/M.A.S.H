@@ -455,12 +455,12 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
 
     if (itemsErr) throw itemsErr;
 
-    // 4. Also update any existing active prescription for this patient to 'completed'
+    // 4. Also update any existing active or alternative_requested prescription for this patient to 'completed'
     await supabase
       .from('prescriptions')
       .update({ status: 'completed' })
       .eq('patient_id', patient_id)
-      .eq('status', 'active')
+      .in('status', ['active', 'alternative_requested'])
       .neq('id', rx.id);
 
     res.status(201).json(rx);

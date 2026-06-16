@@ -1,5 +1,14 @@
 import { type View, Router } from '../router';
-import { fetchAppointments, fetchProfiles, fetchMetrics, createAppointment, createProfile } from '../api';
+import { 
+  fetchAppointments, 
+  fetchProfiles, 
+  fetchMetrics, 
+  createAppointment, 
+  createProfile,
+  fetchPrescriptions,
+  fetchPrescriptionItems,
+  fetchMedicineInventory
+} from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
 
@@ -36,6 +45,52 @@ export class DashboardView implements View {
     queueAppointments = await fetchAppointments();
     profiles = await fetchProfiles();
     metrics = await fetchMetrics();
+    const allPrescriptions = await fetchPrescriptions();
+    const allPrescriptionItems = await fetchPrescriptionItems();
+    const allInventory = await fetchMedicineInventory();
+
+    // Find all prescriptions with status 'alternative_requested'
+    const shortageRx = allPrescriptions.filter(rx => rx.status === 'alternative_requested');
+    
+    let alertsHTML = '';
+    if (shortageRx.length > 0) {
+      const alertCards = shortageRx.map(rx => {
+        const patient = profiles.find(p => p.id === rx.patient_id);
+        const patientName = patient ? patient.full_name : 'Unknown Patient';
+        
+        const rxItems = allPrescriptionItems.filter(item => item.prescription_id === rx.id);
+        const medNames = rxItems.map(item => {
+          const med = allInventory.find(m => m.id === item.medicine_id);
+          return med ? med.medicine_name : 'Medication';
+        }).join(', ');
+
+        const comments = rx.doctor_comments || 'Please check for alternatives due to stock constraints.';
+
+        return `
+          <div class="shortage-alert-card" style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px; box-shadow: var(--shadow-sm); border: 1px solid #fef3c7; border-left-width: 4px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <span style="font-size: 20px; margin-top: 2px;">⚠️</span>
+              <div style="text-align: left;">
+                <h4 style="margin: 0 0 4px 0; font-family: var(--font-heading); font-size: 15px; font-weight: 700; color: #78350f;">Prescription Shortage Alert</h4>
+                <p style="margin: 0; font-size: 13px; color: #92400e; line-height: 1.4;">
+                  Pharmacy reported a shortage of <strong>${medNames}</strong> for <strong>${patientName}</strong>.<br/>
+                  <span style="font-style: italic; color: #b45309; font-size: 12px;">Pharmacist Notes: "${comments}"</span>
+                </p>
+              </div>
+            </div>
+            <button class="btn-resolve-alert" data-patient-id="${rx.patient_id}" style="background: #d97706; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2); font-size: 12px; padding: 8px 16px; flex-shrink: 0; border: none; cursor: pointer; border-radius: 8px; font-weight: 600; color: white;">
+              Provide Alternative
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      alertsHTML = `
+        <div class="shortage-alerts-container" style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+          ${alertCards}
+        </div>
+      `;
+    }
 
     // Filter queue by selected date (UTC comparison)
     const selectedDateString = selectedDate.toISOString().split('T')[0];
@@ -259,6 +314,8 @@ export class DashboardView implements View {
             </div>
           </div>
         </section>
+
+        ${alertsHTML}
 
         <!-- Main Cards Grid Layout -->
         <div class="dashboard-grid">
@@ -557,5 +614,16 @@ export class DashboardView implements View {
         }
       });
     }
+
+    // Shortage alert resolve handlers
+    const resolveBtns = container.querySelectorAll('.btn-resolve-alert');
+    resolveBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const patientId = btn.getAttribute('data-patient-id');
+        if (patientId) {
+          router.navigate('prescriptions', { patientId, forceReload: true });
+        }
+      });
+    });
   }
 }
