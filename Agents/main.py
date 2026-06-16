@@ -3,6 +3,7 @@ from src import (
     HealthcareOrchestrationRoom,
     ReceptionNavigationRoom,
     ClinicalConsultRoom,
+    PharmacyInventoryRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
@@ -10,6 +11,7 @@ from src import (
     PatientManagementAgent,
     PatientNavigationAgent,
 )
+
 
 def format_js_object(obj):
     if isinstance(obj, dict):
@@ -91,6 +93,24 @@ async def main():
         return original_clinical_broadcast(event, payload)
 
     ClinicalConsultRoom.broadcast = wrapped_clinical_broadcast
+
+    # Log simulation events for Pharmacy-Inventory-Room
+    original_pharmacy_broadcast = PharmacyInventoryRoom.broadcast
+
+    def wrapped_pharmacy_broadcast(event: str, payload: dict):
+        if event == 'CHECK_MEDICINE_AVAILABILITY':
+            print(f"[PHARMACY INFO] Checking availability for patient {payload['patientId']}: {payload.get('medicine')}")
+        elif event == 'MEDICINE_AVAILABILITY_STATUS':
+            status = "Available" if payload.get('isAvailable') else "Out of Stock"
+            print(f"[PHARMACY RESPONSE] Medicine Availability for patient {payload['patientId']}: {payload.get('medicine')} - Status: {status}")
+        elif event == 'ROUTE_TO_PHARMACY':
+            print(f"[PHARMACY INFO] Routing order to pharmacy for patient {payload['patientId']}: {payload['prescription']['medicine']}")
+        elif event == 'TRIGGER_REORDER':
+            print(f"[PHARMACY ALERT] {payload['reason']}")
+        return original_pharmacy_broadcast(event, payload)
+
+    PharmacyInventoryRoom.broadcast = wrapped_pharmacy_broadcast
+
 
     # Example simulation of orchestration workflow:
     print("--- Simulating Workflow ---")
@@ -238,8 +258,46 @@ async def main():
         'prescription': { 'medicine': 'Rare-Antibiotic 500mg' }
     })
 
+    # Wait for clinical consult async tasks to resolve
+    await asyncio.sleep(4)
+
+    # 12. Simulating Pharmacy-Inventory-Room Workflow
+    print("\n--- Simulating Pharmacy-Inventory-Room Workflow ---")
+
+    # 12.1 CHECK_MEDICINE_AVAILABILITY (Available medicine: Ibuprofen)
+    print("\n[Simulation Step] Check availability for Ibuprofen 400mg")
+    PharmacyInventoryRoom.broadcast('CHECK_MEDICINE_AVAILABILITY', {
+        'patientId': 'P-999',
+        'medicine': 'Ibuprofen 400mg'
+    })
+
+    # 12.2 CHECK_MEDICINE_AVAILABILITY (Out-of-stock medicine: Rare-Antibiotic)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Check availability for Rare-Antibiotic 500mg")
+    PharmacyInventoryRoom.broadcast('CHECK_MEDICINE_AVAILABILITY', {
+        'patientId': 'P-999',
+        'medicine': 'Rare-Antibiotic 500mg'
+    })
+
+    # 12.3 ROUTE_TO_PHARMACY (1st usage of Ibuprofen 400mg in this room)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Route Ibuprofen 400mg order to Pharmacy (1st usage)")
+    PharmacyInventoryRoom.broadcast('ROUTE_TO_PHARMACY', {
+        'patientId': 'P-999',
+        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+    })
+
+    # 12.4 ROUTE_TO_PHARMACY (2nd usage of Ibuprofen 400mg in this room -> triggers warning)
+    await asyncio.sleep(1)
+    print("\n[Simulation Step] Route Ibuprofen 400mg order to Pharmacy again (2nd usage -> triggers warning)")
+    PharmacyInventoryRoom.broadcast('ROUTE_TO_PHARMACY', {
+        'patientId': 'P-999',
+        'prescription': { 'medicine': 'Ibuprofen 400mg' }
+    })
+
     # Wait for final async tasks to resolve
     await asyncio.sleep(4)
 
 if __name__ == "__main__":
     asyncio.run(main())
+

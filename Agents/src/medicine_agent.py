@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from src.band_config import HealthcareOrchestrationRoom, ClinicalConsultRoom, BandSDK
+from src.band_config import HealthcareOrchestrationRoom, ClinicalConsultRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 
 class MedicineManagementAgent:
@@ -7,6 +7,7 @@ class MedicineManagementAgent:
         self.agent = BandSDK.create_agent("MedicineManagementAgent")
         HealthcareOrchestrationRoom.join(self.agent)
         ClinicalConsultRoom.join(self.agent)
+        PharmacyInventoryRoom.join(self.agent)
         self.setup_listeners()
 
     def setup_listeners(self):
@@ -63,10 +64,29 @@ class MedicineManagementAgent:
                     "resolution": human_response
                 })
 
+        def on_check_medicine_availability(payload: Dict[str, Any]):
+            patient_id = payload["patientId"]
+            medicine = payload.get("medicine", "")
+
+            Telemetry.track_event(self.agent.name, "CHECK_MEDICINE_AVAILABILITY", {
+                "patientId": patient_id,
+                "medicine": medicine
+            })
+
+            is_available = self.check_stock(medicine)
+
+            PharmacyInventoryRoom.broadcast("MEDICINE_AVAILABILITY_STATUS", {
+                "patientId": patient_id,
+                "medicine": medicine,
+                "isAvailable": is_available
+            })
+
         self.agent.on_event("PROCESS_PRESCRIPTION", on_process_prescription)
         self.agent.on_event("PRESCRIPTION_WRITTEN", on_prescription_written)
+        self.agent.on_event("CHECK_MEDICINE_AVAILABILITY", on_check_medicine_availability)
 
     def check_stock(self, medicine: str) -> bool:
         # Mock logic: anything with "rare" in the name is out of stock
         return "rare" not in medicine.lower()
+
 
