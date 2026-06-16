@@ -45,7 +45,19 @@ export class PatientsListView implements View {
       }
     });
 
-    const patients = allProfiles.filter(p => p.role === 'patient' && assignedPatientIds.has(p.id));
+    const patients = allProfiles.filter(p => {
+      if (p.role !== 'patient' || !assignedPatientIds.has(p.id)) {
+        return false;
+      }
+      
+      // Filter out patients whose appointments are all completed
+      const patientAppts = allAppointments.filter(a => a.patient_id === p.id && a.doctor_id === activeDoctorId);
+      if (patientAppts.length > 0 && patientAppts.every(a => a.status === 'completed')) {
+        return false;
+      }
+      
+      return true;
+    });
 
     // Filter patients based on search query
     const filteredPatients = patients.filter(patient => {

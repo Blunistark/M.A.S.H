@@ -6,7 +6,8 @@ import {
   fetchPrescriptions,
   fetchPrescriptionItems,
   fetchMedicineInventory,
-  fetchDoctorDetails
+  fetchDoctorDetails,
+  fetchAppointments
 } from '../api';
 import type { Profile } from '../types';
 import { getIcon } from '../assets/icons';
@@ -34,6 +35,7 @@ export class PatientProfileView implements View {
     const allInventory = await fetchMedicineInventory();
     const allProfiles = await fetchProfiles();
     const allDoctorDetails = await fetchDoctorDetails();
+    const allAppointments = await fetchAppointments();
 
     // Get medical records for this patient
     const records = allRecords.filter(r => r.patient_id === patientId);
@@ -183,6 +185,41 @@ export class PatientProfileView implements View {
             <div class="floating-demographics">
               Patient
             </div>
+            
+            ${(() => {
+              const patientAppointments = allAppointments.filter(a => a.patient_id === patientId);
+              const nextAppt = patientAppointments
+                .filter(a => a.status === 'scheduled')
+                .sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime())[0];
+
+              if (nextAppt) {
+                const apptDate = new Date(nextAppt.scheduled_time);
+                const formattedDate = apptDate.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  timeZone: 'UTC'
+                });
+                let hours = apptDate.getUTCHours();
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12;
+                hours = hours ? hours : 12;
+                const minutes = apptDate.getUTCMinutes().toString().padStart(2, '0');
+                const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+
+                return `
+                  <div class="floating-contacts-row" style="margin-bottom: 8px;">
+                    <div class="floating-contact-item" style="background: rgba(59, 130, 246, 0.1); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2); font-weight: 500;">
+                      ${getIcon('calendar', 'floating-contact-icon')}
+                      <span style="color: var(--primary-blue);">Next Appointment: <strong>${formattedDate} at ${formattedTime}</strong></span>
+                    </div>
+                  </div>
+                `;
+              }
+              return '';
+            })()}
+
             <div class="floating-contacts-row">
               <div class="floating-contact-item">
                 ${getIcon('phone', 'floating-contact-icon')}

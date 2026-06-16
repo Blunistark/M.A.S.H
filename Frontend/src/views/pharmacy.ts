@@ -8,6 +8,8 @@ import {
 } from '../api';
 import type { MedicineInventory } from '../types';
 
+let inventoryFilter: 'all' | 'high' | 'low' = 'all';
+
 export class PharmacyView implements View {
   public async render(): Promise<string> {
     // 1. Fetch aggregated data from backend /pharmacy endpoint
@@ -100,8 +102,19 @@ export class PharmacyView implements View {
       `;
     }).join('');
 
+    // Filter inventory based on inventoryFilter
+    const filteredInventory = inventory.filter(med => {
+      const isLow = med.current_stock <= med.reorder_threshold;
+      if (inventoryFilter === 'low') {
+        return isLow;
+      } else if (inventoryFilter === 'high') {
+        return !isLow;
+      }
+      return true;
+    });
+
     // 3. Render Inventory Stock Section
-    const inventoryHTML = inventory.map(med => {
+    const inventoryHTML = filteredInventory.map(med => {
       const isLow = med.current_stock <= med.reorder_threshold;
       const rowClass = isLow ? 'inventory-row-low' : '';
       const progressPercent = Math.min(100, (med.current_stock / 200) * 100); // 200 max capacity estimate
@@ -167,7 +180,14 @@ export class PharmacyView implements View {
 
           <!-- Right: Stock Inventory -->
           <div class="rx-pharma-section rx-inventory-section">
-            <h3 class="pharma-section-title">Medicine Inventory</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+              <h3 class="pharma-section-title">Medicine Inventory</h3>
+              <select id="inventory-stock-filter" style="padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 600; color: #475569; background: #ffffff; outline: none; cursor: pointer; font-family: var(--font-sans);">
+                <option value="all" ${inventoryFilter === 'all' ? 'selected' : ''}>All Stock</option>
+                <option value="high" ${inventoryFilter === 'high' ? 'selected' : ''}>In Stock</option>
+                <option value="low" ${inventoryFilter === 'low' ? 'selected' : ''}>Low/Out of Stock</option>
+              </select>
+            </div>
             <div class="rx-pharma-card rx-inventory-card">
               <div class="rx-table-container">
                 <table class="rx-table">
@@ -263,5 +283,15 @@ export class PharmacyView implements View {
         }
       });
     });
+
+    // Handle inventory stock filter change
+    const filterSelect = container.querySelector('#inventory-stock-filter') as HTMLSelectElement;
+    if (filterSelect) {
+      filterSelect.addEventListener('change', (e) => {
+        const target = e.target as HTMLSelectElement;
+        inventoryFilter = target.value as 'all' | 'high' | 'low';
+        router.navigate('pharmacy');
+      });
+    }
   }
 }
