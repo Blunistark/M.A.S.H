@@ -2,51 +2,52 @@ import { Platform } from 'react-native';
 
 export const Theme = {
   colors: {
-    // Premium Light Baby Pink Theme (Option 1)
-    background: '#fff0f2',        // Soft, pale baby pink base background
-    surface: '#ffffff',           // Clean white card surface
-    primary: '#ff8da1',           // Beautiful rose/pink primary accent
-    primaryContainer: '#ffb7c5',  // Baby pink container
-    secondary: '#d65a80',         // Deep pink/rose secondary accent
-    secondaryContainer: 'rgba(214, 90, 128, 0.1)', // Translucent pink container background
-    tertiary: '#ffc0cb',          // Pink accent
-    error: '#e74c3c',
-    errorContainer: '#fadbd8',
+    // Clinical Intelligence Redesign: Light Medical System
+    background: '#f7f9fb',        // Slate-tinted clinical background
+    surface: '#ffffff',           // Pure white card surfaces
+    surfaceElevated: '#f2f4f6',   // Slightly elevated gray surfaces
+    primary: '#0058bc',           // Professional medical blue
+    primaryContainer: '#d8e2ff',  // Soft primary accent tint
+    secondary: '#006b5f',         // Calming medical teal
+    secondaryContainer: '#62fae3', // Vibrant cyan/teal
+    tertiary: '#9e3d00',          // Accent tertiary orange
+    error: '#ba1a1a',             // Warning red
+    errorContainer: '#ffdad6',
     
-    // Neutrals (Adjusted for light mode contrast)
-    onSurface: '#2f1e22',         // Very dark berry-grey readable text on white surface
-    onSurfaceVariant: '#70595e',  // Soft dark pink-grey text
-    onBackground: '#2f1e22',      // Readable text on background
-    outline: '#ffd5dc',           // Soft light pink outlines
-    outlineVariant: '#ffeaee',    // Thin card boundaries
+    // Neutrals
+    onSurface: '#191c1e',         // High-contrast slate-charcoal text
+    onSurfaceVariant: '#414755',  // Muted secondary text
+    onBackground: '#191c1e',
+    outline: '#717786',           // Fine border outline
+    outlineVariant: '#c1c6d7',    // Super light line/border
     
     // Status colors
-    success: '#2ecc71',
+    success: '#006b5f',           // Safe teal
     warning: '#f1c40f',
     
     // Utilities
-    white: '#ffffff',             // White for light mode surfaces
-    lightGray: '#ffeaee',         // Muted pink borders
-    superLightGray: '#fff6f7',    // Inside panel background (very soft pink)
-    shadowColor: '#000000',
+    white: '#ffffff',
+    lightGray: '#e6e8ea',         // surface-container-high
+    superLightGray: '#eceef0',    // surface-container
+    shadowColor: '#0ea5e9',       // Soft blue shadow tint
   },
   
   roundness: {
-    sm: 8,
-    md: 12,
-    lg: 20,                       // 20px card radius (compact layout)
-    xl: 28,
+    sm: 8,                        // Rounded sm (0.5rem)
+    md: 16,                       // Rounded default (1rem)
+    lg: 24,                       // Rounded md/lg (1.5rem)
+    xl: 32,                       // Rounded xl (2rem)
     full: 9999,                   // Pill shapes
   },
   
   spacing: {
-    unit: 6,                      // Shrunk spacer unit (compact layout)
-    containerPadding: 16,         // Tightened screen boundaries
-    cardPadding: 16,              // Compact card paddings
-    stackGap: 12,                 // Shrunk gaps
-    touchTargetMin: 44,           // Compact interactive elements
-    buttonHeight: 48,             // Shrunk button height
-    inputHeight: 52,              // Shrunk input height
+    unit: 8,                      // 8px base spacing
+    containerPadding: 24,         // 24px container padding
+    cardPadding: 24,              // 24px card padding
+    stackGap: 16,                 // 16px stack gap
+    touchTargetMin: 48,           // 48px touch target
+    buttonHeight: 56,             // 56px button height
+    inputHeight: 60,              // 60px input height
   },
   
   typography: {
@@ -55,54 +56,54 @@ export const Theme = {
     fontFamilySemiBold: 'PlusJakartaSans_600SemiBold',
     fontFamilyBold: 'PlusJakartaSans_700Bold',
     
-    // Shrunk typography sizes for compact layout
     displayLg: {
-      fontSize: 26,
-      lineHeight: 34,
-      letterSpacing: -0.52,
+      fontSize: 32,
+      lineHeight: 40,
+      letterSpacing: -0.64, // -0.02em
     },
     headlineMd: {
-      fontSize: 20,
-      lineHeight: 26,
-      letterSpacing: -0.2,
+      fontSize: 24,
+      lineHeight: 32,
+      letterSpacing: -0.24, // -0.01em
     },
     headlineSm: {
-      fontSize: 16,
-      lineHeight: 22,
+      fontSize: 20,
+      lineHeight: 28,
     },
     bodyLg: {
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 18,
+      lineHeight: 28,
     },
     bodyMd: {
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: 16,
+      lineHeight: 24,
     },
     labelMd: {
-      fontSize: 13,
-      lineHeight: 18,
-      letterSpacing: 0.1,
+      fontSize: 14,
+      lineHeight: 20,
+      letterSpacing: 0.14,
     },
     labelSm: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 12,
+      lineHeight: 16,
     }
   },
   
   shadows: {
     level1: {
-      shadowColor: '#000000',
+      shadowColor: '#0ea5e9',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.08,
-      shadowRadius: 10,
-      elevation: 4,
+      shadowRadius: 12,
+      elevation: 2,
     },
     level2: {
-      shadowColor: '#ff8da1',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.15,
-      shadowRadius: 20,
+      shadowColor: '#0ea5e9',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.08,
+      shadowRadius: 30,
       elevation: 6,
     }
   }
 };
+
