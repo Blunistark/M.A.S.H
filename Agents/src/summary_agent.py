@@ -3,7 +3,7 @@ from typing import List, Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
 from src.band_config import HealthcareOrchestrationRoom, ClinicalConsultRoom, BandSDK
 from src.telemetry import Telemetry
-from src.supabase_tools import fetch_medical_records_from_supabase
+from src.supabase_tools import fetch_medical_records_from_supabase, save_patient_summary_to_supabase
 
 class PatientSummaryState(TypedDict):
     event_name: str
@@ -83,6 +83,14 @@ class SummaryAgent:
 
             summary = await self.call_llm_for_summary(history, tests, surgeries)
 
+            # Try to save to Supabase if patient_id is a valid UUID
+            import uuid
+            try:
+                uuid.UUID(patient_id)
+                await save_patient_summary_to_supabase(patient_id, summary)
+            except ValueError:
+                pass
+
             # Update room state
             HealthcareOrchestrationRoom.update_state(f"patient_summary_{patient_id}", summary)
 
@@ -152,6 +160,14 @@ class SummaryAgent:
                 pass
 
             summary = await self.call_llm_for_summary(history, tests, surgeries)
+
+            # Try to save to Supabase if patient_id is a valid UUID
+            import uuid
+            try:
+                uuid.UUID(patient_id)
+                await save_patient_summary_to_supabase(patient_id, summary)
+            except ValueError:
+                pass
 
             ClinicalConsultRoom.broadcast("PATIENT_HISTORY_COMPILED", {
                 "patientId": patient_id,

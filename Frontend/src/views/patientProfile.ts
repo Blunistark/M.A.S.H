@@ -42,6 +42,25 @@ export class PatientProfileView implements View {
     const vitals = records.filter(r => r.record_type === 'Vital');
     const tests = records.filter(r => r.record_type === 'Test');
     const surgeries = records.filter(r => r.record_type === 'Surgery');
+    const aiSummaries = records.filter(r => r.record_type === 'ai_summary');
+    const latestAiSummary = aiSummaries.length > 0 ? aiSummaries[aiSummaries.length - 1] : null;
+
+    let aiSummaryCardHTML = '';
+    if (latestAiSummary) {
+      aiSummaryCardHTML = `
+      <!-- AI Clinical Summary Glass Card -->
+      <section class="ai-summary-glass-card">
+        <div class="ai-summary-header">
+          <span class="ai-summary-icon">${getIcon('activity', 'nav-icon')}</span>
+          <div class="ai-summary-title">
+            <span>AI Clinical Summary</span>
+            <span class="ai-summary-badge">M.A.S.H Automated</span>
+          </div>
+        </div>
+        <div class="ai-summary-body">${latestAiSummary.description}</div>
+      </section>
+      `;
+    }
 
     // Care team list generator
     const careTeamIds = new Set(records.map(r => r.doctor_id));
@@ -198,6 +217,8 @@ export class PatientProfileView implements View {
           <button class="btn-teal" id="book-appt-floating">Book Appointment</button>
         </div>
       </section>
+
+      ${aiSummaryCardHTML}
 
       <!-- Profile Grid Details -->
       <div class="profile-content-layout">

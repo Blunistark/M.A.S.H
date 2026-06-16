@@ -93,3 +93,40 @@ async def update_medicine_stock_in_supabase(medicine_name: str, current_stock: i
     except Exception as e:
         print(f"[Supabase Tool Warning] Failed to update stock: {e}")
     return False
+
+async def save_patient_summary_to_supabase(patient_id: str, summary: str) -> bool:
+    """Save or update the compiled clinical summary in the medical_records table."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return False
+    
+    # Check if an AI summary already exists for this patient
+    check_url = f"{SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.{patient_id}&record_type=eq.ai_summary"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(check_url, headers=get_headers())
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    # Update existing summary record
+                    record_id = data[0].get("id")
+                    update_url = f"{SUPABASE_URL}/rest/v1/medical_records?id=eq.{record_id}"
+                    update_response = await client.patch(update_url, headers=get_headers(), json={
+                        "description": summary,
+                        "record_date": "now()"
+                    })
+                    return update_response.status_code in (200, 204)
+                else:
+                    # Insert new summary record
+                    insert_url = f"{SUPABASE_URL}/rest/v1/medical_records"
+                    insert_response = await client.post(insert_url, headers=get_headers(), json={
+                        "patient_id": patient_id,
+                        "record_type": "ai_summary",
+                        "description": summary,
+                        "record_date": "now()",
+                        "doctor_id": "22222222-2222-2222-2222-222222222222" # Default to Dr. Anita Desai
+                    })
+                    return insert_response.status_code in (200, 201)
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to save clinical summary: {e}")
+    return False
+
