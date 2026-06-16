@@ -32,7 +32,7 @@ function showOverlayAlert(title: string, message: string, type: 'success' | 'err
       </div>
       <h3 style="margin: 0 0 8px 0; font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #1e293b;">${title}</h3>
       <p style="margin: 0 0 24px 0; font-size: 14px; color: #64748b; line-height: 1.5;">${message}</p>
-      <button class="rx-prompt-btn" style="background: var(--accent-blue); color: red; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;" id="overlay-alert-ok-btn">OK</button>
+      <button class="rx-prompt-btn" style="background: var(--primary-blue-light); color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;" id="overlay-alert-ok-btn">OK</button>
     </div>
   `;
 
@@ -57,8 +57,8 @@ function showOverlayPrompt(title: string, message: string, placeholder: string, 
       <p style="margin: 0 0 16px 0; font-size: 13px; color: #64748b; line-height: 1.4;">${message}</p>
       <textarea id="overlay-prompt-input" placeholder="${placeholder}" style="width: 100%; height: 80px; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: var(--font-sans); font-size: 13px; margin-bottom: 20px; resize: none; outline: none; box-sizing: border-box;"></textarea>
       <div style="display: flex; gap: 8px; justify-content: flex-end;">
-        <button class="rx-prompt-btn" style="background: #3185daff; color: #475569; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" id="overlay-prompt-cancel-btn">Cancel</button>
-        <button class="rx-prompt-btn" style="background: var(--accent-blue); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" id="overlay-prompt-submit-btn">Submit</button>
+        <button class="rx-prompt-btn btn-complete" style="padding: 10px 20px; border-radius: 8px;" id="overlay-prompt-cancel-btn">Cancel</button>
+        <button class="rx-prompt-btn" style="background: var(--primary-blue-light); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" id="overlay-prompt-submit-btn">Submit</button>
       </div>
     </div>
   `;

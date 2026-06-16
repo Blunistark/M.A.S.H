@@ -12,6 +12,52 @@
   </head>
   <body>
     <div id="app"></div>
+
+    <!-- MASH VOICE ORB UI COMPONENT -->
+    <div class="mash-voice-agent-container state-idle" id="mash-voice-agent">
+      
+      <!-- Suggestion Chips Container -->
+      <div class="mash-suggestion-chips" id="mash-suggestion-chips">
+        <button class="mash-chip" data-cmd="go to dashboard">Dashboard</button>
+        <button class="mash-chip" data-cmd="go to patients">Patients</button>
+        <button class="mash-chip" data-cmd="go to prescriptions">Prescriptions</button>
+        <button class="mash-chip" data-cmd="new appointment">New Appt</button>
+      </div>
+
+      <!-- Text Input Fallback Bubble -->
+      <div class="mash-text-input-bubble" id="mash-text-bubble">
+        <input type="text" placeholder="Ask MASH..." class="mash-text-input" id="mash-text-input" />
+        <button class="mash-text-submit" id="mash-text-submit">Send</button>
+      </div>
+
+      <!-- Listening State Transcript Bubble -->
+      <div class="mash-bubble transcript-bubble">
+        <span>Listening...</span> <span class="spoken-text">""</span>
+      </div>
+
+      <!-- Confirmed State Action Confirmation Bubble -->
+      <div class="mash-bubble confirm-bubble">
+        <span>MASH:</span> <span class="confirmed-text">Ready</span>
+      </div>
+
+      <!-- Main Orb Base -->
+      <div class="mash-voice-orb" tabindex="0">
+        <!-- Ripple Rings (Listening) -->
+        <div class="mash-orb-ripple"></div>
+        <div class="mash-orb-ripple"></div>
+        
+        <!-- WebGL Orb Canvas -->
+        <canvas class="mash-orb-canvas" id="mash-orb-canvas"></canvas>
+        
+        <!-- Rotating Spinner ring (Processing) -->
+        <div class="mash-orb-spinner"></div>
+      </div>
+
+      <!-- Action Keyboard/Click Hint -->
+      <div class="mash-action-hint" id="action-hint-label">Press Space or Click</div>
+
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
