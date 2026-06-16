@@ -149,15 +149,6 @@ export class PrescriptionsView implements View {
     // Generate current prescription rows
     const tableRowsHTML = items.map((item, index) => {
       const isRemovedItem = item.isRemoved;
-      const isInStock = item.stockStatus === 'In Stock' && !isRemovedItem;
-      const stockBadge = isRemovedItem
-        ? `<span class="rx-stock-badge out-of-stock" style="background-color: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✕ Out of Stock (Removed)</span>`
-        : (isInStock 
-          ? `<span class="rx-stock-badge in-stock">${getIcon('check', 'stock-icon-check')} In Stock</span>`
-          : `<div class="rx-stock-col-out">
-               <span class="rx-stock-badge out-of-stock">✕ Out of Stock</span>
-               <button class="rx-suggest-alt-btn" data-index="${index}">${getIcon('activity', 'suggest-icon')} Suggest Alt</button>
-             </div>`);
 
       // Check if item name contains Lisinopril, show tooltip info icon
       const hasWarning = item.name.toLowerCase().includes('lisinopril');

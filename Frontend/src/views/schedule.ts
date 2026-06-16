@@ -517,7 +517,7 @@ export class ScheduleView implements View {
 
     // 2. Tabs Selector
     tabs.forEach(tab => {
-      tab.addEventListener('click', (e) => {
+      tab.addEventListener('click', () => {
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this.activeTab = tab.getAttribute('data-tab') || 'all';
