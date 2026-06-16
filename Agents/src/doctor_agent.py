@@ -86,8 +86,17 @@ class DoctorAssistantAgent:
                 if not future.done():
                     future.set_result(payload)
 
+        def on_alt_medicine_requested(payload: Dict[str, Any]):
+            doc_id = payload.get("doctorId")
+            if not doc_id or doc_id == self.doctor_id:
+                patient_name = payload.get("patientName") or f"Patient ID {payload.get('patientId', 'Unknown')}"
+                medicine = payload.get("medicine", "requested medicine")
+                msg = f"Prescription alert: '{medicine}' for {patient_name} is out of stock. Please suggest an alternative medicine or comments."
+                self.pending_notifications.append(msg)
+
         self.agent.on_event("BOOKING_CONFIRMED", on_booking_confirmed)
         self.agent.on_event("PATIENT_SUMMARY_RESPONSE", on_patient_summary_response)
+        self.agent.on_event("ALTERNATIVE_MEDICINE_REQUESTED", on_alt_medicine_requested)
 
     async def load_schedule_to_patient_map(self):
         """Fetch the schedule and store patient name→UUID for quick lookup during conversation."""

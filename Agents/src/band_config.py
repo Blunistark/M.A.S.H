@@ -201,7 +201,8 @@ class BandSDK:
             "Reception-Navigation-Room",
             "Clinical-Consult-Room",
             "Pharmacy-Inventory-Room",
-            "Telemetry-Audit-Room"
+            "Telemetry-Audit-Room",
+            "Pharmacist-Dashboard-Room"
         ]
 
         updated_rooms_file = False
@@ -254,6 +255,7 @@ ReceptionNavigationRoom = BandSDK.create_room("Reception-Navigation-Room")
 ClinicalConsultRoom = BandSDK.create_room("Clinical-Consult-Room")
 PharmacyInventoryRoom = BandSDK.create_room("Pharmacy-Inventory-Room")
 TelemetryAuditRoom = BandSDK.create_room("Telemetry-Audit-Room")
+PharmacistDashboardRoom = BandSDK.create_room("Pharmacist-Dashboard-Room")
 
 MOCK_ROOMS = {
     "Patient-Management-Room": PatientManagementRoom,
@@ -261,6 +263,7 @@ MOCK_ROOMS = {
     "Reception-Navigation-Room": ReceptionNavigationRoom,
     "Clinical-Consult-Room": ClinicalConsultRoom,
     "Pharmacy-Inventory-Room": PharmacyInventoryRoom,
-    "Telemetry-Audit-Room": TelemetryAuditRoom
+    "Telemetry-Audit-Room": TelemetryAuditRoom,
+    "Pharmacist-Dashboard-Room": PharmacistDashboardRoom
 }
 

@@ -1,6 +1,13 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, ClinicalConsultRoom, PharmacyInventoryRoom, BandSDK
+from src.band_config import (
+    PatientManagementRoom,
+    ClinicalConsultRoom,
+    PharmacyInventoryRoom,
+    DoctorDashboardRoom,
+    PharmacistDashboardRoom,
+    BandSDK
+)
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medicine_stock_from_supabase
 
@@ -11,9 +18,11 @@ class MedicineManagementState(TypedDict):
 class MedicineManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("MedicineManagementAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         ClinicalConsultRoom.join(self.agent)
         PharmacyInventoryRoom.join(self.agent)
+        DoctorDashboardRoom.join(self.agent)
+        PharmacistDashboardRoom.join(self.agent)
         self.graph = self._build_graph()
         self.setup_listeners()
 
@@ -33,7 +42,19 @@ class MedicineManagementAgent:
                 # Dual-branched handoff: Route directly to Pharma queue
                 Telemetry.track_handoff(self.agent.name, "PharmaQueue", {"patientId": patient_id, "prescription": prescription})
                 PatientManagementRoom.broadcast("ROUTE_TO_PHARMA", {"patientId": patient_id, "prescription": prescription})
+                # Notify pharmacist dashboard
+                PharmacistDashboardRoom.broadcast("PREPARE_MEDICINE", {
+                    "patientId": patient_id,
+                    "prescription": prescription
+                })
             else:
+                # Ask doctor for alternative medicine or his comments
+                DoctorDashboardRoom.broadcast("ALTERNATIVE_MEDICINE_REQUESTED", {
+                    "patientId": patient_id,
+                    "medicine": prescription.get("medicine"),
+                    "doctorId": payload.get("doctorId")
+                })
+
                 # Dual-branched handoff: Raise Band event for Human-in-the-Loop
                 human_response = await self.agent.request_human_intervention(
                     f"Medicine '{prescription.get('medicine')}' is out of stock. Require Doctor's alternate prescription.",
@@ -61,7 +82,19 @@ class MedicineManagementAgent:
                     "prescription": prescription,
                     "status": "approved"
                 })
+                # Notify pharmacist dashboard
+                PharmacistDashboardRoom.broadcast("PREPARE_MEDICINE", {
+                    "patientId": patient_id,
+                    "prescription": prescription
+                })
             else:
+                # Ask doctor for alternative medicine or his comments
+                DoctorDashboardRoom.broadcast("ALTERNATIVE_MEDICINE_REQUESTED", {
+                    "patientId": patient_id,
+                    "medicine": prescription.get("medicine"),
+                    "doctorId": payload.get("doctorId")
+                })
+
                 human_response = await self.agent.request_human_intervention(
                     f"Conflict: Medicine '{prescription.get('medicine')}' is out of stock. Alternate prescription required.",
                     {"patientId": patient_id, "prescription": prescription}

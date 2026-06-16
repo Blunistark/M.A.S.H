@@ -12,6 +12,7 @@ from src import (
     ClinicalConsultRoom,
     PharmacyInventoryRoom,
     TelemetryAuditRoom,
+    PharmacistDashboardRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
@@ -20,6 +21,7 @@ from src import (
     PatientNavigationAgent,
     TelemetryAgent,
     DoctorAssistantAgent,
+    PharmacistAgent,
 )
 
 
@@ -58,6 +60,7 @@ async def main():
     patient_management_agent = PatientManagementAgent()
     patient_navigation_agent = PatientNavigationAgent()
     doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
+    pharmacist_agent = PharmacistAgent()
 
 
     # Log simulation events for visibility
@@ -131,6 +134,28 @@ async def main():
         return original_pharmacy_broadcast(event, payload)
 
     PharmacyInventoryRoom.broadcast = wrapped_pharmacy_broadcast
+
+    # Log simulation events for Pharmacist-Dashboard-Room
+    original_pharmacist_broadcast = PharmacistDashboardRoom.broadcast
+
+    def wrapped_pharmacist_broadcast(event: str, payload: dict):
+        if event == 'PREPARE_MEDICINE':
+            print(f"[PHARMACIST DASHBOARD] Notification: New prescription order arrived. Please prepare medicine '{payload['prescription']['medicine']}' for patient '{payload['patientId']}'.")
+        elif event == 'STOCK_DEMAND_ALERT':
+            print(f"[PHARMACIST DASHBOARD] Alert: {payload['reason']}")
+        return original_pharmacist_broadcast(event, payload)
+
+    PharmacistDashboardRoom.broadcast = wrapped_pharmacist_broadcast
+
+    # Log simulation events for Doctor-Dashboard-Room
+    original_doctor_broadcast = DoctorDashboardRoom.broadcast
+
+    def wrapped_doctor_broadcast(event: str, payload: dict):
+        if event == 'ALTERNATIVE_MEDICINE_REQUESTED':
+            print(f"[DOCTOR DASHBOARD] Prescription Alert: Medicine '{payload['medicine']}' is OUT OF STOCK for patient '{payload['patientId']}'. Suggest alternative or comments.")
+        return original_doctor_broadcast(event, payload)
+
+    DoctorDashboardRoom.broadcast = wrapped_doctor_broadcast
 
     # Log simulation events for Telemetry-Audit-Room
     original_audit_broadcast = TelemetryAuditRoom.broadcast

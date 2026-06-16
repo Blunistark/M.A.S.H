@@ -5,7 +5,7 @@ from src.telemetry import Telemetry
 class PatientNavigationAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("PatientNavigationAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         ReceptionNavigationRoom.join(self.agent)
         self.doctor_locations: Dict[str, Dict[str, str]] = {
             "doc-1": {"room": "Room 302", "floor": "3rd Floor"}, # Dr. Smith
