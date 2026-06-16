@@ -1,0 +1,2 @@
+# Python dependencies for Band of Agents simulation
+# This simulation is currently in-process and doesn't require external dependencies.
