@@ -422,6 +422,7 @@ export class AuthView implements View {
             // Save mock session so they don't get blocked by email confirmation
             localStorage.setItem('medconnect_mock_auth', 'true');
             localStorage.setItem('medconnect_mock_user', fullName);
+            localStorage.setItem('medconnect_doctor_id', data.user.id);
 
             showAlert('Registration successful! Redirecting to dashboard...', 'success');
             
@@ -444,6 +445,7 @@ export class AuthView implements View {
 
             // Save state and redirect
             localStorage.removeItem('medconnect_mock_auth');
+            localStorage.setItem('medconnect_doctor_id', data.session.user.id);
             router.navigate('dashboard');
           }
         }
@@ -479,6 +481,7 @@ export class AuthView implements View {
       
       localStorage.setItem('medconnect_mock_auth', 'true');
       localStorage.setItem('medconnect_mock_user', 'Dr. Alex Smith');
+      localStorage.setItem('medconnect_doctor_id', 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd');
       
       router.navigate('dashboard');
     });

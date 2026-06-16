@@ -139,3 +139,13 @@ export async function fetchPharmacyData(): Promise<{
 }> {
   return fetchJson<{ prescriptions: any[]; inventory: MedicineInventory[] }>(`${API_BASE}/pharmacy`);
 }
+
+export async function updateAppointment(id: string, payload: { scheduled_time: string; status?: string }): Promise<Appointment> {
+  return fetchJson<Appointment>(`${API_BASE}/appointments/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+}

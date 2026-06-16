@@ -823,6 +823,19 @@ a {
   align-items: center;
   justify-content: center;
   position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-day:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 50%;
+  color: var(--primary-blue-light);
+}
+
+.calendar-day.active:hover {
+  background-color: var(--primary-blue);
+  color: #ffffff;
 }
 
 .calendar-day.current-month {
@@ -2791,89 +2804,16 @@ a {
   display: block;
 }
 
-/* AI Summary Glass Card */
-.ai-summary-glass-card {
-  margin: 32px 40px 0 40px;
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
-  padding: 24px 30px;
-  position: relative;
-  z-index: 15;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+/* Pharmacy Medicine Inventory Scrolling & Sticky Header */
+.rx-inventory-card {
+  max-height: 580px;
+  overflow-y: auto;
 }
 
-.ai-summary-glass-card::before {
-  content: '';
-  position: absolute;
+.rx-inventory-card .rx-table th {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #14b8a6 0%, #3b82f6 50%, #6366f1 100%);
-}
-
-.ai-summary-glass-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
-  border-color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.55);
-}
-
-.ai-summary-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.4);
-  padding-bottom: 12px;
-}
-
-.ai-summary-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--accent-teal);
-  animation: pulse-glow 2s infinite alternate;
-}
-
-.ai-summary-title {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.2px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ai-summary-badge {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
-  color: #0d9488;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.ai-summary-body {
-  font-size: 14px;
-  line-height: 1.6;
-  color: #334155;
-  white-space: pre-wrap;
-}
-
-@keyframes pulse-glow {
-  0% {
-    filter: drop-shadow(0 0 2px rgba(20, 184, 166, 0.4));
-  }
-  100% {
-    filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.8));
-  }
+  background: #ffffff;
+  z-index: 10;
+  box-shadow: 0 1px 0 #e2e8f0;
 }
