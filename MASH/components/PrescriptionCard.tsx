@@ -13,9 +13,9 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
       case 'fulfilled':
         return { bg: Theme.colors.secondaryContainer, text: Theme.colors.secondary, label: 'Fulfilled & Ready' };
       case 'pushed_to_pharma':
-        return { bg: '#e0f2fe', text: Theme.colors.primary, label: 'Processing at Pharmacy' };
+        return { bg: 'rgba(52, 152, 219, 0.15)', text: '#3498db', label: 'Processing at Pharmacy' };
       case 'alternative_requested':
-        return { bg: '#fef3c7', text: '#92400e', label: 'Alternative Requested' };
+        return { bg: 'rgba(241, 196, 15, 0.15)', text: '#f1c40f', label: 'Alternative Requested' };
       default:
         return { bg: Theme.colors.superLightGray, text: Theme.colors.onSurfaceVariant, label: 'Pending' };
     }

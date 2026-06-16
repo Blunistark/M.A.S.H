@@ -1,9 +1,20 @@
+import { NativeModules } from 'react-native';
 import { Doctor, Appointment, Prescription } from '../types';
 
-// Detect base URL based on environment
-// For Android Emulator: 10.0.2.2
-// For iOS Simulator / Web: localhost
-const BACKEND_URL = 'http://localhost:3000/api';
+// Automatically detect your computer's IP address from the Expo packager url
+const getBackendUrl = () => {
+  const scriptURL = NativeModules?.SourceCode?.scriptURL || '';
+  if (scriptURL) {
+    const address = scriptURL.split('://')[1];
+    const host = address ? address.split(':')[0] : 'localhost';
+    if (host && host !== 'localhost') {
+      return `http://${host}:3000/api`;
+    }
+  }
+  return 'http://localhost:3000/api';
+};
+
+const BACKEND_URL = getBackendUrl();
 const ANDROID_EMULATOR_URL = 'http://10.0.2.2:3000/api';
 
 // Fallback Mock Data
@@ -67,7 +78,7 @@ const MOCK_PRESCRIPTIONS: Prescription[] = [
 ];
 
 // Helper to handle fetch with timeout and fallback
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 3000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 10000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -88,6 +99,78 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
 }
 
 export const api = {
+  login: async (email: string, password: string): Promise<any> => {
+    try {
+      let response;
+      try {
+        response = await fetchWithTimeout(`${BACKEND_URL}/auth/login`, {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+      } catch {
+        response = await fetchWithTimeout(`${ANDROID_EMULATOR_URL}/auth/login`, {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+      }
+
+      if (response.ok) {
+        return await response.json();
+      }
+      const errData = await response.json();
+      throw new Error(errData.message || 'Login failed');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
+  signUp: async (email: string, password: string, fullName: string, contactNumber?: string): Promise<any> => {
+    try {
+      let response;
+      try {
+        response = await fetchWithTimeout(`${BACKEND_URL}/auth/signup`, {
+          method: 'POST',
+          body: JSON.stringify({ email, password, full_name: fullName, contact_number: contactNumber })
+        });
+      } catch {
+        response = await fetchWithTimeout(`${ANDROID_EMULATOR_URL}/auth/signup`, {
+          method: 'POST',
+          body: JSON.stringify({ email, password, full_name: fullName, contact_number: contactNumber })
+        });
+      }
+
+      if (response.ok) {
+        return await response.json();
+      }
+      const errData = await response.json();
+      throw new Error(errData.message || 'Signup failed');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
+  logout: async (): Promise<any> => {
+    try {
+      let response;
+      try {
+        response = await fetchWithTimeout(`${BACKEND_URL}/auth/logout`, {
+          method: 'POST'
+        });
+      } catch {
+        response = await fetchWithTimeout(`${ANDROID_EMULATOR_URL}/auth/logout`, {
+          method: 'POST'
+        });
+      }
+      if (response.ok) {
+        return await response.json();
+      }
+      const errData = await response.json();
+      throw new Error(errData.message || 'Logout failed');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
   getDoctors: async (): Promise<Doctor[]> => {
     try {
       // Try local URL first, then emulator URL

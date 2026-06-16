@@ -6,11 +6,13 @@ import { PatientProfileView } from './views/patientProfile';
 import { PrescriptionsView } from './views/prescriptions';
 import { ScheduleView } from './views/schedule';
 import { PharmacyView } from './views/pharmacy';
+import { AuthView } from './views/auth';
 
 // Instantiate the router targeting the main #app div
 const router = new Router('app');
 
 // Register all screen views
+router.registerView('auth', new AuthView());
 router.registerView('dashboard', new DashboardView());
 router.registerView('patients', new PatientsListView());
 router.registerView('patient-profile', new PatientProfileView());
