@@ -1,12 +1,86 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
-import { 
+import {
   fetchPharmacyData,
   fulfillPrescription,
   requestAlternativePrescription,
   restockMedicine
 } from '../api';
 import type { MedicineInventory } from '../types';
+
+let inventoryFilter: 'all' | 'high' | 'low' = 'all';
+let inventorySearchQuery: string = '';
+
+function showOverlayAlert(title: string, message: string, type: 'success' | 'error' | 'info' = 'info', callback?: () => void) {
+  const overlay = document.createElement('div');
+  overlay.className = 'rx-prompt-modal-overlay';
+
+  let iconHtml = 'ⓘ';
+  let iconBg = '#3b82f6';
+  if (type === 'success') {
+    iconHtml = '✓';
+    iconBg = '#10b981';
+  } else if (type === 'error') {
+    iconHtml = '✕';
+    iconBg = '#ef4444';
+  }
+
+  overlay.innerHTML = `
+    <div class="rx-prompt-modal" style="text-align: center; padding: 32px 24px; max-width: 400px; width: 90%; border-radius: 16px; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
+      <div style="width: 48px; height: 48px; border-radius: 50%; background-color: ${iconBg}; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 16px auto; box-shadow: 0 4px 12px ${iconBg}40;">
+        ${iconHtml}
+      </div>
+      <h3 style="margin: 0 0 8px 0; font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #1e293b;">${title}</h3>
+      <p style="margin: 0 0 24px 0; font-size: 14px; color: #64748b; line-height: 1.5;">${message}</p>
+      <button class="rx-prompt-btn" style="background: var(--accent-blue); color: red; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;" id="overlay-alert-ok-btn">OK</button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const okBtn = overlay.querySelector('#overlay-alert-ok-btn');
+  if (okBtn) {
+    okBtn.addEventListener('click', () => {
+      overlay.remove();
+      if (callback) callback();
+    });
+  }
+}
+
+function showOverlayPrompt(title: string, message: string, placeholder: string, callback: (value: string | null) => void) {
+  const overlay = document.createElement('div');
+  overlay.className = 'rx-prompt-modal-overlay';
+
+  overlay.innerHTML = `
+    <div class="rx-prompt-modal" style="padding: 24px; max-width: 400px; width: 90%; border-radius: 16px; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
+      <h3 style="margin: 0 0 8px 0; font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #1e293b;">${title}</h3>
+      <p style="margin: 0 0 16px 0; font-size: 13px; color: #64748b; line-height: 1.4;">${message}</p>
+      <textarea id="overlay-prompt-input" placeholder="${placeholder}" style="width: 100%; height: 80px; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: var(--font-sans); font-size: 13px; margin-bottom: 20px; resize: none; outline: none; box-sizing: border-box;"></textarea>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="rx-prompt-btn" style="background: #3185daff; color: #475569; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" id="overlay-prompt-cancel-btn">Cancel</button>
+        <button class="rx-prompt-btn" style="background: var(--accent-blue); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" id="overlay-prompt-submit-btn">Submit</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const textarea = overlay.querySelector('#overlay-prompt-input') as HTMLTextAreaElement;
+  textarea.focus();
+
+  const cancelBtn = overlay.querySelector('#overlay-prompt-cancel-btn');
+  cancelBtn?.addEventListener('click', () => {
+    overlay.remove();
+    callback(null);
+  });
+
+  const submitBtn = overlay.querySelector('#overlay-prompt-submit-btn');
+  submitBtn?.addEventListener('click', () => {
+    const val = textarea.value.trim();
+    overlay.remove();
+    callback(val);
+  });
+}
 
 export class PharmacyView implements View {
   public async render(): Promise<string> {
@@ -100,8 +174,28 @@ export class PharmacyView implements View {
       `;
     }).join('');
 
+    // Filter inventory based on inventoryFilter and search query
+    const filteredInventory = inventory.filter(med => {
+      const isLow = med.current_stock <= med.reorder_threshold;
+
+      let matchesFilter = true;
+      if (inventoryFilter === 'low') {
+        matchesFilter = isLow;
+      } else if (inventoryFilter === 'high') {
+        matchesFilter = !isLow;
+      }
+
+      let matchesSearch = true;
+      if (inventorySearchQuery.trim()) {
+        const query = inventorySearchQuery.toLowerCase().trim();
+        matchesSearch = med.medicine_name.toLowerCase().includes(query);
+      }
+
+      return matchesFilter && matchesSearch;
+    });
+
     // 3. Render Inventory Stock Section
-    const inventoryHTML = inventory.map(med => {
+    const inventoryHTML = filteredInventory.map(med => {
       const isLow = med.current_stock <= med.reorder_threshold;
       const rowClass = isLow ? 'inventory-row-low' : '';
       const progressPercent = Math.min(100, (med.current_stock / 200) * 100); // 200 max capacity estimate
@@ -167,7 +261,20 @@ export class PharmacyView implements View {
 
           <!-- Right: Stock Inventory -->
           <div class="rx-pharma-section rx-inventory-section">
-            <h3 class="pharma-section-title">Medicine Inventory</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <h3 class="pharma-section-title" style="margin: 0;">Medicine Inventory</h3>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="rx-input-with-icon" style="margin: 0; padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;">
+                  ${getIcon('search', 'rx-search-icon')}
+                  <input type="text" id="inventory-search-input" value="${inventorySearchQuery}" placeholder="Search medicine..." style="border: none; outline: none; font-size: 12px; font-family: var(--font-sans); color: #475569; width: 140px; background: transparent; padding: 2px 0;" />
+                </div>
+                <select id="inventory-stock-filter" style="padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 600; color: #475569; background: #ffffff; outline: none; cursor: pointer; font-family: var(--font-sans);">
+                  <option value="all" ${inventoryFilter === 'all' ? 'selected' : ''}>All Stock</option>
+                  <option value="high" ${inventoryFilter === 'high' ? 'selected' : ''}>In Stock</option>
+                  <option value="low" ${inventoryFilter === 'low' ? 'selected' : ''}>Low/Out of Stock</option>
+                </select>
+              </div>
+            </div>
             <div class="rx-pharma-card rx-inventory-card">
               <div class="rx-table-container">
                 <table class="rx-table">
@@ -217,11 +324,12 @@ export class PharmacyView implements View {
         if (rxId) {
           try {
             await fulfillPrescription(rxId);
-            alert('Prescription successfully fulfilled and stock deducted.');
-            router.navigate('pharmacy');
+            showOverlayAlert('Success', 'Prescription successfully fulfilled and stock deducted.', 'success', () => {
+              router.navigate('pharmacy');
+            });
           } catch (err) {
             console.error('Fulfillment error:', err);
-            alert('Failed to fulfill prescription order.');
+            showOverlayAlert('Error', 'Failed to fulfill prescription order.', 'error');
           }
         }
       });
@@ -233,16 +341,23 @@ export class PharmacyView implements View {
       btn.addEventListener('click', () => {
         const rxId = btn.getAttribute('data-rx-id');
         if (rxId) {
-          const reason = prompt('Enter a comment/reason for requesting alternative medication:');
-          if (reason !== null) {
-            requestAlternativePrescription(rxId, reason || 'Please check for alternatives due to stock constraints.').then(() => {
-              alert('Alternative request successfully submitted to the physician.');
-              router.navigate('pharmacy');
-            }).catch(err => {
-              console.error('Alternative request error:', err);
-              alert('Failed to request alternative.');
-            });
-          }
+          showOverlayPrompt(
+            'Request Alternative',
+            'Enter a comment/reason for requesting alternative medication:',
+            'Please check for alternatives due to stock constraints.',
+            (reason) => {
+              if (reason !== null) {
+                requestAlternativePrescription(rxId, reason || 'Please check for alternatives due to stock constraints.').then(() => {
+                  showOverlayAlert('Success', 'Alternative request successfully submitted to the physician.', 'success', () => {
+                    router.navigate('pharmacy');
+                  });
+                }).catch(err => {
+                  console.error('Alternative request error:', err);
+                  showOverlayAlert('Error', 'Failed to request alternative.', 'error');
+                });
+              }
+            }
+          );
         }
       });
     });
@@ -258,10 +373,61 @@ export class PharmacyView implements View {
             router.navigate('pharmacy');
           } catch (err) {
             console.error('Restocking error:', err);
-            alert('Failed to restock medicine.');
+            showOverlayAlert('Error', 'Failed to restock medicine.', 'error');
           }
         }
       });
     });
+
+    // Handle inventory stock filter change
+    const filterSelect = container.querySelector('#inventory-stock-filter') as HTMLSelectElement;
+    const searchInput = container.querySelector('#inventory-search-input') as HTMLInputElement;
+    if (filterSelect) {
+      filterSelect.addEventListener('change', (e) => {
+        const target = e.target as HTMLSelectElement;
+        inventoryFilter = target.value as 'all' | 'high' | 'low';
+        if (searchInput) {
+          inventorySearchQuery = searchInput.value;
+        }
+        router.navigate('pharmacy');
+      });
+    }
+
+    // Handle inventory stock search
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+        const query = target.value.toLowerCase().trim();
+        inventorySearchQuery = target.value;
+
+        const rows = container.querySelectorAll('.rx-inventory-card tbody tr');
+        rows.forEach(row => {
+          const medNameEl = row.querySelector('.med-inventory-name strong');
+          if (medNameEl) {
+            const medName = medNameEl.textContent?.toLowerCase() || '';
+            const matchesQuery = medName.includes(query);
+
+            const isLow = row.classList.contains('inventory-row-low');
+            let matchesStatus = true;
+            if (inventoryFilter === 'low') {
+              matchesStatus = isLow;
+            } else if (inventoryFilter === 'high') {
+              matchesStatus = !isLow;
+            }
+
+            if (matchesQuery && matchesStatus) {
+              (row as HTMLElement).style.display = '';
+            } else {
+              (row as HTMLElement).style.display = 'none';
+            }
+          }
+        });
+      });
+
+      searchInput.addEventListener('blur', (e) => {
+        const target = e.target as HTMLInputElement;
+        inventorySearchQuery = target.value;
+      });
+    }
   }
 }

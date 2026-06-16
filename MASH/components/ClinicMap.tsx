@@ -4,25 +4,17 @@ import { Theme } from '../theme';
 
 interface ClinicMapProps {
   activePath: 'lobby' | 'pharmacy' | 'cardiology' | 'pediatrics' | 'dermatology' | null;
+  navigationActive?: boolean;
 }
 
-export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
-  // Dot position animations
-  const dotX = useRef(new Animated.Value(150)).current; // Center start (Entrance)
-  const dotY = useRef(new Animated.Value(280)).current; // Bottom start (Entrance)
+export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath, navigationActive = false }) => {
+  // Dot position animations (using 300x320 coordinate grid system)
+  const dotX = useRef(new Animated.Value(150)).current; // Start entrance center
+  const dotY = useRef(new Animated.Value(280)).current; // Start entrance bottom
   const dotOpacity = useRef(new Animated.Value(0)).current;
 
-  // Path coordinates mapping (X, Y) relative to 300x320 map size
-  // Entrance: (150, 280)
-  // Reception: (150, 180)
-  // Pharmacy (Room 102): (50, 240)
-  // Dr. Patel (Room 105): (50, 120)
-  // Dr. Jenkins (Room 214): (50, 40)
-  // Dr. Desai (Room 302): (250, 40)
-  // Elevator: (250, 180)
-
   useEffect(() => {
-    if (!activePath) {
+    if (!navigationActive || !activePath) {
       dotOpacity.setValue(0);
       return;
     }
@@ -36,14 +28,14 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
 
     switch (activePath) {
       case 'pharmacy':
-        // Entrance -> Corridor Left -> Pharmacy
+        // Entrance -> Corridor Left -> Pharmacy Room 102
         animationSequence = Animated.sequence([
           Animated.timing(dotY, { toValue: 240, duration: 1000, easing: Easing.linear, useNativeDriver: false }),
           Animated.timing(dotX, { toValue: 50, duration: 1200, easing: Easing.linear, useNativeDriver: false })
         ]);
         break;
       case 'pediatrics':
-        // Entrance -> Reception -> Corridor Left -> Room 105
+        // Entrance -> Reception Corridor -> Corridor Left -> Room 105
         animationSequence = Animated.sequence([
           Animated.timing(dotY, { toValue: 180, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
           Animated.timing(dotX, { toValue: 50, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
@@ -51,7 +43,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
         ]);
         break;
       case 'dermatology':
-        // Entrance -> Reception -> Corridor Left -> Room 214
+        // Entrance -> Reception Corridor -> Corridor Left -> Room 214
         animationSequence = Animated.sequence([
           Animated.timing(dotY, { toValue: 180, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
           Animated.timing(dotX, { toValue: 50, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
@@ -59,7 +51,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
         ]);
         break;
       case 'cardiology':
-        // Entrance -> Reception -> Elevator -> Room 302
+        // Entrance -> Reception Corridor -> Corridor Right -> Room 302/204
         animationSequence = Animated.sequence([
           Animated.timing(dotY, { toValue: 180, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
           Animated.timing(dotX, { toValue: 250, duration: 1200, easing: Easing.linear, useNativeDriver: false }),
@@ -92,7 +84,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
     return () => {
       loop.stop();
     };
-  }, [activePath]);
+  }, [activePath, navigationActive]);
 
   return (
     <View style={styles.container}>
@@ -101,7 +93,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
       {/* Dynamic Map Area */}
       <View style={styles.mapGrid}>
         
-        {/* CORRIDORS / PATHWAYS (Light gray tracks) */}
+        {/* CORRIDORS / PATHWAYS (Dark tracks) */}
         <View style={[styles.corridor, { top: 170, left: 40, width: 220, height: 20 }]} /> {/* Main Horiz */}
         <View style={[styles.corridor, { top: 40, left: 140, width: 20, height: 240 }]} /> {/* Main Vert */}
         <View style={[styles.corridor, { top: 40, left: 40, width: 20, height: 140 }]} /> {/* Left Vert */}
@@ -126,9 +118,9 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
           <Text style={styles.roomSub}>Dermatology</Text>
         </View>
 
-        {/* Dr. Desai Room 302 */}
+        {/* Dr. Smith Room 204 */}
         <View style={[styles.room, styles.cardiologyRoom, activePath === 'cardiology' && styles.highlightedRoom]}>
-          <Text style={styles.roomLabel}>❤️ Room 302</Text>
+          <Text style={styles.roomLabel}>❤️ Room 204</Text>
           <Text style={styles.roomSub}>Cardiology</Text>
         </View>
 
@@ -144,7 +136,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
         </View>
 
         {/* ANIMATED NAVIGATOR DOT */}
-        {activePath && (
+        {navigationActive && activePath && (
           <Animated.View
             style={[
               styles.navDot,
@@ -161,15 +153,15 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
       {/* Map Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#e0f2fe', borderWidth: 1, borderColor: '#bae6fd' }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.surface, borderWidth: 1, borderColor: Theme.colors.outline }]} />
           <Text style={styles.legendText}>Rooms</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: Theme.colors.lightGray }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.outline }]} />
           <Text style={styles.legendText}>Corridors</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: Theme.colors.secondary, borderRadius: 4 }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.primary, borderRadius: 4 }]} />
           <Text style={styles.legendText}>Your Route</Text>
         </View>
       </View>
@@ -179,15 +171,16 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Theme.colors.white,
-    borderRadius: Theme.roundness.lg, // 24px
-    padding: Theme.spacing.cardPadding, // 24px
+    backgroundColor: Theme.colors.surface, // Clean white card surface background
+    borderRadius: Theme.roundness.lg,
+    paddingVertical: 14,
+    paddingHorizontal: Theme.spacing.cardPadding,
     borderWidth: 1,
-    borderColor: Theme.colors.lightGray,
-    shadowColor: Theme.colors.shadowColor,
+    borderColor: Theme.colors.outline,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 4,
     width: '100%',
     alignItems: 'center',
@@ -196,37 +189,37 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.bodyLg.fontSize,
     fontFamily: Theme.typography.fontFamilyBold,
     color: Theme.colors.onSurface,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   mapGrid: {
     width: 300,
     height: 320,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: Theme.colors.superLightGray, // Deep background soft pink
     borderRadius: Theme.roundness.md,
     borderWidth: 1,
-    borderColor: Theme.colors.lightGray,
+    borderColor: Theme.colors.outline,
     position: 'relative',
     overflow: 'hidden',
   },
   corridor: {
     position: 'absolute',
-    backgroundColor: Theme.colors.lightGray,
+    backgroundColor: Theme.colors.outline, // Corridor track lines
     borderRadius: 4,
   },
   room: {
     position: 'absolute',
-    backgroundColor: '#e0f2fe',
-    borderWidth: 1.5,
-    borderColor: '#bae6fd',
+    backgroundColor: Theme.colors.surface, // White rooms
+    borderWidth: 1,
+    borderColor: Theme.colors.outline, // Outline
     borderRadius: Theme.roundness.sm,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 4,
   },
   highlightedRoom: {
-    backgroundColor: Theme.colors.secondaryContainer,
-    borderColor: Theme.colors.secondary,
-    shadowColor: Theme.colors.secondary,
+    backgroundColor: 'rgba(255, 141, 161, 0.15)', // Translucent pink container highlight
+    borderColor: Theme.colors.primary, // Pink border
+    shadowColor: Theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -279,13 +272,15 @@ const styles = StyleSheet.create({
     bottom: 5,
     alignSelf: 'center',
     left: 110,
-    backgroundColor: Theme.colors.onSurfaceVariant,
+    backgroundColor: Theme.colors.superLightGray,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Theme.roundness.sm - 4,
+    borderWidth: 1,
+    borderColor: Theme.colors.outline,
   },
   entranceText: {
-    color: Theme.colors.white,
+    color: Theme.colors.onSurfaceVariant,
     fontSize: 9,
     fontFamily: Theme.typography.fontFamilyBold,
   },
@@ -294,13 +289,13 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Theme.colors.secondary,
+    backgroundColor: Theme.colors.secondary, // Glowing pink tracking dot
     borderWidth: 2,
-    borderColor: Theme.colors.white,
+    borderColor: '#ffffff',
     zIndex: 100,
     marginTop: -6,
     marginLeft: -6,
-    shadowColor: Theme.colors.secondary,
+    shadowColor: Theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
@@ -308,7 +303,7 @@ const styles = StyleSheet.create({
   },
   legend: {
     flexDirection: 'row',
-    marginTop: 16,
+    marginTop: 12,
     justifyContent: 'space-around',
     width: '100%',
   },

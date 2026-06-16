@@ -13,11 +13,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
 
   return (
     <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
-      {!isUser && (
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>🤖</Text>
-        </View>
-      )}
       <View style={styles.messageContent}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
@@ -39,7 +34,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    marginVertical: 8,
+    marginVertical: 6,
     paddingHorizontal: Theme.spacing.containerPadding,
     maxWidth: '85%',
   },
@@ -50,39 +45,28 @@ const styles = StyleSheet.create({
   assistantContainer: {
     alignSelf: 'flex-start',
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.secondaryContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: Theme.colors.secondary,
-  },
-  avatarText: {
-    fontSize: 18,
-  },
   messageContent: {
     flex: 1,
   },
   bubble: {
-    borderRadius: Theme.roundness.lg, // 24px
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    borderRadius: 16, // Shrunk/compact
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   userBubble: {
-    backgroundColor: Theme.colors.primary,
-    borderTopRightRadius: 6,
-    ...Theme.shadows.level1,
+    backgroundColor: Theme.colors.primary, // Pink primary bubble
+    borderBottomRightRadius: 4,
   },
   assistantBubble: {
-    backgroundColor: Theme.colors.white,
-    borderTopLeftRadius: 6,
+    backgroundColor: Theme.colors.surface, // White surface background
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: Theme.colors.lightGray,
-    ...Theme.shadows.level1,
+    borderColor: Theme.colors.outline, // Soft pink outline
   },
   text: {
     fontSize: Theme.typography.bodyMd.fontSize,
@@ -90,19 +74,20 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamily,
   },
   userText: {
-    color: Theme.colors.white,
+    color: '#ffffff',
   },
   assistantText: {
-    color: Theme.colors.onSurface,
+    color: Theme.colors.onSurface, // High-contrast dark berry-grey text
   },
   cardContainer: {
-    marginTop: 10,
+    marginTop: 8,
+    width: '100%',
   },
   timestamp: {
     fontSize: Theme.typography.labelSm.fontSize,
     fontFamily: Theme.typography.fontFamily,
     marginTop: 4,
-    color: Theme.colors.outline,
+    color: Theme.colors.onSurfaceVariant, // Soft dark pink-grey text
   },
   userTimestamp: {
     textAlign: 'right',

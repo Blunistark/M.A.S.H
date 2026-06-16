@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Chat with Health Assistant</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#62fae3",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#fffbff",
+                        "surface-dim": "#d8dadc",
+                        "secondary-fixed-dim": "#3cddc7",
+                        "inverse-surface": "#2d3133",
+                        "on-secondary-fixed": "#00201c",
+                        "on-surface-variant": "#414755",
+                        "background": "#f7f9fb",
+                        "surface-bright": "#f7f9fb",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#d8e2ff",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#eceef0",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#005047",
+                        "inverse-on-surface": "#eff1f3",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "secondary": "#006b5f",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "on-secondary-container": "#007165",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-primary-fixed-variant": "#004493",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#9e3d00",
+                        "on-background": "#191c1e",
+                        "primary": "#0058bc",
+                        "inverse-primary": "#adc6ff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "surface-container-high": "#e6e8ea",
+                        "tertiary-container": "#c64f00",
+                        "on-tertiary-fixed": "#351000",
+                        "outline-variant": "#c1c6d7",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-container": "#0070eb",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#001a41",
+                        "on-surface": "#191c1e",
+                        "secondary-container": "#62fae3",
+                        "surface": "#f7f9fb",
+                        "tertiary-fixed": "#ffdbcc",
+                        "outline": "#717786",
+                        "surface-tint": "#005bc1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "touch-target-min": "48px",
+                        "container-padding": "24px",
+                        "card-padding": "24px",
+                        "stack-gap": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            background-color: #f7f9fb;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .chat-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background: #e0e3e5;
+            border-radius: 10px;
+        }
+        .message-bubble {
+            max-width: 85%;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .voice-pulse {
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(0, 107, 95, 0.4); }
+            70% { box-shadow: 0 0 0 12px rgba(0, 107, 95, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 107, 95, 0); }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-on-background fixed top-0 w-full z-50 flex justify-between items-center px-container-padding py-unit h-touch-target-min">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-primary-fixed flex items-center justify-center">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="A professional studio headshot of a friendly young man with a warm smile, Alex. He is set against a soft, out-of-focus medical office background with gentle blue and white tones. The lighting is bright and airy, reinforcing a clean, modern, and clinical yet welcoming healthcare environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQFVvzTUqQIbdP5H3zD3nvV3gl_lrWQt3aH0Dd-hdCYuZk1YZejs8VhrKqKOB1tOx9VegUfbZLubTJS__og_f1raMNmjssLzX8xxRtZzcCnc2LTpXZcUK2wbmLnpafFBlpIwWt8IbEBmMW77KMGBVr-aaO9j7fj0KeFDP7T7u1RTlEUJAbD2fBdvYVF4gd9RO6V7TXfDXSgoYltzTGjaXlfIXGcESS6UQnL4ZU5la9RgNqhResxj_0cF9nnPWKI6YKnMRx9YP0Cvkn"/>
+</div>
+<h1 class="font-headline-sm text-headline-sm dark:text-on-surface">Good morning, Alex</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-primary dark:text-primary-fixed hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<!-- Main Chat Canvas -->
+<main class="flex-1 mt-[56px] mb-[160px] px-container-padding pt-unit overflow-y-auto chat-scroll flex flex-col gap-stack-gap">
+<!-- User Message -->
+<div class="flex justify-end message-bubble self-end">
+<div class="bg-secondary text-on-secondary px-5 py-4 rounded-t-lg rounded-bl-lg shadow-sm">
+<p class="font-body-md text-body-md">Can you help me book an appointment with Dr. Smith for my checkup tomorrow morning?</p>
+</div>
+</div>
+<!-- Assistant Message -->
+<div class="flex justify-start message-bubble self-start">
+<div class="bg-surface-container-highest text-on-surface px-5 py-4 rounded-t-lg rounded-br-lg shadow-sm">
+<p class="font-body-md text-body-md">Great! I've booked your appointment with Dr. Smith. Here are the details.</p>
+</div>
+</div>
+<!-- Appointment Card Preview -->
+<div class="flex justify-start message-bubble self-start w-full md:max-w-md">
+<div class="bg-surface-container-lowest p-card-padding rounded-lg shadow-[0_8px_40px_rgba(0,0,0,0.06)] border border-outline-variant/30 w-full">
+<div class="flex items-start justify-between mb-4">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container" style="font-variation-settings: 'FILL' 1;">medical_services</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Dr. Sarah Smith</h3>
+<p class="font-label-md text-label-md text-outline">General Practitioner</p>
+</div>
+</div>
+</div>
+<div class="space-y-3 mb-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
+</div>
+<span class="font-body-md text-body-md">Tomorrow, 10:00 AM</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[18px]">location_on</span>
+</div>
+<span class="font-body-md text-body-md">Room 204, 2nd Floor</span>
+</div>
+</div>
+<button class="w-full h-[48px] bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-primary-container transition-all flex items-center justify-center gap-2 group shadow-lg shadow-primary/20">
+                    View Details
+                    <span class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Voice/Text Input Hub -->
+<div class="fixed bottom-[88px] left-0 w-full px-container-padding pb-4 bg-gradient-to-t from-background via-background/90 to-transparent">
+<div class="max-w-4xl mx-auto flex items-center gap-3 bg-white p-2 rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.08)] border border-outline-variant/20">
+<button class="w-12 h-12 flex items-center justify-center rounded-full text-outline hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">add</span>
+</button>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface px-2" placeholder="Ask anything about your health..." type="text"/>
+<div class="flex items-center gap-2 pr-2">
+<button class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container text-on-secondary-container voice-pulse transition-transform active:scale-90">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-full bg-primary text-on-primary transition-all hover:bg-primary-container active:scale-90">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 rounded-t-lg shadow-[0_-8px_24px_rgba(0,0,0,0.08)] dark:shadow-none">
+<button class="flex flex-col items-center justify-center text-outline dark:text-outline-variant px-6 py-2 hover:text-primary dark:hover:text-primary-fixed transition-all active:scale-90 duration-200 ease-out">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-full px-6 py-2 transition-all active:scale-90 duration-200 ease-out">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</button>
+<button class="flex flex-col items-center justify-center text-outline dark:text-outline-variant px-6 py-2 hover:text-primary dark:hover:text-primary-fixed transition-all active:scale-90 duration-200 ease-out">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</button>
+</nav>
+<script>
+        // Simple micro-interaction for the voice pulse
+        const micBtn = document.querySelector('.voice-pulse');
+        let isRecording = false;
+
+        micBtn.addEventListener('click', () => {
+            isRecording = !isRecording;
+            if (isRecording) {
+                micBtn.classList.add('bg-error');
+                micBtn.classList.remove('bg-secondary-container');
+                micBtn.querySelector('span').classList.add('text-white');
+                micBtn.style.animation = 'pulse-glow 1s infinite linear';
+            } else {
+                micBtn.classList.remove('bg-error');
+                micBtn.classList.add('bg-secondary-container');
+                micBtn.querySelector('span').classList.remove('text-white');
+                micBtn.style.animation = 'pulse-glow 2s infinite';
+            }
+        });
+    </script>
+</body></html>

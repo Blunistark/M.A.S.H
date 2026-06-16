@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Healthcare Voice Assistant</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#62fae3",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#fffbff",
+                        "surface-dim": "#d8dadc",
+                        "secondary-fixed-dim": "#3cddc7",
+                        "inverse-surface": "#2d3133",
+                        "on-secondary-fixed": "#00201c",
+                        "on-surface-variant": "#414755",
+                        "background": "#f7f9fb",
+                        "surface-bright": "#f7f9fb",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#d8e2ff",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#eceef0",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#005047",
+                        "inverse-on-surface": "#eff1f3",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "secondary": "#006b5f",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "on-secondary-container": "#007165",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-primary-fixed-variant": "#004493",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#9e3d00",
+                        "on-background": "#191c1e",
+                        "primary": "#0058bc",
+                        "inverse-primary": "#adc6ff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "surface-container-high": "#e6e8ea",
+                        "tertiary-container": "#c64f00",
+                        "on-tertiary-fixed": "#351000",
+                        "outline-variant": "#c1c6d7",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-container": "#0070eb",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#001a41",
+                        "on-surface": "#191c1e",
+                        "secondary-container": "#62fae3",
+                        "surface": "#f7f9fb",
+                        "tertiary-fixed": "#ffdbcc",
+                        "outline": "#717786",
+                        "surface-tint": "#005bc1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "touch-target-min": "48px",
+                        "container-padding": "24px",
+                        "card-padding": "24px",
+                        "stack-gap": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f7f9fb;
+            overflow-x: hidden;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+
+        .orb-glow {
+            filter: blur(40px);
+            opacity: 0.4;
+            background: radial-gradient(circle, #62fae3 0%, transparent 70%);
+        }
+
+        @keyframes soft-pulse {
+            0% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.9; }
+        }
+
+        .pulse-animation {
+            animation: soft-pulse 4s ease-in-out infinite;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="text-on-surface">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 bg-surface h-touch-target-min flex justify-between items-center px-container-padding py-unit">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="Alex profile" class="w-full h-full object-cover" data-alt="A clean, professional close-up portrait of a young man with a friendly expression. He is set against a soft-focus, minimalist indoor clinic background with bright, natural light-mode lighting. The aesthetic is clean and modern, using a healthcare-appropriate palette of soft whites and calm blues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4dV8furgxt6lfQHMCGAKgfsHz-ruAhxrax0kqrHBE207XdXcd9g96NFbpK_CGRBZt1lo40a-V9VJU7nwVKC1VRlu2GgzlzyUzZlAjWNWEq76TFjuIxLt8ukfmTLzMAFk7uhr4ElENTlfi5BEDI_EDww18ne9K2BEJVY61iF79IqXAJrQIlW0BbEuc1tEcwU8uiLYPYlkzziRfwy31hMGGv2lLAae4RFXjzmYVbSiCoPLkF_JDK7N8YmV-wpYTnlqnp-E3T-KKfiqA"/>
+</div>
+<h1 class="font-headline-sm text-headline-sm-mobile text-on-surface">Good morning, Alex</h1>
+</div>
+<button class="w-12 h-12 flex items-center justify-center rounded-full text-primary hover:bg-surface-container-low transition-colors active:scale-95 duration-150">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<main class="relative min-h-screen flex flex-col items-center pt-24 pb-40 px-container-padding">
+<!-- Greeting Section -->
+<div class="text-center mt-8 mb-12">
+<h2 class="font-display-lg text-display-lg text-on-surface max-w-xs mx-auto">Hi, how can I help you today?</h2>
+</div>
+<!-- Voice Interaction Hub (The Orb) -->
+<div class="relative w-72 h-72 md:w-96 md:h-96 flex items-center justify-center mb-16">
+<!-- Background Glows -->
+<div class="absolute inset-0 orb-glow pulse-animation"></div>
+<!-- Main Shader Container -->
+<div class="relative w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden shadow-2xl pulse-animation" style="box-shadow: 0 0 50px rgba(98, 250, 227, 0.2);">
+<!-- STITCH_SHADER_START:ANIMATION_2 class="absolute inset-0 w-full h-full" -->
+<div class="absolute inset-0 w-full h-full" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_2" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_2');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+varying vec2 v_texCoord;
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    
+    // Core orb movement
+    float d = length(uv);
+    float pulse = 0.5 + 0.5 * sin(u_time * 2.0);
+    float ring = smoothstep(0.4 + pulse * 0.05, 0.38 + pulse * 0.05, d);
+    
+    // Gradient colors (Blue to Teal)
+    vec3 color1 = vec3(0.0, 0.48, 1.0); // Blue
+    vec3 color2 = vec3(0.17, 0.83, 0.75); // Teal
+    
+    // Dynamic glow effect
+    float glow = 0.05 / (d * d + 0.01);
+    vec3 finalColor = mix(color1, color2, uv.y * 0.5 + 0.5);
+    finalColor += glow * mix(color1, color2, 0.5);
+    
+    // Pulsing transparency
+    float alpha = ring * (0.8 + 0.2 * sin(u_time * 3.0));
+    
+    gl_FragColor = vec4(finalColor, alpha);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_2 -->
+</div>
+<!-- Status Indicator Overlay -->
+<div class="absolute -bottom-4 bg-white/80 backdrop-blur-md px-6 py-2 rounded-full shadow-sm border border-white/50">
+<p class="font-label-md text-label-md text-secondary flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-secondary"></span>
+                    Listening...
+                </p>
+</div>
+</div>
+<!-- Suggestion Chips (Bento-lite Layout) -->
+<div class="w-full max-w-2xl">
+<p class="font-label-sm text-label-sm text-outline mb-4 text-center">Suggested for you</p>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="bg-surface-container-lowest border border-outline-variant/30 hover:bg-secondary-container transition-all active:scale-95 px-6 py-4 rounded-lg flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-secondary">calendar_today</span>
+<span class="font-label-md text-label-md text-on-surface">Book Appointment</span>
+</button>
+<button class="bg-surface-container-lowest border border-outline-variant/30 hover:bg-secondary-container transition-all active:scale-95 px-6 py-4 rounded-lg flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-secondary">medical_services</span>
+<span class="font-label-md text-label-md text-on-surface">Find My Doctor</span>
+</button>
+<button class="bg-surface-container-lowest border border-outline-variant/30 hover:bg-secondary-container transition-all active:scale-95 px-6 py-4 rounded-lg flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-secondary">update</span>
+<span class="font-label-md text-label-md text-on-surface">Reschedule Visit</span>
+</button>
+<button class="bg-surface-container-lowest border border-outline-variant/30 hover:bg-secondary-container transition-all active:scale-95 px-6 py-4 rounded-lg flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-secondary">prescriptions</span>
+<span class="font-label-md text-label-md text-on-surface">Check Prescription</span>
+</button>
+</div>
+</div>
+<!-- Floating Input Bar -->
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-xl z-40">
+<div class="glass-panel rounded-full p-2 flex items-center shadow-lg shadow-black/5 border border-white/40">
+<div class="flex-1 flex items-center px-4">
+<span class="material-symbols-outlined text-outline mr-3">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder:text-outline/50 py-3" placeholder="Type or ask anything..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-12 h-12 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center hover:bg-secondary transition-colors duration-300">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary-container transition-colors duration-300">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-lowest flex justify-around items-center px-4 pb-8 pt-4 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] rounded-t-lg">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-6 py-2 active:scale-90 duration-200 ease-out transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<!-- Chat -->
+<a class="flex flex-col items-center justify-center text-outline px-6 py-2 hover:text-primary transition-all active:scale-90 duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-outline px-6 py-2 hover:text-primary transition-all active:scale-90 duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for suggestion chips
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('scale-95');
+                setTimeout(() => this.classList.remove('scale-95'), 150);
+            });
+        });
+
+        // Simple placeholder for voice ripple effect visibility
+        let isListening = true;
+        const statusEl = document.querySelector('.status-indicator');
+        // Logic could go here to toggle states
+    </script>
+</body></html>

@@ -31,6 +31,16 @@ export async function fetchProfileById(id: string): Promise<Profile> {
   return fetchJson<Profile>(`${API_BASE}/profiles/${id}`);
 }
 
+export async function createProfile(profile: { full_name: string; contact_number?: string }): Promise<Profile> {
+  return fetchJson<Profile>(`${API_BASE}/profiles`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(profile)
+  });
+}
+
 export async function fetchDoctorDetails(): Promise<DoctorDetails[]> {
   return fetchJson<DoctorDetails[]>(`${API_BASE}/doctor_details`);
 }
@@ -128,4 +138,14 @@ export async function fetchPharmacyData(): Promise<{
   inventory: MedicineInventory[];
 }> {
   return fetchJson<{ prescriptions: any[]; inventory: MedicineInventory[] }>(`${API_BASE}/pharmacy`);
+}
+
+export async function updateAppointment(id: string, payload: { scheduled_time: string; status?: string }): Promise<Appointment> {
+  return fetchJson<Appointment>(`${API_BASE}/appointments/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
 }
