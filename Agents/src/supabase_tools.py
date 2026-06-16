@@ -2,7 +2,10 @@ import os
 import json
 import httpx
 from typing import Dict, Any, List
+from langchain_core.tools import tool
+from dotenv import load_dotenv
 
+load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
@@ -18,20 +21,41 @@ async def fetch_doctors_from_supabase() -> List[Dict[str, Any]]:
         return []
     
     url = f"{SUPABASE_URL}/rest/v1/doctor_details?select=doctor_id,specialty,room_number,is_available,profiles(full_name)"
+    appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)"
+    
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=get_headers())
+            appts_response = await client.get(appts_url, headers=get_headers())
+            
             if response.status_code == 200:
                 data = response.json()
+                appts_data = []
+                if appts_response.status_code == 200:
+                    appts_data = appts_response.json()
+                    
                 doctors = []
                 for item in data:
+                    doc_id = item.get("doctor_id")
+                    
+                    booked_times = []
+                    for appt in appts_data:
+                        if appt.get("doctor_id") == doc_id:
+                            st = appt.get("scheduled_time")
+                            if st:
+                                time_part = st.split("T")[1][:5] if "T" in st else st
+                                booked_times.append(time_part)
+                                
+                    base_slots = ["09:00", "10:00", "14:00", "15:00", "16:00"]
+                    available_slots = [slot for slot in base_slots if slot not in booked_times] if item.get("is_available") else []
+                    
                     profile = item.get("profiles") or {}
                     doctors.append({
-                        "id": item.get("doctor_id"),
+                        "id": doc_id,
                         "name": profile.get("full_name") or "Unknown Doctor",
                         "specialty": item.get("specialty"),
                         "room": item.get("room_number") or "Unknown Room",
-                        "availableSlots": ["09:00", "10:00", "14:00"] if item.get("is_available") else []
+                        "availableSlots": available_slots
                     })
                 return doctors
     except Exception as e:
@@ -169,3 +193,60 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
     except Exception as e:
         print(f"[Supabase Tool Warning] Failed to book appointment: {e}")
     return False
+
+async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: str) -> bool:
+    """Reschedule an existing appointment in Supabase."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return False
+        
+    patient_id = "550e8400-e29b-41d4-a716-446655440000"
+    try:
+        async with httpx.AsyncClient() as client:
+            search_name = patient_name.split()[0] if patient_name else "John"
+            res = await client.get(
+                f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
+                headers=get_headers()
+            )
+            if res.status_code == 200 and res.json():
+                patient_id = res.json()[0]["id"]
+    except Exception:
+        pass
+        
+    if len(new_slot_time) == 5 and ":" in new_slot_time:
+        new_slot_time = f"2026-06-17T{new_slot_time}:00Z"
+        
+    url = f"{SUPABASE_URL}/rest/v1/appointments?patient_id=eq.{patient_id}"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(url, headers=get_headers(), json={
+                "scheduled_time": new_slot_time,
+                "status": "rescheduled"
+            })
+            if response.status_code not in (200, 201, 204):
+                print(f"Supabase Reschedule Error: {response.text}")
+            return response.status_code in (200, 201, 204)
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to reschedule appointment: {e}")
+    return False
+
+@tool
+async def get_doctors() -> list:
+    """Fetch a list of available doctors and their schedules."""
+    return await fetch_doctors_from_supabase()
+
+@tool
+async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
+    """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), and the patient's name."""
+    success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+    if success:
+        return f"Successfully booked appointment for {patient_name} at {slot_time}."
+    return "Failed to book appointment. Please try again."
+
+@tool
+async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
+    """Reschedules an existing appointment for the patient. Pass the patient's name and the new time slot (e.g. 10:00)."""
+    success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
+    if success:
+        return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
+    else:
+        return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."

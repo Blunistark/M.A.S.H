@@ -5,17 +5,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.patient_agent import PatientManagementAgent
+from src.registration_agent import RegistrationAgent
 
 async def main():
-    print("Initializing Patient Management Agent...")
+    print("Initializing Multi-Agent System...")
     try:
+        # Initialize the backend orchestration agents so they listen to the P2P room events
+        registration_agent = RegistrationAgent()
+        
+        # Initialize the patient interface brain
         agent = PatientManagementAgent()
     except Exception as e:
-        print(f"Failed to initialize agent: {e}")
+        print(f"Failed to initialize agents: {e}")
         return
 
     print("\n" + "="*50)
-    print("Welcome to M.A.S.H Interactive Booking CLI")
+    print("Welcome to M.A.S.H Patient Interaction CLI")
     print("Type 'exit' or 'quit' to stop.")
     print("="*50 + "\n")
     
@@ -31,7 +36,7 @@ async def main():
                 
             messages.append({"role": "user", "content": user_input})
             
-            print("Agent is thinking...")
+            print("Agent is thinking (and talking to Registration Agent)...")
             updated_messages = await agent.process_patient_query(messages)
             
             # The last message is the AI response
