@@ -45,7 +45,7 @@ const particleData = Array.from({ length: 45 }).map((_, idx) => {
     nz: Math.cos(theta) * Math.cos(phi),
     rOffset: 25 + Math.random() * 25,
     speed: 1.5 + Math.random() * 2,
-    size: 1.0 + Math.random() * 2.2,
+    size: 1.0 + Math.random() * 2.0,
     color: idx % 3 === 0 ? '#00BFFF' : idx % 3 === 1 ? '#FF00FF' : '#ffffff',
   };
 });
@@ -72,7 +72,6 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     let isMounted = true;
 
     async function startRecording() {
-      // We only request mic/metering if the state is 'listening' to avoid locks
       if (state !== 'listening') {
         if (recordingRef.current) {
           stopRecording();
@@ -132,13 +131,12 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
               const status = await recordingRef.current.getStatusAsync();
               if (status.canRecord && status.metering !== undefined) {
                 const db = status.metering;
-                // Map [-60dB, 0dB] range to [0, 1] volume
                 const minDb = -60;
                 let normVol = (db - minDb) / -minDb;
                 if (normVol < 0) normVol = 0;
                 if (normVol > 1) normVol = 1;
                 
-                setVolume(v => v * 0.7 + normVol * 0.3); // smooth dampening
+                setVolume(v => v * 0.7 + normVol * 0.3);
               }
             }
           } catch (e) {
@@ -176,22 +174,17 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   useEffect(() => {
     let simInterval: any = null;
     if (state !== 'listening') {
-      // Clear real-time mic tracking volume
       setVolume(0);
       
-      // Simulate speech/processing volume updates
       simInterval = setInterval(() => {
         const now = Date.now() / 1000;
         if (state === 'speaking') {
-          // Cadence of human speech envelope
           const speakVol = 0.15 + Math.abs(Math.sin(now * 7.5) * Math.cos(now * 3.1)) * 0.45;
           setVolume(speakVol);
         } else if (state === 'processing') {
-          // Fast vibration
           const procVol = 0.05 + Math.sin(now * 18) * 0.03;
           setVolume(procVol);
         } else {
-          // Idle calm breathing state
           setVolume(0);
         }
       }, 30);
@@ -251,7 +244,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     
     // Perspective Projection
     const scale = cameraDistance / (cameraDistance + z2);
-    const soundScale = 1.0 + volume * 0.12; // scales up by 12% at peak volume
+    const soundScale = 1.0 + volume * 0.12;
     
     const xp = centerX + x2 * scale * soundScale;
     const yp = centerY + y2 * scale * soundScale;
@@ -259,32 +252,65 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     projected[v.i][v.j] = { x: xp, y: yp, z: z2 };
   });
 
-  // 5. Construct latitude UV grid paths
-  let latPath = '';
+  // 5. Construct latitude UV grid paths split by front/back to hide back-lines
+  let latFrontPath = '';
+  let latBackPath = '';
   for (let i = 0; i <= LAT_COUNT; i++) {
-    const start = projected[i][0];
-    latPath += ` M ${start.x.toFixed(1)} ${start.y.toFixed(1)}`;
-    for (let j = 1; j < LNG_COUNT; j++) {
-      const pt = projected[i][j];
-      latPath += ` L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+    for (let j = 0; j < LNG_COUNT; j++) {
+      const nextJ = (j + 1) % LNG_COUNT;
+      const p1 = projected[i][j];
+      const p2 = projected[i][nextJ];
+      const avgZ = (p1.z + p2.z) / 2;
+      
+      const segmentStr = ` M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      if (avgZ < 0) {
+        latFrontPath += segmentStr;
+      } else {
+        latBackPath += segmentStr;
+      }
     }
-    latPath += ` L ${start.x.toFixed(1)} ${start.y.toFixed(1)}`; // Close latitude ring
   }
 
-  // 6. Construct longitude UV grid paths
-  let lngPath = '';
+  // 6. Construct longitude UV grid paths split by front/back
+  let lngFrontPath = '';
+  let lngBackPath = '';
   for (let j = 0; j < LNG_COUNT; j++) {
-    const start = projected[0][j];
-    lngPath += ` M ${start.x.toFixed(1)} ${start.y.toFixed(1)}`;
-    for (let i = 1; i <= LAT_COUNT; i++) {
-      const pt = projected[i][j];
-      lngPath += ` L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+    for (let i = 0; i < LAT_COUNT; i++) {
+      const p1 = projected[i][j];
+      const p2 = projected[i + 1][j];
+      const avgZ = (p1.z + p2.z) / 2;
+      
+      const segmentStr = ` M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      if (avgZ < 0) {
+        lngFrontPath += segmentStr;
+      } else {
+        lngBackPath += segmentStr;
+      }
     }
   }
 
-  // 7. Project and render perimeter particles
+  // 7. Render grid intersection dots (front side only)
+  const gridDots: React.ReactNode[] = [];
+  for (let i = 0; i <= LAT_COUNT; i += 2) {
+    for (let j = 0; j < LNG_COUNT; j += 2) {
+      const pt = projected[i][j];
+      if (pt.z < 0) {
+        gridDots.push(
+          <Circle
+            key={`dot-${i}-${j}`}
+            cx={pt.x}
+            cy={pt.y}
+            r={1.0}
+            fill="#ffffff"
+            opacity={0.85 + volume * 0.15}
+          />
+        );
+      }
+    }
+  }
+
+  // 8. Project and render perimeter particles
   const particleNodes = particleData.map((p, idx) => {
-    // Pulse and expand radius offset based on sound volume
     const drift = Math.sin(time * p.speed + idx) * 5 + volume * 20;
     const pR = R + p.rOffset + drift;
     
@@ -292,25 +318,21 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     const py = pR * p.ny;
     const pz = pR * p.nz;
     
-    // Rotate Y
     const px1 = px * Math.cos(rotY) - pz * Math.sin(rotY);
     const pz1 = px * Math.sin(rotY) + pz * Math.cos(rotY);
     const py1 = py;
     
-    // Rotate X
     const py2 = py1 * Math.cos(rotX) - pz1 * Math.sin(rotX);
     const pz2 = py1 * Math.sin(rotX) + pz1 * Math.cos(rotX);
     const px2 = px1;
     
-    // Perspective Projection
     const scale = cameraDistance / (cameraDistance + pz2);
     const soundScale = 1.0 + volume * 0.12;
     
     const pxp = centerX + px2 * scale * soundScale;
     const pyp = centerY + py2 * scale * soundScale;
     
-    // Volumetric depth cue: Fade particles behind the sphere
-    const depthOpacity = (pz2 + 120) / 240; // 0 (back) to 1 (front)
+    const depthOpacity = (pz2 + 120) / 240;
     const pulseOpacity = 0.35 + Math.sin(time * 4 + idx) * 0.25;
     const finalOpacity = Math.max(0.08, Math.min(1.0, depthOpacity * pulseOpacity + volume * 0.35));
     
@@ -326,9 +348,14 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     );
   });
 
+  // 9. Smoky nebula offsets (overlapping drift)
+  const glow1X = 150 + Math.sin(time * 1.2) * 16;
+  const glow1Y = 150 + Math.cos(time * 0.9) * 12;
+  const glow2X = 150 + Math.cos(time * 1.5) * 18;
+  const glow2Y = 150 + Math.sin(time * 1.1) * 16;
+
   return (
     <View style={styles.container}>
-      {/* Tap area to trigger Voice input / Speech recognition */}
       <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.touchArea}>
         <View style={styles.canvasWrapper}>
           <Svg width={300} height={300} viewBox="0 0 300 300">
@@ -340,37 +367,68 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
                 <Stop offset="100%" stopColor="#FF00FF" stopOpacity={0.95} />
               </LinearGradient>
               
-              {/* Ambient radial halo background glow */}
-              <RadialGradient id="glowGrad" cx="50%" cy="50%" rx="50%" ry="50%">
-                <Stop offset="0%" stopColor="#8A2BE2" stopOpacity={0.4 + volume * 0.2} />
-                <Stop offset="45%" stopColor="#00BFFF" stopOpacity={0.15 + volume * 0.1} />
+              {/* Dynamic smoky radial gradients */}
+              <RadialGradient id="smokyBlue" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#00BFFF" stopOpacity={0.35 + volume * 0.25} />
+                <Stop offset="55%" stopColor="#8A2BE2" stopOpacity={0.12 + volume * 0.1} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="smokyMagenta" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#FF00FF" stopOpacity={0.35 + volume * 0.25} />
+                <Stop offset="55%" stopColor="#8A2BE2" stopOpacity={0.12 + volume * 0.1} />
                 <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
               </RadialGradient>
             </Defs>
 
-            {/* Back glowing halo */}
+            {/* Overlapping smoky nebula backgrounds */}
             <Circle
-              cx="150"
-              cy="150"
+              cx={glow1X}
+              cy={glow1Y}
+              r={105 + volume * 25}
+              fill="url(#smokyBlue)"
+            />
+            <Circle
+              cx={glow2X}
+              cy={glow2Y}
               r={95 + volume * 25}
-              fill="url(#glowGrad)"
+              fill="url(#smokyMagenta)"
             />
 
-            {/* UV Latitudes & Longitudes Wireframe Mesh */}
+            {/* Back UV Grid lines (significantly faded) */}
             <Path
-              d={latPath}
+              d={latBackPath}
+              fill="none"
+              stroke="url(#meshGrad)"
+              strokeWidth={0.4}
+              opacity={0.12}
+            />
+            <Path
+              d={lngBackPath}
+              fill="none"
+              stroke="url(#meshGrad)"
+              strokeWidth={0.4}
+              opacity={0.12}
+            />
+
+            {/* Front UV Grid lines (clear and crisp) */}
+            <Path
+              d={latFrontPath}
               fill="none"
               stroke="url(#meshGrad)"
               strokeWidth={0.8}
-              opacity={0.85 + volume * 0.15}
+              opacity={0.8 + volume * 0.2}
             />
             <Path
-              d={lngPath}
+              d={lngFrontPath}
               fill="none"
               stroke="url(#meshGrad)"
               strokeWidth={0.8}
-              opacity={0.85 + volume * 0.15}
+              opacity={0.8 + volume * 0.2}
             />
+
+            {/* Grid Intersections / Vertices (white dots at line junctions) */}
+            {gridDots}
 
             {/* Scattered escaping particles perimeter */}
             {particleNodes}
