@@ -1,0 +1,128 @@
+/* ═══════════════════════════════════════════════════════════════
+   Gallery — Masonry Editorial
+   ═══════════════════════════════════════════════════════════════ */
+
+.gallery {
+    background: var(--bg-secondary);
+}
+
+.gallery-header {
+    text-align: center;
+    margin-bottom: 56px;
+}
+
+.gallery-heading {
+    font-size: var(--text-4xl);
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.gallery-sub {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+
+/* ─── Uniform Grid ────────────────────────────────────────────── */
+.gallery-masonry {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.gallery-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    aspect-ratio: 1/1;
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: var(--bg-primary);
+    display: block;
+    transition: transform var(--transition-dramatic);
+}
+
+.gallery-item:hover img {
+    transform: scale(1.06);
+}
+
+.gallery-item-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(10, 10, 10, 0.7) 0%, transparent 50%);
+    opacity: 0;
+    transition: opacity var(--transition-base);
+    display: flex;
+    align-items: flex-end;
+    padding: 20px;
+}
+
+.gallery-item:hover .gallery-item-overlay {
+    opacity: 1;
+}
+
+.gallery-item-label {
+    font-family: var(--font-heading);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #FAFAFA;
+}
+
+/* ─── Load More ────────────────────────────────────────────────── */
+.gallery-load-more {
+    text-align: center;
+    margin-top: 40px;
+}
+
+.gallery-load-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 12px 32px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-heading);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.gallery-load-btn:hover {
+    border-color: var(--text-primary);
+    background: var(--bg-surface);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .gallery-masonry {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .gallery-masonry {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .gallery-item {
+        border-radius: var(--radius-sm);
+    }
+
+    .gallery-item-overlay {
+        padding: 12px;
+    }
+
+    .gallery-item-label {
+        font-size: 10px;
+    }
+}
