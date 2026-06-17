@@ -11,13 +11,15 @@ load_dotenv()
 
 from src.summary_agent import SummaryAgent
 from src.doctor_agent import DoctorAssistantAgent
+from src.pharmacist_agent import PharmacistAssistantAgent
 
 summary_agent = None
 doctor_agent = None
+pharmacist_agent = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global summary_agent, doctor_agent
+    global summary_agent, doctor_agent, pharmacist_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
         from src.band_config import BandSDK
@@ -29,7 +31,8 @@ async def lifespan(app: FastAPI):
         summary_agent = SummaryAgent()
         doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
         await doctor_agent.load_schedule_to_patient_map()
-        print("Agents initialized successfully.")
+        pharmacist_agent = PharmacistAssistantAgent()
+        print("Agents initialized successfully (Doctor + Pharmacist).")
     except Exception as e:
         print(f"Failed to initialize agents: {e}")
         import traceback
@@ -104,6 +107,36 @@ async def doctor_chat(req: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/pharmacist-chat")
+async def pharmacist_chat(req: ChatRequest):
+    print(f"[DEBUG] Incoming pharmacist-chat message: '{req.message}'")
+    if not pharmacist_agent:
+        raise HTTPException(status_code=503, detail="Pharmacist Agent is not initialized yet.")
+    
+    # Map input history to LangGraph format
+    langgraph_messages = []
+    for h in req.history:
+        role = "user" if h.role == "user" else "assistant"
+        langgraph_messages.append({"role": role, "content": h.text})
+    
+    langgraph_messages.append({"role": "user", "content": req.message})
+    
+    try:
+        pharmacist_agent.pending_actions = []
+        
+        updated_messages = await pharmacist_agent.process_pharmacist_query(langgraph_messages)
+        last_msg = updated_messages[-1]
+        reply = extract_text(last_msg.content)
+        
+        action = pharmacist_agent.pending_actions[0] if pharmacist_agent.pending_actions else None
+        
+        return {"reply": reply, "action": action}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("agent_server:app", host="127.0.0.1", port=8000, reload=False)
+

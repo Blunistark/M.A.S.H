@@ -959,6 +959,199 @@ Guidelines:
   }
 });
 
+// POST /api/pharmacist-chat
+app.post('/api/pharmacist-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+
+    // Try delegating to the python agent_server on port 8000
+    try {
+      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/pharmacist-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message, history })
+      });
+      if (agentResponse.ok) {
+        const agentData = (await agentResponse.json()) as { reply: string; action?: any };
+        console.log('Response from Python PharmacistAgent received successfully.');
+        return res.json({ reply: agentData.reply, action: agentData.action });
+      } else {
+        console.warn('Python agent server (pharmacist) returned non-ok status, falling back to direct Gemini call.');
+      }
+    } catch (err) {
+      console.warn('Python agent server (pharmacist) is unreachable, falling back to direct Gemini call:', err);
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    // Fallback: fetch pharmacy context and use Gemini directly
+    const { data: inventory } = await supabase
+      .from('medicine_inventory')
+      .select('*');
+
+    const { data: prescriptions } = await supabase
+      .from('prescriptions')
+      .select('*')
+      .in('status', ['pushed_to_pharma', 'alternative_requested', 'pending_check']);
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role');
+
+    // Format inventory
+    const inventoryStr = (inventory || []).map(item => {
+      const status = item.current_stock <= item.reorder_threshold ? 'LOW STOCK' : 'OK';
+      return `- ${item.medicine_name}: ${item.current_stock} units (reorder at ${item.reorder_threshold}) [${status}]`;
+    }).join('\n');
+
+    // Format pending prescriptions
+    const rxStr = (prescriptions || []).map(rx => {
+      const patient = (profiles || []).find(p => p.id === rx.patient_id);
+      const patientName = patient ? patient.full_name : 'Unknown Patient';
+      return `- [${rx.status}] Patient: ${patientName}, ID: ${rx.id}`;
+    }).join('\n');
+
+    const systemInstruction = `You are the AI pharmacy assistant for the hospital pharmacy panel.
+You help the pharmacist manage inventory, fulfill prescription orders, restock medicines, and handle stock alerts.
+You speak like a friendly, efficient colleague — brief and action-oriented.
+
+Current Medicine Inventory:
+${inventoryStr || 'No inventory data available.'}
+
+Pending Prescription Orders:
+${rxStr || 'No pending prescriptions.'}
+
+Guidelines:
+1. Be concise, friendly, and practical.
+2. When asked about stock, summarize the key points (especially low-stock items).
+3. When asked to fulfill or restock, confirm the action clearly.
+4. No markdown tables or long dumps unless the user explicitly requests them.`;
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    
+    const contents = (history || []).map((h: any) => ({
+      role: h.role === 'model' ? 'model' : 'user',
+      parts: [{ text: h.text }]
+    }));
+    
+    contents.push({
+      role: 'user',
+      parts: [{ text: message }]
+    });
+
+    const response = await globalThis.fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini error (pharmacist):', errorText);
+      return res.status(500).json({ message: `Gemini API returned error: ${response.status}` });
+    }
+
+    const resData = await response.json();
+    const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+
+    // Extract navigation actions from message
+    let action: any = undefined;
+    const msgLower = message.toLowerCase();
+
+    const routeMap: Record<string, string> = {
+      'dashboard': 'dashboard',
+      'doctor portal': 'dashboard',
+      'doctor dashboard': 'dashboard',
+      'prescriptions': 'prescriptions',
+      'patients': 'patients',
+      'schedule': 'schedule',
+      'pharmacy': 'pharmacy',
+    };
+
+    const navPrefixes = ['go to', 'navigate to', 'open', 'show', 'switch to', 'take me to'];
+    for (const prefix of navPrefixes) {
+      if (msgLower.includes(prefix)) {
+        const afterPrefix = msgLower.split(prefix).pop()?.trim() || '';
+        for (const [keyword, route] of Object.entries(routeMap)) {
+          if (afterPrefix.includes(keyword)) {
+            action = { type: 'navigate', route };
+            break;
+          }
+        }
+        if (action) break;
+      }
+    }
+
+    res.json({ reply: replyText, action });
+  } catch (err: any) {
+    console.error('Pharmacist chat error:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/tts
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, voiceId = 'pNInz6obpgDQGcFmaJcg' } = req.body; // Default Adam voice
+    if (!text) {
+      return res.status(400).json({ message: 'Text is required' });
+    }
+
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(500).json({ message: 'ELEVENLABS_API_KEY is not configured' });
+    }
+
+    const response = await globalThis.fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_turbo_v2_5', // Usually faster and better
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('ElevenLabs API error:', errText);
+      return res.status(response.status).json({ message: 'Error from ElevenLabs API' });
+    }
+
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked'
+    });
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('TTS error:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

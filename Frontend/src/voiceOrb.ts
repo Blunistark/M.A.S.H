@@ -1,5 +1,5 @@
 import { Router } from './router';
-import { fetchProfiles, askDoctorAssistant } from './api';
+import { fetchProfiles, askDoctorAssistant, askPharmacistAssistant } from './api';
 import type { Profile } from './types';
 
 export class VoiceOrb {
@@ -295,7 +295,7 @@ export class VoiceOrb {
     }
   }
 
-  private showConfirmation(text: string) {
+  private async showConfirmation(text: string) {
     if (!this.confirmBubble) return;
     const confirmTextEl = this.confirmBubble.querySelector('.confirmed-text');
     if (confirmTextEl) {
@@ -303,19 +303,29 @@ export class VoiceOrb {
     }
     
     // Trigger speaking TTS
-    this.speak(text);
+    await this.speak(text);
   }
 
-  private speak(text: string) {
+  private async speak(text: string) {
     if (!this.ttsEnabled) return;
     try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
+      const { synthesizeSpeech } = await import('./api');
+      const arrayBuffer = await synthesizeSpeech(text);
+      
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      
+      await new Promise((resolve) => {
+        audio.onended = resolve;
+        audio.onerror = resolve;
+        audio.play().catch(resolve);
+      });
+      
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.warn('Speech synthesis failed:', e);
+      await new Promise(resolve => setTimeout(resolve, Math.max(2000, text.length * 60)));
     }
   }
 
@@ -352,6 +362,8 @@ export class VoiceOrb {
       chips = ['Send to Pharmacy', 'Go to Dashboard', 'Go to Patients'];
     } else if (route === 'patient-profile') {
       chips = ['Book Appointment', 'Go to Dashboard', 'Go to Prescriptions'];
+    } else if (route === 'pharmacy') {
+      chips = ['Check Inventory', 'Pending Orders', 'Switch to Doctor Portal'];
     } else {
       chips = ['Go to Dashboard', 'Go to Patients', 'Go to Prescriptions'];
     }
@@ -359,6 +371,9 @@ export class VoiceOrb {
     this.suggestionChips.innerHTML = chips.map(chip => {
       let cmd = chip.toLowerCase();
       if (chip === 'Book Appointment' || chip === 'New Appointment') cmd = 'new appointment';
+      if (chip === 'Check Inventory') cmd = 'what medicines are low on stock';
+      if (chip === 'Pending Orders') cmd = 'show pending prescriptions';
+      if (chip === 'Switch to Doctor Portal') cmd = 'switch to doctor portal';
       return `<button class="mash-chip" data-cmd="${cmd}">${chip}</button>`;
     }).join('');
 
@@ -466,9 +481,10 @@ export class VoiceOrb {
     let confirmMessage = "";
     let action: any = null;
 
-    // 1. First, send the voice command to the Python Agent
+    // 1. First, send the voice command to the correct Python Agent based on current route
     try {
-      const response = await askDoctorAssistant(command, this.chatHistory);
+      const askAgent = this.currentRoute === 'pharmacy' ? askPharmacistAssistant : askDoctorAssistant;
+      const response = await askAgent(command, this.chatHistory);
       confirmMessage = response.reply;
       action = response.action;
 
@@ -514,6 +530,12 @@ export class VoiceOrb {
             btnToClick.click();
             actionExecuted = true;
           }
+        } else if (action.type === 'refresh_pharmacy') {
+          // Pharmacist agent requested a UI refresh after an action (fulfill, restock, etc.)
+          setTimeout(() => {
+            this.router.navigate('pharmacy');
+          }, 800);
+          actionExecuted = true;
         }
       }
 
@@ -536,7 +558,7 @@ export class VoiceOrb {
         }
       }
     } catch (err) {
-      console.error('Doctor Assistant agent query failed or was unreachable:', err);
+      console.error('Agent query failed or was unreachable:', err);
       // We will fall back to local routing logic below
       confirmMessage = "";
     }
@@ -671,7 +693,8 @@ export class VoiceOrb {
       // 2.6 If still not handled, try direct chat assistant fallback
       if (!actionExecuted && confirmMessage.startsWith("I couldn't match")) {
         try {
-          const response = await askDoctorAssistant(command, this.chatHistory);
+          const askAgent = this.currentRoute === 'pharmacy' ? askPharmacistAssistant : askDoctorAssistant;
+          const response = await askAgent(command, this.chatHistory);
           confirmMessage = response.reply;
           this.chatHistory.push({ role: 'user', text: command });
           this.chatHistory.push({ role: 'model', text: confirmMessage });
@@ -679,8 +702,10 @@ export class VoiceOrb {
             this.chatHistory = this.chatHistory.slice(-30);
           }
         } catch (err) {
-          console.error('Doctor Assistant chatbot query failed:', err);
-          confirmMessage = "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
+          console.error('Assistant chatbot query failed:', err);
+          confirmMessage = this.currentRoute === 'pharmacy'
+            ? "I'm having trouble connecting to the pharmacy assistant. Try checking inventory or orders."
+            : "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
         }
       }
     }
@@ -688,16 +713,12 @@ export class VoiceOrb {
     // Set state to confirmed and show bubble
     this.isProcessing = false;
     this.setState('confirmed');
-    this.showConfirmation(confirmMessage);
+    await this.showConfirmation(confirmMessage);
 
-    // Auto return to idle state after a dynamic duration based on message length
-    const displayTimeout = Math.max(4000, confirmMessage.length * 60);
-    setTimeout(() => {
-      if (!this.isListening && !this.isProcessing) {
-        this.setState('idle');
-        this.stopActiveListening();
-      }
-    }, displayTimeout);
+    if (!this.isListening && !this.isProcessing) {
+      this.setState('idle');
+      this.stopActiveListening();
+    }
   }
 
   private extractPatientName(cmd: string): string | null {
