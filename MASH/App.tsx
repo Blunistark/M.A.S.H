@@ -15,6 +15,7 @@ import {
   Animated,
   ScrollView,
   Alert,
+  Easing,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -30,6 +31,7 @@ import { Theme } from './theme';
 
 // Component Imports
 import { VoiceOrb } from './components/VoiceOrb';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SuggestionChips } from './components/SuggestionChips';
 import { ChatBubble } from './components/ChatBubble';
 import { DoctorCard } from './components/DoctorCard';
@@ -38,7 +40,7 @@ import { PrescriptionCard } from './components/PrescriptionCard';
 import { NavigationCard } from './components/NavigationCard';
 import { ClinicMap } from './components/ClinicMap';
 import { AppointmentConfirmation } from './components/AppointmentConfirmation';
-import { AuthScreen } from './components/AuthScreen';
+// import { AuthScreen } from './components/AuthScreen';
 import { api } from './services/api';
 
 // Hook Imports
@@ -52,6 +54,7 @@ const PATIENT_ID = '10000000-0000-0000-0000-000000000000'; // Default test patie
 const HOME_ICON = '🏠';
 const CHAT_ICON = '💬';
 const PROFILE_ICON = '👤';
+const COMPASS_ICON = '🧭';
 const NOTIFICATION_ICON = '🔔';
 const SEARCH_ICON = '🔍';
 const MIC_ICON = '🎤';
@@ -105,8 +108,15 @@ export default function App() {
     PlusJakartaSans_700Bold,
   });
 
-  const [session, setSession] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [session, setSession] = useState<any>({
+    id: 'mock-session-id',
+    user: { id: PATIENT_ID },
+  });
+  const [profile, setProfile] = useState<any>({
+    id: PATIENT_ID,
+    full_name: 'Alex Mercer',
+    email: 'alex.mercer@gmail.com',
+  });
 
   // Bottom navigation tabs: 'home' | 'chat' | 'profile'
   const [screen, setScreen] = useState<'home' | 'chat' | 'profile'>('home');
@@ -130,6 +140,13 @@ export default function App() {
 
   const chatListRef = useRef<FlatList>(null);
 
+  const navigateToScreen = (targetScreen: 'home' | 'chat' | 'profile', subScreen?: 'chat_list' | 'appointment_confirm' | 'indoor_nav') => {
+    setScreen(targetScreen);
+    if (targetScreen === 'chat') {
+      setChatSubScreen(subScreen || 'chat_list');
+    }
+  };
+
   // Initialize Chat Hook
   const { messages, sendMessage, selectDoctorSlot, isSpeaking, stopSpeaking } = useChat(
     profile?.id || PATIENT_ID,
@@ -142,8 +159,7 @@ export default function App() {
       setCurrentTranscription(text);
       sendMessage(text);
       setIsVoiceOverlayVisible(false);
-      setScreen('chat');
-      setChatSubScreen('chat_list');
+      navigateToScreen('chat', 'chat_list');
     },
     onStateChange: (state) => setOrbState(state),
   });
@@ -178,22 +194,19 @@ export default function App() {
     if (!inputText.trim()) return;
     sendMessage(inputText);
     setInputText('');
-    setScreen('chat');
-    setChatSubScreen('chat_list');
+    navigateToScreen('chat', 'chat_list');
   };
 
   const handleSuggestionChipPress = (query: string) => {
     sendMessage(query);
-    setScreen('chat');
-    setChatSubScreen('chat_list');
+    navigateToScreen('chat', 'chat_list');
   };
 
   const triggerWayfinding = (navData: { path: any; directions: string[]; destination: string }) => {
     setActiveMapPath(navData.path);
     setMapDirections(navData.directions);
     setMapDestName(navData.destination);
-    setScreen('chat');
-    setChatSubScreen('indoor_nav');
+    navigateToScreen('chat', 'indoor_nav');
     setNavStarted(false);
     setNavStatusText('Start Navigation');
   };
@@ -285,7 +298,7 @@ export default function App() {
   }
 
   // Alex Mercer user avatar image from design spec
-  const userAvatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQFVvzTUqQIbdP5H3zD3nvV3gl_lrWQt3aH0Dd-hdCYuZk1YZejs8VhrKqKOB1tOx9VegUfbZLubTJS__og_f1raMNmjssLzX8xxRtZzcCnc2LTpXZcUK2wbmLnpafFBlpIwWt8IbEBmMW77KMGBVr-aaO9j7fj0KeFDP7T7u1RTlEUJAbD2fBdvYVF4gd9RO6V7TXfDXSgoYltzTGjaXlfIXGcESS6UQnL4ZU5la9RgNqhResxj_0cF9nnPWKI6YKnMRx9YP0Cvkn';
+  const userAvatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuA4dV8furgxt6lfQHMCGAKgfsHz-ruAhxrax0kqrHBE207XdXcd9g96NFbpK_CGRBZt1lo40a-V9VJU7nwVKC1VRlu2GgzlzyUzZlAjWNWEq76TFjuIxLt8ukfmTLzMAFk7uhr4ElENTlfi5BEDI_EDww18ne9K2BEJVY61iF79IqXAJrQIlW0BbEuc1tEcwU8uiLYPYlkzziRfwy31hMGGv2lLAae4RFXjzmYVbSiCoPLkF_JDK7N8YmV-wpYTnlqnp-E3T-KKfiqA';
 
   // Render header - Hidden on Indoor Navigation subpage to match full view map aesthetics
   const renderHeader = () => {
@@ -304,354 +317,317 @@ export default function App() {
     );
   };
 
-  if (!session) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="dark" />
-        <AuthScreen
-          onAuthSuccess={(data) => {
-            setSession(data.session);
-            setProfile(data.profile);
-          }}
-        />
-      </SafeAreaView>
-    );
-  }
+
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-
-      {/* Greeting Header */}
-      {renderHeader()}
-
-      {/* Screen Views Render Outlet */}
-      <View style={styles.viewContent}>
-        
-        {/* ASSISTANT VOICE TAB (Home) */}
-        {screen === 'home' && (
-          <View style={styles.voiceView}>
-            <View style={styles.statusBox}>
-              <Text style={styles.assistantTitle}>Hi, how can I help you today?</Text>
-            </View>
-
-            <View style={styles.orbWrapper}>
-              <VoiceOrb onPress={handleOrbPress} state={orbState} />
-            </View>
-
-            <View style={styles.chipsWrapper}>
-              <SuggestionChips onChipPress={handleSuggestionChipPress} />
-            </View>
-
-            {/* Input bar inline at bottom of Home View */}
-            <View style={styles.tabInputWrapper}>
-              <View style={styles.glassPanel}>
-                <View style={styles.inputSearchIconBox}>
-                  <Text style={styles.searchIcon}>{SEARCH_ICON}</Text>
+    <View style={[styles.container, { backgroundColor: Theme.colors.background }]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <StatusBar style="dark" />
+        {renderHeader()}
+        <View style={styles.viewContent}>
+          {screen === 'home' && (
+            <View style={{ flex: 1 }}>
+              <View style={styles.voiceView}>
+                <View style={styles.orbWrapper}>
+                  <VoiceOrb onPress={handleOrbPress} state={orbState} />
                 </View>
-                <TextInput
-                  style={styles.floatingTextInput}
-                  placeholder="Type or ask anything..."
-                  placeholderTextColor="rgba(164, 176, 190, 0.4)"
-                  value={inputText}
-                  onChangeText={setInputText}
-                  onSubmitEditing={handleTextInputSend}
-                />
-                <View style={styles.inputActionRow}>
-                  <TouchableOpacity style={styles.inputMicBtn} onPress={handleOrbPress} activeOpacity={0.7}>
-                    <Text style={styles.inputMicBtnText}>{MIC_ICON}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.inputSendBtn} onPress={handleTextInputSend} activeOpacity={0.7}>
-                    <Text style={styles.inputSendBtnText}>{SEND_ICON}</Text>
-                  </TouchableOpacity>
+
+                {/* Chips at the bottom of the Home view */}
+                <View style={styles.chipsWrapper}>
+                  <SuggestionChips onChipPress={handleSuggestionChipPress} />
                 </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* CHAT TAB (Contains list, confirmation, map wayfinding) */}
-        {screen === 'chat' && (
-          <View style={styles.chatTabContainer}>
-            {chatSubScreen === 'chat_list' && (
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-                style={styles.chatView}
-              >
-                <FlatList
-                  ref={chatListRef}
-                  data={messages}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.chatListContent}
-                  renderItem={({ item }) => (
-                    <ChatBubble message={item}>
-                      {!!item.cardType && renderCardContent(item.cardType, item.cardData)}
-                    </ChatBubble>
-                  )}
-                />
-
-                {/* Input bar inline at bottom of Chat list */}
-                <View style={styles.chatInputWrapper}>
-                  <View style={styles.glassPanel}>
-                    <View style={styles.inputSearchIconBox}>
-                      <Text style={styles.searchIcon}>{SEARCH_ICON}</Text>
-                    </View>
-                    <TextInput
-                      style={styles.floatingTextInput}
-                      placeholder="Ask anything about your health..."
-                      placeholderTextColor="rgba(164, 176, 190, 0.4)"
-                      value={inputText}
-                      onChangeText={setInputText}
-                      onSubmitEditing={handleTextInputSend}
-                    />
-                    <View style={styles.inputActionRow}>
-                      <TouchableOpacity style={styles.inputMicBtn} onPress={handleOrbPress} activeOpacity={0.7}>
-                        <Text style={styles.inputMicBtnText}>{MIC_ICON}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.inputSendBtn} onPress={handleTextInputSend} activeOpacity={0.7}>
-                        <Text style={styles.inputSendBtnText}>{SEND_ICON}</Text>
-                      </TouchableOpacity>
-                    </View>
+          {screen === 'chat' && (
+            <View style={{ flex: 1 }}>
+              {chatSubScreen === 'indoor_nav' && (
+                <View style={styles.indoorNavContainer}>
+                  {/* Custom Header with Back Button */}
+                  <View style={styles.navHeader}>
+                    <TouchableOpacity
+                      style={styles.navBackBtn}
+                      onPress={() => {
+                        setChatSubScreen('appointment_confirm');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.navBackIcon}>{BACK_ICON}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.navHeaderTitle}>Navigation</Text>
+                    <View style={styles.navHeaderSpacer} />
                   </View>
-                </View>
-              </KeyboardAvoidingView>
-            )}
 
-            {chatSubScreen === 'appointment_confirm' && (
-              <View style={styles.subpageWrapper}>
-                <View style={styles.subpageHeader}>
-                  <TouchableOpacity
-                    style={styles.subpageBackBtn}
-                    onPress={() => setChatSubScreen('chat_list')}
-                    activeOpacity={0.7}
+                  <ScrollView
+                    style={styles.navScroll}
+                    contentContainerStyle={styles.navScrollContent}
+                    showsVerticalScrollIndicator={false}
                   >
-                    <Text style={styles.subpageBackIcon}>{BACK_ICON} Back to Chat</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <AppointmentConfirmation
-                  appointment={selectedAppointment || DEFAULT_APPOINTMENT}
-                  onGetDirections={() => {
-                    triggerWayfinding({
-                      path: 'cardiology',
-                      destination: "Dr. Smith's Room - 204",
-                      directions: [
-                        'Enter the main clinic reception lobby.',
-                        'Follow the corridor straight ahead.',
-                        'Take Room 204 on the second floor Cardiology wing.'
-                      ]
-                    });
-                  }}
-                  onReschedule={() => {
-                    sendMessage("Reschedule my appointment with Dr. Sarah Smith");
-                    setChatSubScreen('chat_list');
-                  }}
-                  onCancel={() => {
-                    sendMessage("Cancel my appointment with Dr. Sarah Smith");
-                    setChatSubScreen('chat_list');
-                  }}
-                />
-              </View>
-            )}
+                    <ClinicMap activePath={activeMapPath} navigationActive={navStarted} />
 
-            {chatSubScreen === 'indoor_nav' && (
-              <View style={styles.indoorNavContainer}>
-                {/* Custom Header with Back Button */}
-                <View style={styles.navHeader}>
-                  <TouchableOpacity
-                    style={styles.navBackBtn}
-                    onPress={() => setChatSubScreen('appointment_confirm')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.navBackIcon}>{BACK_ICON}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.navHeaderTitle}>Navigation</Text>
-                  <View style={styles.navHeaderSpacer} />
-                </View>
-
-                <ScrollView
-                  style={styles.navScroll}
-                  contentContainerStyle={styles.navScrollContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {/* Top Half: responsive vector floor plan map */}
-                  <ClinicMap activePath={activeMapPath} navigationActive={navStarted} />
-
-                  {/* Bottom Half: Direction instructions and stats */}
-                  <View style={styles.mapStatsCard}>
-                    <View style={styles.mapDragHandle} />
-                    
-                    <View style={styles.destHeader}>
-                      <Text style={styles.destIcon}>🩺</Text>
-                      <View>
-                        <Text style={styles.destTitle}>{mapDestName || "Dr. Smith's Room - 204"}</Text>
-                        <Text style={styles.destSub}>Cardiology Department • 2nd Floor</Text>
-                      </View>
-                    </View>
-
-                    {/* Stats Row */}
-                    <View style={styles.statsRow}>
-                      <View style={styles.statPill}>
-                        <Text style={styles.statPillIcon}>📏</Text>
-                        <Text style={styles.statPillText}>150m</Text>
-                      </View>
-                      <View style={[styles.statPill, { backgroundColor: Theme.colors.secondaryContainer }]}>
-                        <Text style={[styles.statPillIcon, { color: Theme.colors.secondary }]}>⏰</Text>
-                        <Text style={[styles.statPillText, { color: Theme.colors.secondary }]}>2 min</Text>
-                      </View>
-                    </View>
-
-                    {/* Directions Steps List */}
-                    <View style={styles.stepsListWrapper}>
-                      {mapDirections.map((step, index) => (
-                        <View key={index} style={styles.mapStepRow}>
-                          <Text style={styles.mapStepNum}>{index + 1}</Text>
-                          <Text style={styles.mapStepText}>{step}</Text>
+                    <View style={styles.mapStatsCard}>
+                      <View style={styles.mapDragHandle} />
+                      
+                      <View style={styles.destHeader}>
+                        <Text style={styles.destIcon}>🩺</Text>
+                        <View>
+                          <Text style={styles.destTitle}>{mapDestName || "Dr. Smith's Room - 204"}</Text>
+                          <Text style={styles.destSub}>Cardiology Department • 2nd Floor</Text>
                         </View>
-                      ))}
+                      </View>
+
+                      <View style={styles.statsRow}>
+                        <View style={styles.statPill}>
+                          <Text style={styles.statPillIcon}>📏</Text>
+                          <Text style={styles.statPillText}>150m</Text>
+                        </View>
+                        <View style={[styles.statPill, { backgroundColor: Theme.colors.secondaryContainer }]}>
+                          <Text style={[styles.statPillIcon, { color: Theme.colors.secondary }]}>⏰</Text>
+                          <Text style={[styles.statPillText, { color: Theme.colors.secondary }]}>2 min</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.stepsListWrapper}>
+                        {mapDirections.map((step, index) => (
+                          <View key={index} style={styles.mapStepRow}>
+                            <Text style={styles.mapStepNum}>{index + 1}</Text>
+                            <Text style={styles.mapStepText}>{step}</Text>
+                          </View>
+                        ))}
+                      </View>
+
+                      <View style={styles.navActionRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.startNavBtn,
+                            navStarted && { backgroundColor: Theme.colors.secondary }
+                          ]}
+                          onPress={handleStartNavigation}
+                          disabled={navStarted}
+                          activeOpacity={0.8}
+                        >
+                          {navStatusText === 'Starting...' ? (
+                            <Text style={styles.startNavBtnText}>Starting...</Text>
+                          ) : navStatusText === 'Navigation Started' ? (
+                            <Text style={styles.startNavBtnText}>✓ Navigation Started</Text>
+                          ) : (
+                            <Text style={styles.startNavBtnText}>🧭 Start Navigation</Text>
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.clearRouteBtn}
+                          onPress={() => {
+                            setActiveMapPath(null);
+                            setMapDirections([]);
+                            setMapDestName('');
+                            setNavStarted(false);
+                            setNavStatusText('Start Navigation');
+                            setChatSubScreen('appointment_confirm');
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.clearRouteText}>Exit</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
+                  </ScrollView>
+                </View>
+              )}
 
-                    {/* CTAs */}
-                    <View style={styles.navActionRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.startNavBtn,
-                          navStarted && { backgroundColor: Theme.colors.secondary }
-                        ]}
-                        onPress={handleStartNavigation}
-                        disabled={navStarted}
-                        activeOpacity={0.8}
-                      >
-                        {navStatusText === 'Starting...' ? (
-                          <Text style={styles.startNavBtnText}>Starting...</Text>
-                        ) : navStatusText === 'Navigation Started' ? (
-                          <Text style={styles.startNavBtnText}>✓ Navigation Started</Text>
-                        ) : (
-                          <Text style={styles.startNavBtnText}>🧭 Start Navigation</Text>
-                        )}
-                      </TouchableOpacity>
+              {chatSubScreen === 'chat_list' && (
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                  style={styles.chatView}
+                >
+                  <FlatList
+                    ref={chatListRef}
+                    data={messages}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.chatListContent}
+                    renderItem={({ item }) => (
+                      <ChatBubble message={item}>
+                        {!!item.cardType && renderCardContent(item.cardType, item.cardData)}
+                      </ChatBubble>
+                    )}
+                  />
 
-                      <TouchableOpacity
-                        style={styles.clearRouteBtn}
-                        onPress={() => {
-                          setActiveMapPath(null);
-                          setMapDirections([]);
-                          setMapDestName('');
-                          setNavStarted(false);
-                          setNavStatusText('Start Navigation');
-                          setChatSubScreen('appointment_confirm');
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.clearRouteText}>Exit</Text>
-                      </TouchableOpacity>
+                  <View style={styles.chatInputWrapper}>
+                    <View style={styles.glassPanel}>
+                      <View style={styles.inputSearchIconBox}>
+                        <Text style={styles.searchIcon}>{SEARCH_ICON}</Text>
+                      </View>
+                      <TextInput
+                        style={styles.floatingTextInput}
+                        placeholder="Ask anything about your health..."
+                        placeholderTextColor="rgba(164, 176, 190, 0.4)"
+                        value={inputText}
+                        onChangeText={setInputText}
+                        onSubmitEditing={handleTextInputSend}
+                      />
+                      <View style={styles.inputActionRow}>
+                        <TouchableOpacity style={styles.inputMicBtn} onPress={handleOrbPress} activeOpacity={0.7}>
+                          <Text style={styles.inputMicBtnText}>{MIC_ICON}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.inputSendBtn} onPress={handleTextInputSend} activeOpacity={0.7}>
+                          <Text style={styles.inputSendBtnText}>{SEND_ICON}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </ScrollView>
-              </View>
-            )}
-          </View>
-        )}
+                </KeyboardAvoidingView>
+              )}
 
-        {/* PROFILE TAB */}
-        {screen === 'profile' && (
-          <View style={styles.profileView}>
-            <View style={styles.profileCard}>
-              <Image source={{ uri: userAvatarUrl }} style={styles.largeProfileImage} />
-              <Text style={styles.profileName}>{profile?.full_name || 'Alex Mercer'}</Text>
-              <Text style={styles.profileMeta}>
-                Patient ID: {profile?.id ? profile.id.substring(0, 8).toUpperCase() : 'PHR-884-206'}
-              </Text>
-
-              <View style={styles.phrGrid}>
-                <View style={styles.phrBox}>
-                  <Text style={styles.phrLabel}>🩺 PRIMARY GP</Text>
-                  <Text style={styles.phrValue}>Dr. Sarah Smith</Text>
+              {chatSubScreen === 'appointment_confirm' && (
+                <View style={styles.subpageWrapper}>
+                  <View style={styles.subpageHeader}>
+                    <TouchableOpacity
+                      style={styles.subpageBackBtn}
+                      onPress={() => setChatSubScreen('chat_list')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.subpageBackIcon}>{BACK_ICON} Back to Chat</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <AppointmentConfirmation
+                    appointment={selectedAppointment || DEFAULT_APPOINTMENT}
+                    onGetDirections={() => {
+                      triggerWayfinding({
+                        path: 'cardiology',
+                        destination: "Dr. Smith's Room - 204",
+                        directions: [
+                          'Enter the main clinic reception lobby.',
+                          'Follow the corridor straight ahead.',
+                          'Take Room 204 on the second floor Cardiology wing.'
+                        ]
+                      });
+                    }}
+                    onReschedule={() => {
+                      sendMessage("Reschedule my appointment with Dr. Sarah Smith");
+                      setChatSubScreen('chat_list');
+                    }}
+                    onCancel={() => {
+                      sendMessage("Cancel my appointment with Dr. Sarah Smith");
+                      setChatSubScreen('chat_list');
+                    }}
+                  />
                 </View>
-                <View style={styles.phrBox}>
-                  <Text style={styles.phrLabel}>❤️ VITALS STATUS</Text>
-                  <Text style={styles.phrValue}>Normal (72 BPM)</Text>
-                </View>
-              </View>
-
-              <View style={styles.phrMedRecords}>
-                <Text style={styles.medsTitle}>Active Records</Text>
-                <View style={styles.medRow}>
-                  <Text style={styles.medBullet}>•</Text>
-                  <Text style={styles.medText}>Cardiology Vitals Checkup scheduled tomorrow</Text>
-                </View>
-                <View style={styles.medRow}>
-                  <Text style={styles.medBullet}>•</Text>
-                  <Text style={styles.medText}>Lisinopril 10mg - 1 Tab daily</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={async () => {
-                  try {
-                    await api.logout();
-                    setSession(null);
-                    setProfile(null);
-                    setScreen('home');
-                  } catch (err: any) {
-                    Alert.alert('Error', err.message || 'Logout failed');
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.logoutBtnText}>Logout</Text>
-              </TouchableOpacity>
+              )}
             </View>
-          </View>
-        )}
-      </View>
+          )}
+
+          {screen === 'profile' && (
+            <View style={{ flex: 1 }}>
+              <View style={styles.profileView}>
+                <View style={styles.profileCard}>
+                  <Image source={{ uri: userAvatarUrl }} style={styles.largeProfileImage} />
+                  <Text style={styles.profileName}>{profile?.full_name || 'Alex Mercer'}</Text>
+                  <Text style={styles.profileMeta}>
+                    Patient ID: {profile?.id ? profile.id.substring(0, 8).toUpperCase() : 'PHR-884-206'}
+                  </Text>
+
+                  <View style={styles.phrGrid}>
+                    <View style={styles.phrBox}>
+                      <Text style={styles.phrLabel}>🩺 PRIMARY GP</Text>
+                      <Text style={styles.phrValue}>Dr. Sarah Smith</Text>
+                    </View>
+                    <View style={styles.phrBox}>
+                      <Text style={styles.phrLabel}>❤️ VITALS STATUS</Text>
+                      <Text style={styles.phrValue}>Normal (72 BPM)</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.phrMedRecords}>
+                    <Text style={styles.medsTitle}>Active Records</Text>
+                    <View style={styles.medRow}>
+                      <Text style={styles.medBullet}>•</Text>
+                      <Text style={styles.medText}>Cardiology Vitals Checkup scheduled tomorrow</Text>
+                    </View>
+                    <View style={styles.medRow}>
+                      <Text style={styles.medBullet}>•</Text>
+                      <Text style={styles.medText}>Lisinopril 10mg - 1 Tab daily</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
 
       {/* Global Bottom Tab Navigation */}
       <View style={styles.bottomTabBar}>
         {/* Home */}
         <TouchableOpacity
-          style={[styles.tabItem, screen === 'home' && styles.tabItemActive]}
-          onPress={() => setScreen('home')}
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('home')}
           activeOpacity={0.8}
         >
-          <Text style={[styles.tabIcon, screen === 'home' && styles.tabIconActive]}>{HOME_ICON}</Text>
-          <Text style={[styles.tabLabel, screen === 'home' && styles.tabLabelActive]}>Home</Text>
+          {screen === 'home' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{HOME_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Home</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{HOME_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Home</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Chat */}
         <TouchableOpacity
-          style={[styles.tabItem, screen === 'chat' && styles.tabItemActive]}
-          onPress={() => {
-            setScreen('chat');
-            setChatSubScreen('chat_list');
-          }}
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('chat', 'chat_list')}
           activeOpacity={0.8}
         >
-          <Text style={[styles.tabIcon, screen === 'chat' && styles.tabIconActive]}>{CHAT_ICON}</Text>
-          <Text style={[styles.tabLabel, screen === 'chat' && styles.tabLabelActive]}>Chat</Text>
+          {screen === 'chat' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{CHAT_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Chat</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{CHAT_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Chat</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Profile */}
         <TouchableOpacity
-          style={[styles.tabItem, screen === 'profile' && styles.tabItemActive]}
-          onPress={() => setScreen('profile')}
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('profile')}
           activeOpacity={0.8}
         >
-          <Text style={[styles.tabIcon, screen === 'profile' && styles.tabIconActive]}>{PROFILE_ICON}</Text>
-          <Text style={[styles.tabLabel, screen === 'profile' && styles.tabLabelActive]}>Profile</Text>
+          {screen === 'profile' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{PROFILE_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Profile</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{PROFILE_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Profile</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Immersive Fullscreen Voice Mode Overlay Modal (Gold amber theme matching Reference Image 2) */}
+      {/* Immersive Fullscreen Voice Mode Overlay Modal */}
       <Modal
         visible={isVoiceOverlayVisible}
         animationType="fade"
         transparent={true}
         onRequestClose={handleCloseVoiceOverlay}
       >
-        <View style={styles.overlayContainer}>
+        <LinearGradient
+          colors={['#001a1d', '#000f11']}
+          style={styles.overlayContainer}
+        >
           <TouchableOpacity
             style={styles.closeOverlayBtn}
             onPress={handleCloseVoiceOverlay}
@@ -691,27 +667,27 @@ export default function App() {
               </View>
             )}
           </View>
-        </View>
+        </LinearGradient>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
   },
   header: {
     paddingHorizontal: Theme.spacing.containerPadding,
     paddingTop: Platform.OS === 'android' ? 50 : 20,
     paddingBottom: 8, // Compact
-    backgroundColor: Theme.colors.background, // Match dark background
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.outline,
+    borderBottomColor: Theme.colors.outlineVariant,
   },
   avatarRow: {
     flexDirection: 'row',
@@ -722,25 +698,25 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Theme.colors.outline,
+    borderColor: Theme.colors.outlineVariant,
   },
   avatarGreeting: {
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: 14, // Compact/shrunk
-    color: Theme.colors.secondary, // Soft pink greeting
+    color: Theme.colors.onSurface, // Clinical onSurface text
     marginLeft: 8,
   },
   headerNotificationBtn: {
     width: 36, // Shrunk
     height: 36,
     borderRadius: 18,
-    backgroundColor: Theme.colors.secondaryContainer,
+    backgroundColor: Theme.colors.superLightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
   notificationIcon: {
     fontSize: 16,
-    color: Theme.colors.secondary, // Deep pink/rose
+    color: Theme.colors.primary, // Primary blue icon
   },
   viewContent: {
     flex: 1,
@@ -750,8 +726,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 16, // Shrunk boundaries
-    paddingBottom: 168, // Leave height for floating input bar + bottom tab bar
+    paddingTop: 16,
+    paddingBottom: 96, // Safe distance from bottom tab bar
   },
   statusBox: {
     alignItems: 'center',
@@ -783,7 +759,7 @@ const styles = StyleSheet.create({
   // Chat Tab Styles
   chatTabContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: 'transparent',
   },
   chatView: {
     flex: 1,
@@ -795,14 +771,14 @@ const styles = StyleSheet.create({
   chatInputWrapper: {
     paddingHorizontal: Theme.spacing.containerPadding,
     paddingVertical: 10,
-    backgroundColor: Theme.colors.superLightGray,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopWidth: 1,
-    borderTopColor: Theme.colors.outline,
+    borderTopColor: Theme.colors.outlineVariant,
   },
   // Inline Confirmation Screen Styles
   subpageWrapper: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: 'transparent',
   },
   subpageHeader: {
     backgroundColor: Theme.colors.surface,
@@ -823,7 +799,7 @@ const styles = StyleSheet.create({
   // Map/Navigation Styles (Light layout)
   indoorNavContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: 'transparent',
   },
   navScroll: {
     flex: 1,
@@ -1001,18 +977,18 @@ const styles = StyleSheet.create({
   },
   // Floating Input Console Style (Applied Light Pink Theme)
   glassPanel: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)', // Translucent white
+    backgroundColor: '#ffffff', // Solid white input container
     borderRadius: 28,
     padding: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowColor: Theme.colors.shadowColor, // Soft blue-cyan glow tint
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: Theme.colors.outline, // Pink outline
+    borderColor: Theme.colors.outlineVariant, // Light blue-gray border
   },
   inputSearchIconBox: {
     paddingLeft: 10,
@@ -1059,56 +1035,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  // Bottom Tab Navigation Bar (Light Theme with active Rose highlights)
+  // Bottom Tab Navigation Bar (Light Theme with active capsule highlights)
   bottomTabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 76, // Shrunk height
-    backgroundColor: Theme.colors.surface, // Clean white surface
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    height: 72,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#eceef0',
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 10,
+    paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 8,
     zIndex: 50,
-    borderTopWidth: 1,
-    borderTopColor: Theme.colors.outline,
   },
   tabItem: {
-    flexDirection: 'column',
+    flex: 1,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  activeTabCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.secondaryContainer, // #62fae3
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingVertical: 6,
     borderRadius: 20,
+    gap: 6,
   },
-  tabItemActive: {
-    backgroundColor: Theme.colors.secondaryContainer, // Active pink container background
-  },
-  tabIcon: {
-    fontSize: 18,
-    color: Theme.colors.onSurfaceVariant,
-    marginBottom: 1,
+  inactiveTabContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    gap: 6,
   },
   tabIconActive: {
-    color: Theme.colors.secondary, // Active rose icon
+    fontSize: 18,
+    color: Theme.colors.secondary, // #006b5f
   },
-  tabLabel: {
-    fontFamily: Theme.typography.fontFamilyMedium,
-    fontSize: 10, // Shrunk label size
-    color: Theme.colors.onSurfaceVariant,
+  tabIconInactive: {
+    fontSize: 18,
+    color: Theme.colors.outline, // #717786
   },
   tabLabelActive: {
-    color: Theme.colors.secondary, // Active rose text
     fontFamily: Theme.typography.fontFamilyBold,
+    fontSize: 12,
+    color: Theme.colors.secondary, // #006b5f
+  },
+  tabLabelInactive: {
+    fontFamily: Theme.typography.fontFamilySemiBold,
+    fontSize: 12,
+    color: Theme.colors.outline, // #717786
   },
   // Profile / PHR View Styles
   profileView: {
@@ -1117,7 +1099,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 16,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: 'transparent',
   },
   profileCard: {
     backgroundColor: Theme.colors.surface,
@@ -1211,7 +1193,6 @@ const styles = StyleSheet.create({
   // Immersive Voice Mode Overlay (Light pink theme)
   overlayContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background, // Pale baby pink overlay background
     alignItems: 'center',
     justifyContent: 'center',
     padding: Theme.spacing.containerPadding,
@@ -1223,13 +1204,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Theme.colors.lightGray,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Translucent button
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   closeOverlayText: {
-    color: Theme.colors.secondary,
+    color: '#ffffff', // White close icon
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -1245,9 +1226,9 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: Theme.colors.primary, // Pink glow
+    backgroundColor: Theme.colors.secondaryContainer, // Teal glow
     opacity: 0.2,
-    shadowColor: Theme.colors.primary,
+    shadowColor: Theme.colors.secondaryContainer,
     shadowRadius: 50,
     shadowOpacity: 0.6,
   },
@@ -1255,12 +1236,12 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(0, 26, 29, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: Theme.colors.primary,
-    shadowColor: Theme.colors.primary,
+    borderColor: Theme.colors.secondaryContainer,
+    shadowColor: Theme.colors.secondaryContainer,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -1275,30 +1256,30 @@ const styles = StyleSheet.create({
   listeningBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.lightGray,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Theme.colors.outline,
+    borderColor: 'rgba(98, 250, 227, 0.2)',
     marginBottom: 12,
   },
   listeningDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: '#62fae3', // Teal dot
     marginRight: 6,
   },
   listeningBadgeText: {
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: 10,
-    color: Theme.colors.secondary,
+    color: '#62fae3', // Teal text
   },
   overlayInstruction: {
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: 18,
-    color: Theme.colors.onSurface,
+    color: '#ffffff', // White instruction text
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -1312,21 +1293,21 @@ const styles = StyleSheet.create({
   },
   eqBar: {
     width: 5,
-    backgroundColor: Theme.colors.primary, // Pink wave bars
+    backgroundColor: '#62fae3', // Teal equalizer bars
     borderRadius: 2.5,
   },
   overlayTranscriptionCard: {
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: Theme.colors.outline,
+    borderColor: 'rgba(98, 250, 227, 0.2)',
     width: '90%',
   },
   overlayTranscriptionText: {
     fontFamily: Theme.typography.fontFamilyMedium,
     fontSize: 13,
-    color: Theme.colors.secondary,
+    color: '#62fae3', // Teal text
     textAlign: 'center',
     fontStyle: 'italic',
     lineHeight: 20,
