@@ -324,7 +324,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
       {/* Monospaced, spaced out status badge */}
       <View style={styles.statusBadge}>
         {state === 'idle' && (
-          <Text style={styles.statusText}>ASK M.A.S.H ANYTHING...</Text>
+          <Text style={styles.statusText}>M.A.S.H</Text>
         )}
         {state === 'listening' && (
           <Text style={[styles.statusText, { color: Theme.colors.secondary }]}>LISTENING...</Text>
@@ -340,7 +340,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -410,4 +410,4 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textAlign: 'center',
   },
-});
+}));

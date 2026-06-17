@@ -39,7 +39,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     flexDirection: 'row',
     marginVertical: 10,
@@ -78,10 +78,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   userBubble: {
-    backgroundColor: '#F2F2F7', // Off-white bubble
+    backgroundColor: Theme.colors.surfaceElevated, // Dynamic surface elevated
     borderRadius: 16,
     borderTopRightRadius: 0, // Flat top-right
-    shadowColor: '#000',
+    shadowColor: Theme.colors.shadowColor,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 3,
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamily,
   },
   userText: {
-    color: '#334155', // Slate-700 text color
+    color: Theme.colors.onSurface, // Dynamic high-contrast text color
   },
   assistantText: {
     color: Theme.colors.onSurfaceVariant, // Clinical slate text
@@ -124,4 +124,4 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginLeft: 0,
   },
-});
+}));

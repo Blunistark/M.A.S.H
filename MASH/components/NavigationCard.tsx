@@ -48,7 +48,7 @@ export const NavigationCard: React.FC<NavigationCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   card: {
     backgroundColor: Theme.colors.white,
     borderRadius: Theme.roundness.lg, // 24px
@@ -148,4 +148,4 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.labelMd.fontSize,
     fontFamily: Theme.typography.fontFamilyBold,
   },
-});
+}));

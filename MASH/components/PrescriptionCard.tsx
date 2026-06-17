@@ -61,7 +61,7 @@ export const PrescriptionCard: React.FC<PrescriptionCardProps> = ({ prescription
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   card: {
     backgroundColor: Theme.colors.white,
     borderRadius: Theme.roundness.lg, // 24px
@@ -164,4 +164,4 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.labelSm.fontSize - 2,
     fontFamily: Theme.typography.fontFamilyBold,
   },
-});
+}));
