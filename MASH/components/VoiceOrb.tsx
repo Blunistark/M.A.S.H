@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Animated, TouchableOpacity, Easing } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
+import Svg, { Defs, Path, Circle, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
+import { Audio } from 'expo-av';
 import { Theme } from '../theme';
 
 interface VoiceOrbProps {
@@ -50,8 +52,7 @@ const generateParticles = () => {
 
     list.push({ x, y, size, color, baseOpacity, phaseGroup });
   }
-  return list;
-};
+}
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
   const breathScale = useRef(new Animated.Value(1.0)).current;
@@ -61,14 +62,21 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   const rippleScale = useRef(new Animated.Value(1.0)).current;
   const rippleOpacity = useRef(new Animated.Value(0)).current;
 
-  const particles = useRef(generateParticles()).current;
-  const activeAnimations = useRef<Animated.CompositeAnimation[]>([]);
+export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
+  const [time, setTime] = useState(0);
+  const [volume, setVolume] = useState(0); // 0 to 1
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const intervalIdRef = useRef<any>(null);
 
+  // 1. Tick animation frame loop (~60fps)
   useEffect(() => {
     const stopAllAnimations = () => {
       activeAnimations.current.forEach(anim => anim.stop());
       activeAnimations.current = [];
     };
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
     stopAllAnimations();
 
@@ -175,8 +183,6 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
             Animated.timing(glowOpacity, { toValue: 0.12, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
           ])
         );
-        break;
-    }
 
     activeAnimations.current = [breathAnim, shimmerAnim, rotationAnim, glowAnim];
     if (rippleAnim) activeAnimations.current.push(rippleAnim);
@@ -340,7 +346,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -410,4 +416,4 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textAlign: 'center',
   },
-});
+}));

@@ -39,7 +39,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, children }) => 
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     flexDirection: 'row',
     marginVertical: 10,
@@ -124,4 +124,4 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginLeft: 0,
   },
-});
+}));

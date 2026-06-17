@@ -11,18 +11,7 @@ export function useChat(
   const [messages, setMessages] = useState<Message[]>([]);
   const { speak, stop, isSpeaking } = useTextToSpeech(onStateChange);
 
-  // Initial welcome message
-  useEffect(() => {
-    const welcomeText = "Welcome to MedConnect! Tap the microphone to talk to me, or type below. You can say 'book an appointment', 'show hospital map', or 'check prescription'.";
-    setMessages([
-      {
-        id: 'welcome',
-        sender: 'assistant',
-        text: welcomeText,
-        timestamp: new Date()
-      }
-    ]);
-  }, []);
+
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;

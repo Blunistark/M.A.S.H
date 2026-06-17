@@ -124,12 +124,19 @@ export default function App() {
   // Sub-navigation state for chat tab (inline task flow)
   // 'chat_list' | 'appointment_confirm' | 'indoor_nav'
   const [chatSubScreen, setChatSubScreen] = useState<'chat_list' | 'appointment_confirm' | 'indoor_nav'>('chat_list');
-  
+
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isVoiceOverlayVisible, setIsVoiceOverlayVisible] = useState(false);
   const [orbState, setOrbState] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [inputText, setInputText] = useState('');
   const [currentTranscription, setCurrentTranscription] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const toggleTheme = () => {
+    const nextMode = !isDarkMode;
+    setIsDarkMode(nextMode);
+    Theme.updateTheme(nextMode);
+  };
 
   // Indoor Wayfinding Map state
   const [activeMapPath, setActiveMapPath] = useState<'lobby' | 'pharmacy' | 'cardiology' | 'pediatrics' | 'dermatology' | null>(null);
@@ -629,41 +636,82 @@ export default function App() {
           style={styles.overlayContainer}
         >
           <TouchableOpacity
-            style={styles.closeOverlayBtn}
-            onPress={handleCloseVoiceOverlay}
-            activeOpacity={0.7}
+            style={styles.tabItem}
+            onPress={() => navigateToScreen('home')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.closeOverlayText}>✕</Text>
+            {screen === 'home' ? (
+              <View style={styles.activeTabCapsule}>
+                <Text style={styles.tabIconActive}>{HOME_ICON}</Text>
+                <Text style={styles.tabLabelActive}>Home</Text>
+              </View>
+            ) : (
+              <View style={styles.inactiveTabContainer}>
+                <Text style={styles.tabIconInactive}>{HOME_ICON}</Text>
+                <Text style={styles.tabLabelInactive}>Home</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
-          {/* Glowing central sphere */}
-          <View style={styles.overlayOrbWrapper}>
-            <VoiceOrb onPress={handleCloseVoiceOverlay} state={orbState} />
-          </View>
+          {/* Chat */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigateToScreen('chat', 'chat_list')}
+            activeOpacity={0.8}
+          >
+            {screen === 'chat' ? (
+              <View style={styles.activeTabCapsule}>
+                <Text style={styles.tabIconActive}>{CHAT_ICON}</Text>
+                <Text style={styles.tabLabelActive}>Chat</Text>
+              </View>
+            ) : (
+              <View style={styles.inactiveTabContainer}>
+                <Text style={styles.tabIconInactive}>{CHAT_ICON}</Text>
+                <Text style={styles.tabLabelInactive}>Chat</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.overlayTextBox}>
-            <View style={styles.listeningBadge}>
-              <View style={styles.listeningDot} />
-              <Text style={styles.listeningBadgeText}>Listening...</Text>
+        {/* Immersive Fullscreen Voice Mode Overlay Modal */}
+        <Modal
+          visible={isVoiceOverlayVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={handleCloseVoiceOverlay}
+        >
+          <LinearGradient
+            colors={['#001a1d', '#000f11']}
+            style={styles.overlayContainer}
+          >
+            <TouchableOpacity
+              style={styles.closeOverlayBtn}
+              onPress={handleCloseVoiceOverlay}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.closeOverlayText}>✕</Text>
+            </TouchableOpacity>
+
+            {/* Glowing central sphere */}
+            <View style={styles.overlayOrbWrapper}>
+              <VoiceOrb onPress={handleCloseVoiceOverlay} state={orbState} />
             </View>
 
-            <Text style={styles.overlayInstruction}>How can I help you, Alex?</Text>
+            <View style={styles.overlayTextBox}>
+              <View style={styles.listeningBadge}>
+                <View style={styles.listeningDot} />
+                <Text style={styles.listeningBadgeText}>Listening...</Text>
+              </View>
 
-            {/* Waveform gold indicator bars */}
-            <View style={styles.waveformContainer}>
-              <EqualizerBar delay={0} />
-              <EqualizerBar delay={150} />
-              <EqualizerBar delay={300} />
-              <EqualizerBar delay={100} />
-              <EqualizerBar delay={200} />
-            </View>
+              <Text style={styles.overlayInstruction}>How can I help you, Alex?</Text>
 
-            {/* Live voice transcription */}
-            {currentTranscription !== '' && (
-              <View style={styles.overlayTranscriptionCard}>
-                <Text style={styles.overlayTranscriptionText}>
-                  "{currentTranscription}"
-                </Text>
+              {/* Waveform gold indicator bars */}
+              <View style={styles.waveformContainer}>
+                <EqualizerBar delay={0} />
+                <EqualizerBar delay={150} />
+                <EqualizerBar delay={300} />
+                <EqualizerBar delay={100} />
+                <EqualizerBar delay={200} />
               </View>
             )}
           </View>
@@ -674,7 +722,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     flex: 1,
   },
@@ -980,6 +1028,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff', // Solid white input container
     borderRadius: 28,
     padding: 4,
+  },
+  hamburgerIcon: {
+    fontSize: 20,
+    color: Theme.colors.onSurface,
+  },
+  logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: Theme.colors.shadowColor, // Soft blue-cyan glow tint
@@ -990,49 +1044,119 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Theme.colors.outlineVariant, // Light blue-gray border
   },
-  inputSearchIconBox: {
-    paddingLeft: 10,
-    paddingRight: 4,
-  },
-  searchIcon: {
-    fontSize: 16,
-    color: Theme.colors.onSurfaceVariant,
-  },
-  floatingTextInput: {
-    flex: 1,
+  perplexityTextInput: {
     fontFamily: Theme.typography.fontFamily,
-    fontSize: 13,
-    height: 38,
+    fontSize: 14,
     color: Theme.colors.onSurface,
+    minHeight: 44,
+    maxHeight: 120,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    textAlignVertical: 'top',
   },
-  inputActionRow: {
+  perplexityActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  perplexityLeftActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionCircleBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Theme.colors.outline,
+    opacity: 0.6,
+  },
+  actionCircleText: {
+    fontSize: 16,
+    color: Theme.colors.onSurface,
+    marginTop: -2,
+  },
+  searchPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.outlineVariant,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     gap: 4,
   },
-  inputMicBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.secondaryContainer,
+  searchPillIcon: {
+    fontSize: 11,
+    color: Theme.colors.onSurfaceVariant,
+  },
+  searchPillText: {
+    fontSize: 11,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurfaceVariant,
+  },
+  searchPillArrow: {
+    fontSize: 10,
+    color: Theme.colors.onSurfaceVariant,
+    marginLeft: 2,
+  },
+  copilotPillBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 4,
+    opacity: 0.6,
   },
-  inputMicBtnText: {
-    fontSize: 14,
-    color: Theme.colors.secondary,
-  },
-  inputSendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inputSendBtnText: {
-    color: '#ffffff',
+  copilotIcon: {
     fontSize: 12,
+    color: Theme.colors.onSurface,
+  },
+  copilotText: {
+    fontSize: 11,
+    fontFamily: Theme.typography.fontFamilyBold,
+    color: Theme.colors.onSurface,
+  },
+  perplexityRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  micIconBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.7,
+  },
+  micIconText: {
+    fontSize: 16,
+    color: Theme.colors.onSurface,
+  },
+  sendIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendIconBtnActive: {
+    backgroundColor: Theme.colors.primary,
+  },
+  sendIconBtnInactive: {
+    backgroundColor: Theme.colors.outlineVariant,
+    opacity: 0.5,
+  },
+  sendIconText: {
+    fontSize: 14,
     fontWeight: 'bold',
   },
   // Bottom Tab Navigation Bar (Light Theme with active capsule highlights)
@@ -1358,4 +1482,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: Theme.typography.labelMd.fontSize,
   },
-});
+}));

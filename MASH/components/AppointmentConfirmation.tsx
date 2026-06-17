@@ -118,7 +118,7 @@ export const AppointmentConfirmation: React.FC<AppointmentConfirmationProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
@@ -295,4 +295,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: Theme.typography.labelMd.fontSize,
   },
-});
+}));

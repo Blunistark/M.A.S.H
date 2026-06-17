@@ -33,7 +33,7 @@ export const SuggestionChips: React.FC<SuggestionChipsProps> = ({ onChipPress })
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     paddingHorizontal: Theme.spacing.containerPadding,
     marginVertical: 8, // Compact spacing
@@ -71,4 +71,4 @@ const styles = StyleSheet.create({
     fontSize: 11, // Shrunk/compact label size
     fontFamily: Theme.typography.fontFamilyBold,
   },
-});
+}));

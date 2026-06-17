@@ -169,7 +169,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath, navigationActi
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     backgroundColor: Theme.colors.surface, // Clean white card surface background
     borderRadius: Theme.roundness.lg,
@@ -322,4 +322,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamilyMedium,
     color: Theme.colors.onSurfaceVariant,
   },
-});
+}));

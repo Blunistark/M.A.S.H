@@ -132,7 +132,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   card: {
     backgroundColor: Theme.colors.white,
     borderRadius: Theme.roundness.lg, // 24px
@@ -329,4 +329,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: Theme.typography.labelMd.fontSize,
   },
-});
+}));
