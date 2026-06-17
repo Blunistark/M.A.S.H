@@ -1,10 +1,46 @@
+# Dependencies
 node_modules/
+package-lock.json
+
+# Python virtual environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
 dist/
 build/
+*.egg-info/
+
+# Environment files
 .env
 .env.local
+.env.rooms
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Gemini / Agents config
 .gemini/
 .agents/
-Agents/src/__pycache__/*
+skills-lock.json
+
+# Misc
+stupidgit.txt

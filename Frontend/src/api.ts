@@ -150,13 +150,21 @@ export async function updateAppointment(id: string, payload: { scheduled_time: s
   });
 }
 
-export async function askDoctorAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<string> {
-  const data = await fetchJson<{ reply: string }>(`${API_BASE}/doctor-chat`, {
+export interface DoctorAssistantResponse {
+  reply: string;
+  action?: {
+    type: string;
+    route?: string;
+    patientId?: string;
+  };
+}
+
+export async function askDoctorAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<DoctorAssistantResponse> {
+  return fetchJson<DoctorAssistantResponse>(`${API_BASE}/doctor-chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ message, history })
   });
-  return data.reply;
 }
