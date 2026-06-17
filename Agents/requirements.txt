@@ -3,4 +3,4 @@ band-sdk[langgraph]
 python-dotenv
 pyyaml
 pydantic
-langchain-openai
+langchain-google-genai

@@ -78,10 +78,10 @@ const styles = Theme.createStyleSheet(() => ({
     paddingVertical: 12,
   },
   userBubble: {
-    backgroundColor: Theme.colors.surfaceElevated, // Dynamic surface elevated
+    backgroundColor: '#F2F2F7', // Off-white bubble
     borderRadius: 16,
     borderTopRightRadius: 0, // Flat top-right
-    shadowColor: Theme.colors.shadowColor,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 3,
@@ -98,7 +98,7 @@ const styles = Theme.createStyleSheet(() => ({
     fontFamily: Theme.typography.fontFamily,
   },
   userText: {
-    color: Theme.colors.onSurface, // Dynamic high-contrast text color
+    color: '#334155', // Slate-700 text color
   },
   assistantText: {
     color: Theme.colors.onSurfaceVariant, // Clinical slate text

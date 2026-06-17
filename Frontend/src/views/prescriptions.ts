@@ -20,6 +20,7 @@ interface RxItem {
   durationUnit: string;
   stockStatus: 'In Stock' | 'Out of Stock';
   notes?: string;
+  isRemoved?: boolean;
 }
 
 // Module-level state to hold prescriptions being edited per patient
@@ -29,12 +30,71 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
+function calculateQuantity(frequency: string, duration: number): number {
+  if (!frequency) return duration;
+  const freqLower = frequency.toLowerCase();
+  
+  let timesPerDay = 0;
+  if (freqLower.includes('morning')) timesPerDay++;
+  if (freqLower.includes('lunch')) timesPerDay++;
+  if (freqLower.includes('evening')) timesPerDay++;
+  if (freqLower.includes('night')) timesPerDay++;
+  
+  if (timesPerDay === 0) {
+    if (freqLower.includes('tid') || freqLower.includes('three times')) {
+      timesPerDay = 3;
+    } else if (freqLower.includes('bid') || freqLower.includes('twice') || freqLower.includes('two times')) {
+      timesPerDay = 2;
+    } else if (freqLower.includes('qid') || freqLower.includes('four times')) {
+      timesPerDay = 4;
+    } else if (freqLower.includes('qd') || freqLower.includes('once') || freqLower.includes('one time') || freqLower.includes('daily')) {
+      timesPerDay = 1;
+    } else {
+      const parts = frequency.split(',');
+      timesPerDay = Math.max(1, parts.length);
+    }
+  }
+  return duration * timesPerDay;
+}
+
+function calculateDurationFromQuantity(frequency: string, quantity: number): number {
+  if (!frequency) return quantity;
+  const freqLower = frequency.toLowerCase();
+  
+  let timesPerDay = 0;
+  if (freqLower.includes('morning')) timesPerDay++;
+  if (freqLower.includes('lunch')) timesPerDay++;
+  if (freqLower.includes('evening')) timesPerDay++;
+  if (freqLower.includes('night')) timesPerDay++;
+  
+  if (timesPerDay === 0) {
+    if (freqLower.includes('tid') || freqLower.includes('three times')) {
+      timesPerDay = 3;
+    } else if (freqLower.includes('bid') || freqLower.includes('twice') || freqLower.includes('two times')) {
+      timesPerDay = 2;
+    } else if (freqLower.includes('qid') || freqLower.includes('four times')) {
+      timesPerDay = 4;
+    } else if (freqLower.includes('qd') || freqLower.includes('once') || freqLower.includes('one time') || freqLower.includes('daily')) {
+      timesPerDay = 1;
+    } else {
+      const parts = frequency.split(',');
+      timesPerDay = Math.max(1, parts.length);
+    }
+  }
+  return Math.ceil(quantity / timesPerDay);
+}
+
 export class PrescriptionsView implements View {
   private currentPatientId: string = 'john-doe';
+  private inventory: any[] = [];
 
-  public async render(params?: { patientId: string }): Promise<string> {
+  public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
     const patientId = params?.patientId || this.currentPatientId;
     this.currentPatientId = patientId;
+
+    if (params?.forceReload) {
+      delete rxState[patientId];
+    }
 
     let patient: Profile;
     try {
@@ -46,27 +106,35 @@ export class PrescriptionsView implements View {
     const allRecords = await fetchMedicalRecords();
     const allergies = allRecords.filter(r => r.patient_id === patientId && r.record_type === 'Allergy');
 
+    const inventoryList = await fetchMedicineInventory();
+    this.inventory = inventoryList;
+
     // Ensure state exists for this patient
     if (!rxState[patient.id]) {
       const activeRxList = await fetchPrescriptions();
       const activeItemsList = await fetchPrescriptionItems();
-      const inventoryList = await fetchMedicineInventory();
 
-      const activeRx = activeRxList.filter(p => p.patient_id === patientId && p.status === 'active');
-      const activeItems = activeItemsList.filter(i => activeRx.some(r => r.id === i.prescription_id));
+      const activeRxListFiltered = activeRxList.filter(p => p.patient_id === patientId && (p.status === 'active' || p.status === 'alternative_requested'));
+      // Sort descending by created_at to get the latest one
+      activeRxListFiltered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      const latestRx = activeRxListFiltered[0];
+      const activeItems = latestRx ? activeItemsList.filter(i => i.prescription_id === latestRx.id) : [];
       
       rxState[patient.id] = activeItems.map(m => {
-        const medInfo = inventoryList.find(inv => inv.id === m.medicine_id);
+        const medInfo = this.inventory.find(inv => inv.id === m.medicine_id);
         const dosagePart = m.dosage.split(' - ')[0] || m.dosage;
         const freqPart = m.dosage.split(' - ')[1] || 'Once daily';
+        const isOutOfStock = !medInfo || (medInfo.current_stock <= 0);
         return {
           medicine_id: m.medicine_id,
           name: medInfo?.medicine_name || 'Unknown',
           dosage: dosagePart,
           frequency: freqPart,
-          duration: m.quantity,
+          duration: calculateDurationFromQuantity(freqPart, m.quantity),
           durationUnit: 'Days',
-          stockStatus: (medInfo?.current_stock || 0) > 0 ? 'In Stock' : 'Out of Stock'
+          stockStatus: isOutOfStock ? 'Out of Stock' : 'In Stock',
+          isRemoved: isOutOfStock
         };
       });
     }
@@ -80,20 +148,24 @@ export class PrescriptionsView implements View {
 
     // Generate current prescription rows
     const tableRowsHTML = items.map((item, index) => {
-      const isInStock = item.stockStatus === 'In Stock';
-      const stockBadge = isInStock 
-        ? `<span class="rx-stock-badge in-stock">${getIcon('check', 'stock-icon-check')} In Stock</span>`
-        : `<div class="rx-stock-col-out">
-             <span class="rx-stock-badge out-of-stock">✕ Out of Stock</span>
-             <button class="rx-suggest-alt-btn" data-index="${index}">${getIcon('activity', 'suggest-icon')} Suggest Alt</button>
-           </div>`;
+      const isRemovedItem = item.isRemoved;
 
       // Check if item name contains Lisinopril, show tooltip info icon
       const hasWarning = item.name.toLowerCase().includes('lisinopril');
       const warningIcon = hasWarning ? `<span class="rx-warning-tooltip" title="Patient has active condition/interaction check">ⓘ</span>` : '';
 
+      const rowStyle = isRemovedItem 
+        ? 'background-color: #fef2f2; color: #b91c1c; text-decoration: line-through;'
+        : '';
+
+      const actionsHTML = isRemovedItem
+        ? ''
+        : `<button class="rx-row-delete-btn" data-index="${index}">
+             ${getIcon('trash', 'rx-delete-icon')}
+           </button>`;
+
       return `
-        <tr data-row-index="${index}">
+        <tr data-row-index="${index}" style="${rowStyle}">
           <td>
             <div class="rx-med-name">
               <strong>${item.name}</strong>
@@ -103,12 +175,7 @@ export class PrescriptionsView implements View {
           </td>
           <td>${item.frequency}</td>
           <td>${item.duration} ${item.durationUnit}</td>
-          <td>${stockBadge}</td>
-          <td>
-            <button class="rx-row-delete-btn" data-index="${index}">
-              ${getIcon('trash', 'rx-delete-icon')}
-            </button>
-          </td>
+          <td>${actionsHTML}</td>
         </tr>
       `;
     }).join('');
@@ -267,12 +334,11 @@ export class PrescriptionsView implements View {
                     <th>Medication</th>
                     <th>Sig</th>
                     <th>Duration</th>
-                    <th>Stock Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${tableRowsHTML || `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 40px 0;">No medications added to this prescription yet.</td></tr>`}
+                  ${tableRowsHTML || `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 40px 0;">No medications added to this prescription yet.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -343,14 +409,22 @@ export class PrescriptionsView implements View {
         const unitSelect = container.querySelector('#rx-duration-unit') as HTMLSelectElement;
         const notesInput = container.querySelector('#rx-notes') as HTMLTextAreaElement;
 
+        const medName = nameInput.value.trim().toLowerCase();
+        const medInfo = this.inventory.find(inv => {
+          const invName = inv.medicine_name.toLowerCase();
+          return invName === medName || invName.includes(medName) || medName.includes(invName);
+        });
+        const isOutOfStock = medInfo ? (medInfo.current_stock <= 0) : false;
+
         const newRx: RxItem = {
-          medicine_id: `temp-${Date.now()}`,
+          medicine_id: medInfo ? medInfo.id : `temp-${Date.now()}`,
           name: nameInput.value,
           dosage: dosageInput.value,
           frequency: freqInput.value,
           duration: parseInt(durInput.value) || 7,
           durationUnit: unitSelect.value,
-          stockStatus: 'In Stock',
+          stockStatus: isOutOfStock ? 'Out of Stock' : 'In Stock',
+          isRemoved: isOutOfStock,
           notes: notesInput.value
         };
 
@@ -411,16 +485,34 @@ export class PrescriptionsView implements View {
           return;
         }
 
+        const activePrescriptionItems = currentItems.filter(item => !item.isRemoved);
+        if (activePrescriptionItems.length === 0) {
+          alert('Please add at least one active medication before sending to pharmacy.');
+          return;
+        }
+
+        // Show loading overlay immediately
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'rx-prompt-modal-overlay';
+        loadingOverlay.innerHTML = `
+          <div class="rx-prompt-modal" style="text-align: center; padding: 40px 30px;">
+            <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--accent-blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px auto;"></div>
+            <h3 style="margin-bottom: 8px; font-family: var(--font-heading);">Sending Prescription</h3>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">Transmitting prescription details securely to the pharmacy portal...</p>
+          </div>
+        `;
+        document.body.appendChild(loadingOverlay);
+
         try {
           // 1. Actually persist the prescription to Supabase via backend
           await sendPrescriptionToPharmacy({
             patient_id: patientId,
-            items: currentItems.map(item => ({
+            items: activePrescriptionItems.map(item => ({
               name: item.name,
               dosage: item.dosage,
               frequency: item.frequency,
               duration: item.duration,
-              quantity: item.duration // Use duration as quantity
+              quantity: calculateQuantity(item.frequency, item.duration)
             }))
           });
 
@@ -429,6 +521,9 @@ export class PrescriptionsView implements View {
 
           // 3. Fetch patient info for the success modal
           const patient = await fetchProfileById(patientId);
+
+          // Remove loading overlay
+          loadingOverlay.remove();
 
           // 4. Show the success modal
           const modal = document.createElement('div');
@@ -476,6 +571,7 @@ export class PrescriptionsView implements View {
             });
           }
         } catch (err) {
+          loadingOverlay.remove();
           console.error('Failed to send prescription to pharmacy:', err);
           alert('Failed to send prescription to pharmacy. Please check your connection and try again.');
         }

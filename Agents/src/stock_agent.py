@@ -1,6 +1,6 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import HealthcareOrchestrationRoom, PharmacyInventoryRoom, BandSDK
+from src.band_config import PatientManagementRoom, PharmacyInventoryRoom, PharmacistDashboardRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medicine_stock_from_supabase, update_medicine_stock_in_supabase
 
@@ -12,8 +12,9 @@ class StockManagementState(TypedDict):
 class StockManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("StockManagementAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         PharmacyInventoryRoom.join(self.agent)
+        PharmacistDashboardRoom.join(self.agent)
         self.stock_usage: Dict[str, int] = {}
         self.REORDER_THRESHOLD = 2
         self.graph = self._build_graph()
@@ -43,15 +44,21 @@ class StockManagementAgent:
 
             if stock_usage[medicine] >= self.REORDER_THRESHOLD:
                 Telemetry.track_event(self.agent.name, "SUGGEST_STOCK_REORDER", {"medicine": medicine, "count": stock_usage[medicine]})
-                HealthcareOrchestrationRoom.broadcast("REORDER_SUGGESTION", {
+                PatientManagementRoom.broadcast("REORDER_SUGGESTION", {
                     "medicine": medicine,
                     "reason": f"Medicine '{medicine}' is repeatedly used ({stock_usage[medicine]} times). Suggest restocking.",
                     "currentUsage": stock_usage[medicine]
                 })
+                # Alert the pharmacist dashboard about rise in demand
+                PharmacistDashboardRoom.broadcast("STOCK_DEMAND_ALERT", {
+                    "medicine": medicine,
+                    "currentUsage": stock_usage[medicine],
+                    "reason": f"Demand Alert: Rise in demand for '{medicine}' ({stock_usage[medicine]} prescriptions requested recently). Suggest preparing extra stock."
+                })
             return {"stock_usage": stock_usage}
 
         def get_stock_stats_node(state: StockManagementState) -> StockManagementState:
-            HealthcareOrchestrationRoom.broadcast("STOCK_STATS_RESPONSE", {"stats": state["stock_usage"]})
+            PatientManagementRoom.broadcast("STOCK_STATS_RESPONSE", {"stats": state["stock_usage"]})
             return state
 
         async def route_to_pharmacy_node(state: StockManagementState) -> Dict[str, Any]:
@@ -86,6 +93,13 @@ class StockManagementAgent:
                     "medicine": medicine,
                     "currentUsage": stock_usage[medicine],
                     "reason": f"Automated Alert: Medicine '{medicine}' usage is high ({stock_usage[medicine]} requests). Reorder suggested."
+                })
+
+                # Alert the pharmacist dashboard about rise in demand
+                PharmacistDashboardRoom.broadcast("STOCK_DEMAND_ALERT", {
+                    "medicine": medicine,
+                    "currentUsage": stock_usage[medicine],
+                    "reason": f"Demand Alert: Rise in demand for '{medicine}' ({stock_usage[medicine]} prescriptions requested recently). Suggest preparing extra stock."
                 })
             return {"stock_usage": stock_usage}
 

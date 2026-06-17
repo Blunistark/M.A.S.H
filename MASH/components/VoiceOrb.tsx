@@ -9,32 +9,58 @@ interface VoiceOrbProps {
   state?: 'idle' | 'listening' | 'processing' | 'speaking';
 }
 
+<<<<<<< HEAD
 // Spherical grid segmentation (dense for rich point-cloud representation)
 const LAT_COUNT = 22;
 const LNG_COUNT = 32;
+=======
+const PARTICLE_COUNT = 300; // High density for a rich particle cloud
+const SPHERE_RADIUS = 95;   // Size of the particle orb
+const CENTER = 110;         // Center coordinates in a 220x220 container
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
-// Base sphere coordinates (latitude-longitude grid)
-const baseGrid: { nx: number; ny: number; nz: number; i: number; j: number }[] = [];
-for (let i = 0; i <= LAT_COUNT; i++) {
-  const lat = (i / LAT_COUNT) * Math.PI - Math.PI / 2;
-  const cosLat = Math.cos(lat);
-  const sinLat = Math.sin(lat);
-  
-  for (let j = 0; j < LNG_COUNT; j++) {
-    const lng = (j / LNG_COUNT) * 2 * Math.PI;
-    const cosLng = Math.cos(lng);
-    const sinLng = Math.sin(lng);
-    
-    baseGrid.push({
-      nx: cosLat * sinLng,
-      ny: sinLat,
-      nz: cosLat * cosLng,
-      i,
-      j,
-    });
+// Shades of blue, cyan, and white matching the image palette
+const PALETTE = [
+  '#003c8f', // Deep blue
+  '#0058bc', // Professional blue
+  '#0082ff', // Electric blue
+  '#00b0ff', // Light sky blue
+  '#62fae3', // Vibrant cyan/teal
+  '#adc6ff', // Soft ice blue
+  '#ffffff', // Pure white sparkle
+];
+
+// Mathematical 3D Sphere projection to 2D
+const generateParticles = () => {
+  const list = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Distribute uniformly in a 3D volume, bias towards center for density
+    const u = Math.random();
+    const v = Math.random();
+    const theta = u * 2.0 * Math.PI;
+    const phi = Math.acos(2.0 * v - 1.0);
+
+    // Volumetric sphere distribution with center bias
+    const r = SPHERE_RADIUS * Math.pow(Math.random(), 1.6);
+
+    const x = CENTER + r * Math.sin(phi) * Math.cos(theta);
+    const y = CENTER + r * Math.sin(phi) * Math.sin(theta);
+
+    // Sizing: tiny dots matching the screenshot
+    const size = Math.random() * 1.5 + 0.8;
+    const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+
+    // Higher opacity in core, lighter towards edges
+    const distanceRatio = r / SPHERE_RADIUS;
+    const baseOpacity = (1.0 - distanceRatio * 0.4) * (Math.random() * 0.6 + 0.4);
+
+    const phaseGroup = i % 4;
+
+    list.push({ x, y, size, color, baseOpacity, phaseGroup });
   }
 }
 
+<<<<<<< HEAD
 // Scattered glowing particles around the orb perimeter (increased count and size range)
 const particleData = Array.from({ length: 65 }).map((_, idx) => {
   const theta = Math.random() * Math.PI - Math.PI / 2;
@@ -49,6 +75,15 @@ const particleData = Array.from({ length: 65 }).map((_, idx) => {
     color: idx % 3 === 0 ? '#00E5FF' : idx % 3 === 1 ? '#FF00FF' : '#ffffff',
   };
 });
+=======
+export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
+  const breathScale = useRef(new Animated.Value(1.0)).current;
+  const shimmerPhase = useRef(new Animated.Value(0)).current;
+  const rotationPhase = useRef(new Animated.Value(0)).current;
+  const glowOpacity = useRef(new Animated.Value(0.3)).current;
+  const rippleScale = useRef(new Animated.Value(1.0)).current;
+  const rippleOpacity = useRef(new Animated.Value(0)).current;
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
   const [time, setTime] = useState(0);
@@ -58,19 +93,17 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
 
   // 1. Tick animation frame loop (~60fps)
   useEffect(() => {
-    let animId: number;
-    const tick = () => {
-      setTime(t => t + 0.016);
-      animId = requestAnimationFrame(tick);
+    const stopAllAnimations = () => {
+      activeAnimations.current.forEach(anim => anim.stop());
+      activeAnimations.current = [];
     };
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  // 2. Manage Microphone Recording & Audio Metering with expo-av
-  useEffect(() => {
-    let isMounted = true;
+    stopAllAnimations();
 
+<<<<<<< HEAD
     async function startRecording() {
       if (state !== 'listening') {
         if (recordingRef.current) {
@@ -78,51 +111,116 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
         }
         return;
       }
+=======
+    let breathAnim: Animated.CompositeAnimation;
+    let shimmerAnim: Animated.CompositeAnimation;
+    let rotationAnim: Animated.CompositeAnimation;
+    let glowAnim: Animated.CompositeAnimation;
+    let rippleAnim: Animated.CompositeAnimation | null = null;
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
-      try {
-        const permission = await Audio.requestPermissionsAsync();
-        if (permission.status !== 'granted') {
-          console.log('VoiceOrb: Audio permission not granted');
-          return;
-        }
+    switch (state) {
+      case 'listening':
+        breathAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathScale, { toValue: 1.08, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 0.98, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
+        );
+        shimmerAnim = Animated.loop(
+          Animated.timing(shimmerPhase, { toValue: 1, duration: 1200, easing: Easing.linear, useNativeDriver: true })
+        );
+        rotationAnim = Animated.loop(
+          Animated.timing(rotationPhase, { toValue: 1, duration: 4000, easing: Easing.linear, useNativeDriver: true })
+        );
+        glowAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(glowOpacity, { toValue: 0.6, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.35, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
+        );
+        break;
 
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
+      case 'processing':
+        breathAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathScale, { toValue: 1.04, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 1.0, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
+        );
+        shimmerAnim = Animated.loop(
+          Animated.timing(shimmerPhase, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })
+        );
+        rotationAnim = Animated.loop(
+          Animated.timing(rotationPhase, { toValue: 1, duration: 6000, easing: Easing.linear, useNativeDriver: true })
+        );
+        glowAnim = Animated.timing(glowOpacity, { toValue: 0.4, duration: 300, useNativeDriver: true });
 
-        const { recording } = await Audio.Recording.createAsync(
-          {
-            android: {
-              extension: '.m4a',
-              outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-              audioEncoder: Audio.AndroidAudioEncoder.AAC,
-              sampleRate: 44100,
-              numberOfChannels: 1,
-              bitRate: 128000,
-            },
-            ios: {
-              extension: '.m4a',
-              outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-              audioQuality: Audio.IOSAudioQuality.MEDIUM,
-              sampleRate: 44100,
-              numberOfChannels: 1,
-              bitRate: 128000,
-              linearPCMBitDepth: 16,
-              linearPCMIsBigEndian: false,
-              linearPCMIsFloat: false,
-            },
-            web: {},
-          },
-          () => {},
-          50 // updateMeteringIntervalMillis
+        rippleScale.setValue(1.0);
+        rippleOpacity.setValue(0.6);
+        rippleAnim = Animated.loop(
+          Animated.sequence([
+            Animated.parallel([
+              Animated.timing(rippleScale, { toValue: 1.5, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+              Animated.timing(rippleOpacity, { toValue: 0, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true })
+            ]),
+            Animated.parallel([
+              Animated.timing(rippleScale, { toValue: 1.0, duration: 0, useNativeDriver: true }),
+              Animated.timing(rippleOpacity, { toValue: 0.6, duration: 0, useNativeDriver: true })
+            ])
+          ])
+        );
+        break;
+
+      case 'speaking':
+        breathAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathScale, { toValue: 1.12, duration: 200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 0.95, duration: 280, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 1.06, duration: 180, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 1.0, duration: 250, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
+        );
+        shimmerAnim = Animated.loop(
+          Animated.timing(shimmerPhase, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true })
+        );
+        rotationAnim = Animated.loop(
+          Animated.timing(rotationPhase, { toValue: 1, duration: 5000, easing: Easing.linear, useNativeDriver: true })
+        );
+        glowAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(glowOpacity, { toValue: 0.5, duration: 250, useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.25, duration: 250, useNativeDriver: true })
+          ])
+        );
+        break;
+
+      case 'idle':
+      default:
+        breathAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathScale, { toValue: 1.02, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(breathScale, { toValue: 0.98, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
+        );
+        shimmerAnim = Animated.loop(
+          Animated.timing(shimmerPhase, { toValue: 1, duration: 3500, easing: Easing.linear, useNativeDriver: true })
+        );
+        rotationPhase.setValue(0);
+        rotationAnim = Animated.loop(
+          Animated.timing(rotationPhase, { toValue: 1, duration: 12000, easing: Easing.linear, useNativeDriver: true })
+        );
+        glowAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(glowOpacity, { toValue: 0.25, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.12, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+          ])
         );
 
-        if (!isMounted) {
-          await recording.stopAndUnloadAsync();
-          return;
-        }
+    activeAnimations.current = [breathAnim, shimmerAnim, rotationAnim, glowAnim];
+    if (rippleAnim) activeAnimations.current.push(rippleAnim);
 
+<<<<<<< HEAD
         recordingRef.current = recording;
 
         intervalIdRef.current = setInterval(async () => {
@@ -150,26 +248,41 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     }
 
     startRecording();
+=======
+    activeAnimations.current.forEach(anim => anim.start());
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
     return () => {
-      isMounted = false;
-      stopRecording();
+      stopAllAnimations();
     };
   }, [state]);
 
-  const stopRecording = async () => {
-    if (intervalIdRef.current) {
-      clearInterval(intervalIdRef.current);
-      intervalIdRef.current = null;
-    }
-    if (recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-      } catch (e) {}
-      recordingRef.current = null;
+  const getParticleOpacity = (baseOpacity: number, group: number) => {
+    switch (group) {
+      case 0:
+        return shimmerPhase.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [baseOpacity * 0.4, baseOpacity * 1.1, baseOpacity * 0.4],
+        });
+      case 1:
+        return shimmerPhase.interpolate({
+          inputRange: [0, 0.25, 0.75, 1],
+          outputRange: [baseOpacity * 0.9, baseOpacity * 0.4, baseOpacity * 1.2, baseOpacity * 0.9],
+        });
+      case 2:
+        return shimmerPhase.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [baseOpacity * 1.2, baseOpacity * 0.3, baseOpacity * 1.2],
+        });
+      default:
+        return shimmerPhase.interpolate({
+          inputRange: [0, 0.35, 0.8, 1],
+          outputRange: [baseOpacity * 0.5, baseOpacity * 1.1, baseOpacity * 0.6, baseOpacity * 0.5],
+        });
     }
   };
 
+<<<<<<< HEAD
   // 3. Fallback / AI speaking state simulated volume reactivity
   useEffect(() => {
     let simInterval: any = null;
@@ -193,32 +306,40 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
       if (simInterval) clearInterval(simInterval);
     };
   }, [state]);
+=======
+  const getDriftX = (idx: number) => {
+    const direction = idx % 2 === 0 ? 1 : -1;
+    const amount = (idx % 4 + 2) * 1.2;
+    return shimmerPhase.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, direction * amount, 0],
+    });
+  };
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
-  // Base configurations
-  const R = 75; // Sphere base radius
-  const cameraDistance = 300;
-  const centerX = 150;
-  const centerY = 150;
+  const getDriftY = (idx: number) => {
+    const direction = (idx + 1) % 2 === 0 ? 1 : -1;
+    const amount = (idx % 3 + 2) * 1.2;
+    return shimmerPhase.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, direction * amount, 0],
+    });
+  };
 
-  // Rotation parameters (rotates faster with sound)
-  const baseRotSpeed = state === 'idle' ? 0.35 : 0.7;
-  const rotY = time * baseRotSpeed + volume * 0.8;
-  const rotX = time * 0.12;
+  const rotY1 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const rotX1 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['12deg', '372deg'] });
 
-  // Amplitude of surface deformations
-  let baseAmp = 3;
-  if (state === 'listening') baseAmp = 12;
-  else if (state === 'speaking') baseAmp = 10;
-  else if (state === 'processing') baseAmp = 5;
+  const rotY2 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['120deg', '-240deg'] });
+  const rotX2 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['35deg', '395deg'] });
 
-  const deformationAmp = baseAmp + volume * 24;
+  const rotY3 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['240deg', '600deg'] });
+  const rotX3 = rotationPhase.interpolate({ inputRange: [0, 1], outputRange: ['-25deg', '335deg'] });
 
-  // 4. Transform and project grid vertices
-  const projected: { x: number; y: number; z: number }[][] = [];
-  for (let i = 0; i <= LAT_COUNT; i++) {
-    projected[i] = [];
-  }
+  const layer1Particles = particles.filter((_, idx) => idx % 3 === 0);
+  const layer2Particles = particles.filter((_, idx) => idx % 3 === 1);
+  const layer3Particles = particles.filter((_, idx) => idx % 3 === 2);
 
+<<<<<<< HEAD
   baseGrid.forEach(v => {
     // Generate organic 3D wave displacement
     const wave = Math.sin(2.2 * v.nx + time * 3.8) * Math.cos(2.0 * v.ny + time * 2.5) +
@@ -315,6 +436,34 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
       />
     );
   });
+=======
+  const renderParticles = (particlesList: typeof particles, startIndex: number) => {
+    return particlesList.map((p, listIdx) => {
+      const idx = startIndex + listIdx * 3;
+      return (
+        <Animated.View
+          key={idx}
+          style={[
+            styles.particle,
+            {
+              left: p.x - p.size / 2,
+              top: p.y - p.size / 2,
+              width: p.size,
+              height: p.size,
+              borderRadius: p.size / 2,
+              backgroundColor: p.color,
+              opacity: getParticleOpacity(p.baseOpacity, p.phaseGroup),
+              transform: [
+                { translateX: getDriftX(idx) },
+                { translateY: getDriftY(idx) }
+              ]
+            },
+          ]}
+        />
+      );
+    });
+  };
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
   // 7. Smoky nebula offsets (4 drifting layers)
   const glowCyanX = 130 + Math.sin(time * 1.5) * 20;
@@ -331,6 +480,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
 
   return (
     <View style={styles.container}>
+<<<<<<< HEAD
       <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.touchArea}>
         <View style={styles.canvasWrapper}>
           <Svg width={300} height={300} viewBox="0 0 300 300">
@@ -399,17 +549,60 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
 
             {/* Dense 3D Vertices/Dots */}
             {gridDots}
+=======
+      {/* Soft blue-cyan halo glow matching screenshot */}
+      <Animated.View
+        style={[
+          styles.ambientGlow,
+          {
+            opacity: glowOpacity,
+            transform: [{ scale: breathScale }]
+          }
+        ]}
+      />
 
-            {/* Scattered escaping particles perimeter */}
-            {particleNodes}
-          </Svg>
-        </View>
+      {/* Main Touch Area */}
+      <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.touchArea}>
+        <Animated.View style={[styles.sphere, { transform: [{ scale: breathScale }] }]}>
+
+          {/* Volumetric background core highlight */}
+          <View style={styles.centerGlow} />
+
+          {/* Layer 1: Orbiting particles */}
+          <Animated.View style={[styles.layerContainer, { transform: [{ rotateY: rotY1 }, { rotateX: rotX1 }] }]}>
+            {renderParticles(layer1Particles, 0)}
+          </Animated.View>
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
+
+          {/* Layer 2: Orbiting particles */}
+          <Animated.View style={[styles.layerContainer, { transform: [{ rotateY: rotY2 }, { rotateX: rotX2 }] }]}>
+            {renderParticles(layer2Particles, 1)}
+          </Animated.View>
+
+          {/* Layer 3: Orbiting particles */}
+          <Animated.View style={[styles.layerContainer, { transform: [{ rotateY: rotY3 }, { rotateX: rotX3 }] }]}>
+            {renderParticles(layer3Particles, 2)}
+          </Animated.View>
+
+          {/* Processing state ripples */}
+          {state === 'processing' && (
+            <Animated.View
+              style={[
+                styles.rippleRing,
+                {
+                  transform: [{ scale: rippleScale }],
+                  opacity: rippleOpacity,
+                }
+              ]}
+            />
+          )}
+        </Animated.View>
       </TouchableOpacity>
 
       {/* Monospaced, spaced out status badge */}
       <View style={styles.statusBadge}>
         {state === 'idle' && (
-          <Text style={styles.statusText}>M.A.S.H</Text>
+          <Text style={styles.statusText}>ASK M.A.S.H ANYTHING...</Text>
         )}
         {state === 'listening' && (
           <Text style={[styles.statusText, { color: Theme.colors.secondary }]}>LISTENING...</Text>
@@ -435,15 +628,54 @@ const styles = Theme.createStyleSheet(() => ({
   touchArea: {
     zIndex: 10,
   },
-  canvasWrapper: {
-    width: 300,
-    height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
+  layerContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  ambientGlow: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(98, 250, 227, 0.12)', // Subtle light cyan glow
+    shadowColor: '#0082ff',                       // Spread blue shadow
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 50,
+    elevation: 4,
+    zIndex: 1,
+  },
+  sphere: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  particle: {
+    position: 'absolute',
+  },
+  centerGlow: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(0, 88, 188, 0.15)', // Soft blue volumetric core back-glow
+    left: CENTER - 45,
+    top: CENTER - 45,
+  },
+  rippleRing: {
+    position: 'absolute',
+    width: SPHERE_RADIUS * 2,
+    height: SPHERE_RADIUS * 2,
+    borderRadius: SPHERE_RADIUS,
+    borderWidth: 2,
+    borderColor: Theme.colors.primary,
+    left: CENTER - SPHERE_RADIUS,
+    top: CENTER - SPHERE_RADIUS,
   },
   statusBadge: {
-    position: 'absolute',
-    bottom: -40,
+    marginTop: 28,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 12,
@@ -452,7 +684,7 @@ const styles = Theme.createStyleSheet(() => ({
   statusText: {
     fontFamily: Theme.typography.fontFamilyBold,
     fontSize: 13,
-    color: Theme.colors.onSurface,
+    color: '#191c1e', // Match theme high contrast slate-charcoal text
     letterSpacing: 2.5,
     textAlign: 'center',
   },

@@ -305,44 +305,32 @@ export default function App() {
   }
 
   // Alex Mercer user avatar image from design spec
-  const userAvatarUrl = 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
+  const userAvatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuA4dV8furgxt6lfQHMCGAKgfsHz-ruAhxrax0kqrHBE207XdXcd9g96NFbpK_CGRBZt1lo40a-V9VJU7nwVKC1VRlu2GgzlzyUzZlAjWNWEq76TFjuIxLt8ukfmTLzMAFk7uhr4ElENTlfi5BEDI_EDww18ne9K2BEJVY61iF79IqXAJrQIlW0BbEuc1tEcwU8uiLYPYlkzziRfwy31hMGGv2lLAae4RFXjzmYVbSiCoPLkF_JDK7N8YmV-wpYTnlqnp-E3T-KKfiqA';
+
+  // Render header - Hidden on Indoor Navigation subpage to match full view map aesthetics
+  const renderHeader = () => {
+    if (screen === 'chat' && chatSubScreen === 'indoor_nav') return null;
+
+    return (
+      <View style={styles.header}>
+        <View style={styles.avatarRow}>
+          <Image source={{ uri: userAvatarUrl }} style={styles.avatarImage} />
+          <Text style={styles.avatarGreeting}>Good morning, {profile?.full_name ? profile.full_name.split(' ')[0] : 'Alex'}</Text>
+        </View>
+        <TouchableOpacity style={styles.headerNotificationBtn} activeOpacity={0.7}>
+          <Text style={styles.notificationIcon}>{NOTIFICATION_ICON}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+
 
   return (
     <View style={[styles.container, { backgroundColor: Theme.colors.background }]}>
       <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <StatusBar style={isDarkMode ? "light" : "dark"} />
-
-        {chatSubScreen !== 'indoor_nav' && (
-          <TouchableOpacity
-            style={styles.floatingThemeToggle}
-            onPress={toggleTheme}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Global Floating Profile/Back Button on Home and Profile screens */}
-        {(screen === 'home' || screen === 'profile') && (
-          <TouchableOpacity
-            style={styles.floatingProfileBtn}
-            onPress={() => {
-              if (screen === 'profile') {
-                navigateToScreen('home');
-              } else {
-                navigateToScreen('profile');
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            {screen === 'profile' ? (
-              <Text style={styles.backButtonIconText}>←</Text>
-            ) : (
-              <Image source={{ uri: userAvatarUrl }} style={styles.floatingProfileAvatar} />
-            )}
-          </TouchableOpacity>
-        )}
-
+        <StatusBar style="dark" />
+        {renderHeader()}
         <View style={styles.viewContent}>
           {screen === 'home' && (
             <View style={{ flex: 1 }}>
@@ -387,7 +375,7 @@ export default function App() {
 
                     <View style={styles.mapStatsCard}>
                       <View style={styles.mapDragHandle} />
-
+                      
                       <View style={styles.destHeader}>
                         <Text style={styles.destIcon}>🩺</Text>
                         <View>
@@ -461,93 +449,38 @@ export default function App() {
                   keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
                   style={styles.chatView}
                 >
-                  {/* Perplexity Style Header */}
-                  <View style={styles.perplexityHeader}>
-                    <View style={styles.perplexityHeaderLeft}>
-                      <TouchableOpacity 
-                        style={styles.profileHeaderBtn} 
-                        onPress={() => navigateToScreen('profile')}
-                        activeOpacity={0.7}
-                      >
-                        <Image source={{ uri: userAvatarUrl }} style={styles.topProfileAvatar} />
-                      </TouchableOpacity>
-                      <View style={styles.logoContainer}>
-                        <Text style={styles.logoIcon}>❖</Text>
-                        <Text style={styles.logoText}>m.a.s.h</Text>
+                  <FlatList
+                    ref={chatListRef}
+                    data={messages}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.chatListContent}
+                    renderItem={({ item }) => (
+                      <ChatBubble message={item}>
+                        {!!item.cardType && renderCardContent(item.cardType, item.cardData)}
+                      </ChatBubble>
+                    )}
+                  />
+
+                  <View style={styles.chatInputWrapper}>
+                    <View style={styles.glassPanel}>
+                      <View style={styles.inputSearchIconBox}>
+                        <Text style={styles.searchIcon}>{SEARCH_ICON}</Text>
                       </View>
-                    </View>
-                  </View>
-
-                  {messages.length === 0 ? (
-                    /* Perplexity Style Welcome Screen */
-                    <View style={styles.perplexityWelcomeContainer}>
-                      <Text style={styles.perplexityWelcomeTitle}>M.A.S.H</Text>
-                      <Text style={styles.perplexityWelcomeSubtitle}>
-                        Ask anything about your health...
-                      </Text>
-                    </View>
-                  ) : (
-                    /* Standard FlatList for Chat Thread */
-                    <FlatList
-                      ref={chatListRef}
-                      data={messages}
-                      keyExtractor={(item) => item.id}
-                      contentContainerStyle={styles.chatListContent}
-                      renderItem={({ item }) => (
-                        <ChatBubble message={item}>
-                          {!!item.cardType && renderCardContent(item.cardType, item.cardData)}
-                        </ChatBubble>
-                      )}
-                    />
-                  )}
-
-                  <View style={styles.perplexityInputWrapper}>
-                    <View style={styles.perplexityInputCard}>
                       <TextInput
-                        style={styles.perplexityTextInput}
+                        style={styles.floatingTextInput}
                         placeholder="Ask anything about your health..."
-                        placeholderTextColor={isDarkMode ? "rgba(148, 163, 184, 0.5)" : "rgba(113, 119, 134, 0.5)"}
+                        placeholderTextColor="rgba(164, 176, 190, 0.4)"
                         value={inputText}
                         onChangeText={setInputText}
                         onSubmitEditing={handleTextInputSend}
-                        multiline={true}
                       />
-
-                      <View style={styles.perplexityActionRow}>
-                        {/* Left action buttons */}
-                        <View style={styles.perplexityLeftActions}>
-                          <TouchableOpacity style={styles.actionCircleBtn} activeOpacity={0.7}>
-                            <Text style={styles.actionCircleText}>+</Text>
-                          </TouchableOpacity>
-
-
-                          <TouchableOpacity style={styles.copilotPillBtn} activeOpacity={0.7}>
-                            <Text style={styles.copilotIcon}>✦</Text>
-                            <Text style={styles.copilotText}>Focus</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Right action buttons */}
-                        <View style={styles.perplexityRightActions}>
-                          <TouchableOpacity style={styles.micIconBtn} onPress={handleOrbPress} activeOpacity={0.7}>
-                            <Text style={styles.micIconText}>🎤</Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.sendIconBtn,
-                              inputText.trim().length > 0 ? styles.sendIconBtnActive : styles.sendIconBtnInactive
-                            ]}
-                            onPress={handleTextInputSend}
-                            activeOpacity={0.7}
-                            disabled={inputText.trim().length === 0}
-                          >
-                            <Text style={[
-                              styles.sendIconText,
-                              inputText.trim().length > 0 ? styles.sendIconTextActive : styles.sendIconTextInactive
-                            ]}>➔</Text>
-                          </TouchableOpacity>
-                        </View>
+                      <View style={styles.inputActionRow}>
+                        <TouchableOpacity style={styles.inputMicBtn} onPress={handleOrbPress} activeOpacity={0.7}>
+                          <Text style={styles.inputMicBtnText}>{MIC_ICON}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.inputSendBtn} onPress={handleTextInputSend} activeOpacity={0.7}>
+                          <Text style={styles.inputSendBtnText}>{SEND_ICON}</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -565,7 +498,7 @@ export default function App() {
                       <Text style={styles.subpageBackIcon}>{BACK_ICON} Back to Chat</Text>
                     </TouchableOpacity>
                   </View>
-
+                  
                   <AppointmentConfirmation
                     appointment={selectedAppointment || DEFAULT_APPOINTMENT}
                     onGetDirections={() => {
@@ -631,9 +564,77 @@ export default function App() {
           )}
         </View>
 
-        {/* Global Bottom Tab Navigation */}
-        <View style={styles.bottomTabBar}>
-          {/* Home */}
+      {/* Global Bottom Tab Navigation */}
+      <View style={styles.bottomTabBar}>
+        {/* Home */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('home')}
+          activeOpacity={0.8}
+        >
+          {screen === 'home' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{HOME_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Home</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{HOME_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Home</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Chat */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('chat', 'chat_list')}
+          activeOpacity={0.8}
+        >
+          {screen === 'chat' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{CHAT_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Chat</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{CHAT_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Chat</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Profile */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigateToScreen('profile')}
+          activeOpacity={0.8}
+        >
+          {screen === 'profile' ? (
+            <View style={styles.activeTabCapsule}>
+              <Text style={styles.tabIconActive}>{PROFILE_ICON}</Text>
+              <Text style={styles.tabLabelActive}>Profile</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabContainer}>
+              <Text style={styles.tabIconInactive}>{PROFILE_ICON}</Text>
+              <Text style={styles.tabLabelInactive}>Profile</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Immersive Fullscreen Voice Mode Overlay Modal */}
+      <Modal
+        visible={isVoiceOverlayVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={handleCloseVoiceOverlay}
+      >
+        <LinearGradient
+          colors={['#001a1d', '#000f11']}
+          style={styles.overlayContainer}
+        >
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => navigateToScreen('home')}
@@ -712,18 +713,10 @@ export default function App() {
                 <EqualizerBar delay={100} />
                 <EqualizerBar delay={200} />
               </View>
-
-              {/* Live voice transcription */}
-              {currentTranscription !== '' && (
-                <View style={styles.overlayTranscriptionCard}>
-                  <Text style={styles.overlayTranscriptionText}>
-                    "{currentTranscription}"
-                  </Text>
-                </View>
-              )}
-            </View>
-          </LinearGradient>
-        </Modal>
+            )}
+          </View>
+        </LinearGradient>
+      </Modal>
       </SafeAreaView>
     </View>
   );
@@ -732,73 +725,6 @@ export default function App() {
 const styles = Theme.createStyleSheet(() => ({
   container: {
     flex: 1,
-  },
-  floatingThemeToggle: {
-    position: 'absolute',
-    top: 48,
-    right: 24,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    borderWidth: 1,
-    borderColor: Theme.colors.outlineVariant,
-  },
-  headerThemeToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Theme.colors.outlineVariant,
-  },
-  themeToggleText: {
-    fontSize: 16,
-  },
-  floatingProfileBtn: {
-    position: 'absolute',
-    top: 48,
-    left: 24,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    borderWidth: 1,
-    borderColor: Theme.colors.outlineVariant,
-  },
-  floatingProfileAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-  },
-  profileHeaderBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Theme.colors.outlineVariant,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topProfileAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-  },
-  backButtonIconText: {
-    color: Theme.colors.onSurface,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: -2,
   },
   header: {
     paddingHorizontal: Theme.spacing.containerPadding,
@@ -1097,22 +1023,10 @@ const styles = Theme.createStyleSheet(() => ({
     fontFamily: Theme.typography.fontFamilySemiBold,
     fontSize: 13,
   },
-  perplexityHeader: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
-    marginTop: Platform.OS === 'android' ? 30 : 0,
-  },
-  perplexityHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  hamburgerBtn: {
+  // Floating Input Console Style (Applied Light Pink Theme)
+  glassPanel: {
+    backgroundColor: '#ffffff', // Solid white input container
+    borderRadius: 28,
     padding: 4,
   },
   hamburgerIcon: {
@@ -1122,57 +1036,13 @@ const styles = Theme.createStyleSheet(() => ({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  logoIcon: {
-    fontSize: 18,
-    color: Theme.colors.secondary,
-  },
-  logoText: {
-    fontFamily: Theme.typography.fontFamilyBold,
-    fontSize: 18,
-    color: Theme.colors.onSurface,
-    letterSpacing: -0.5,
-  },
-  perplexityWelcomeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 60,
-  },
-  perplexityWelcomeTitle: {
-    fontFamily: Theme.typography.fontFamilyBold,
-    fontSize: 28,
-    color: Theme.colors.onSurface,
-    textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: -0.5,
-  },
-  perplexityWelcomeSubtitle: {
-    fontFamily: Theme.typography.fontFamilyMedium,
-    fontSize: 14,
-    color: Theme.colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 22,
-    opacity: 0.8,
-  },
-  perplexityInputWrapper: {
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
-    backgroundColor: 'transparent',
-  },
-  perplexityInputCard: {
-    backgroundColor: Theme.colors.surfaceElevated,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Theme.colors.outlineVariant,
-    padding: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
+    shadowColor: Theme.colors.shadowColor, // Soft blue-cyan glow tint
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: Theme.colors.outlineVariant, // Light blue-gray border
   },
   perplexityTextInput: {
     fontFamily: Theme.typography.fontFamily,
@@ -1289,18 +1159,12 @@ const styles = Theme.createStyleSheet(() => ({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  sendIconTextActive: {
-    color: '#ffffff',
-  },
-  sendIconTextInactive: {
-    color: Theme.colors.onSurfaceVariant,
-  },
   // Bottom Tab Navigation Bar (Light Theme with active capsule highlights)
   bottomTabBar: {
     height: 72,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: Theme.colors.outlineVariant,
+    borderTopColor: '#eceef0',
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
