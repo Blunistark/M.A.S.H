@@ -305,7 +305,7 @@ export default function App() {
   }
 
   // Alex Mercer user avatar image from design spec
-  const userAvatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuA4dV8furgxt6lfQHMCGAKgfsHz-ruAhxrax0kqrHBE207XdXcd9g96NFbpK_CGRBZt1lo40a-V9VJU7nwVKC1VRlu2GgzlzyUzZlAjWNWEq76TFjuIxLt8ukfmTLzMAFk7uhr4ElENTlfi5BEDI_EDww18ne9K2BEJVY61iF79IqXAJrQIlW0BbEuc1tEcwU8uiLYPYlkzziRfwy31hMGGv2lLAae4RFXjzmYVbSiCoPLkF_JDK7N8YmV-wpYTnlqnp-E3T-KKfiqA';
+  const userAvatarUrl = 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
 
   return (
     <View style={[styles.container, { backgroundColor: Theme.colors.background }]}>
@@ -319,6 +319,27 @@ export default function App() {
             activeOpacity={0.7}
           >
             <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Global Floating Profile/Back Button on Home and Profile screens */}
+        {(screen === 'home' || screen === 'profile') && (
+          <TouchableOpacity
+            style={styles.floatingProfileBtn}
+            onPress={() => {
+              if (screen === 'profile') {
+                navigateToScreen('home');
+              } else {
+                navigateToScreen('profile');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            {screen === 'profile' ? (
+              <Text style={styles.backButtonIconText}>←</Text>
+            ) : (
+              <Image source={{ uri: userAvatarUrl }} style={styles.floatingProfileAvatar} />
+            )}
           </TouchableOpacity>
         )}
 
@@ -443,8 +464,12 @@ export default function App() {
                   {/* Perplexity Style Header */}
                   <View style={styles.perplexityHeader}>
                     <View style={styles.perplexityHeaderLeft}>
-                      <TouchableOpacity style={styles.hamburgerBtn} activeOpacity={0.7}>
-                        <Text style={styles.hamburgerIcon}>☰</Text>
+                      <TouchableOpacity 
+                        style={styles.profileHeaderBtn} 
+                        onPress={() => navigateToScreen('profile')}
+                        activeOpacity={0.7}
+                      >
+                        <Image source={{ uri: userAvatarUrl }} style={styles.topProfileAvatar} />
                       </TouchableOpacity>
                       <View style={styles.logoContainer}>
                         <Text style={styles.logoIcon}>❖</Text>
@@ -645,25 +670,6 @@ export default function App() {
               </View>
             )}
           </TouchableOpacity>
-
-          {/* Profile */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => navigateToScreen('profile')}
-            activeOpacity={0.8}
-          >
-            {screen === 'profile' ? (
-              <View style={styles.activeTabCapsule}>
-                <Text style={styles.tabIconActive}>{PROFILE_ICON}</Text>
-                <Text style={styles.tabLabelActive}>Profile</Text>
-              </View>
-            ) : (
-              <View style={styles.inactiveTabContainer}>
-                <Text style={styles.tabIconInactive}>{PROFILE_ICON}</Text>
-                <Text style={styles.tabLabelInactive}>Profile</Text>
-              </View>
-            )}
-          </TouchableOpacity>
         </View>
 
         {/* Immersive Fullscreen Voice Mode Overlay Modal */}
@@ -753,6 +759,46 @@ const styles = Theme.createStyleSheet(() => ({
   },
   themeToggleText: {
     fontSize: 16,
+  },
+  floatingProfileBtn: {
+    position: 'absolute',
+    top: 48,
+    left: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Theme.colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    borderWidth: 1,
+    borderColor: Theme.colors.outlineVariant,
+  },
+  floatingProfileAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  profileHeaderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Theme.colors.outlineVariant,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topProfileAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  backButtonIconText: {
+    color: Theme.colors.onSurface,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: -2,
   },
   header: {
     paddingHorizontal: Theme.spacing.containerPadding,
