@@ -149,3 +149,14 @@ export async function updateAppointment(id: string, payload: { scheduled_time: s
     body: JSON.stringify(payload)
   });
 }
+
+export async function askDoctorAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<string> {
+  const data = await fetchJson<{ reply: string }>(`${API_BASE}/doctor-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message, history })
+  });
+  return data.reply;
+}

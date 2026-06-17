@@ -1,19 +1,45 @@
 import { supabase } from './supabase';
-import { mockPatients, type Patient, type DashboardMetrics, initialMetrics } from './mockData';
+import type { DashboardMetrics } from './types';
+
+export interface Patient {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  dob: string;
+  age: number;
+  gender: string;
+  bloodType: string;
+  photo: string;
+  initials: string;
+  address: string;
+  time?: string;
+  status?: 'Waiting' | 'In Progress' | 'Done';
+  vitals?: {
+    bloodPressure: string;
+    heartRate: number;
+    weight: number;
+    temperature: number;
+    spo2: number;
+  };
+  allergies?: { trigger: string; reaction: string }[];
+  chronicConditions?: string[];
+  pastTests?: { name: string; date: string; result: string }[];
+  surgicalHistory?: { procedure: string; date: string; outcome: string }[];
+  medications?: { name: string; dosage: string; active: boolean }[];
+  careTeam?: { name: string; role: string; avatar: string; active: boolean }[];
+}
 
 // Local caches
-export let patientsCache: Patient[] = [...mockPatients];
-export let inventoryCache: { id: string; medicine_name: string; current_stock: number }[] = [
-  { id: '9f9d7df9-7be8-466d-9642-882200110001', medicine_name: 'Amoxicillin 500mg Capsule', current_stock: 120 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110002', medicine_name: 'Lisinopril 10mg Tablet', current_stock: 0 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110003', medicine_name: 'Atorvastatin 20mg Tablet', current_stock: 85 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110004', medicine_name: 'Metformin 500mg Tablet', current_stock: 150 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110005', medicine_name: 'Albuterol HFA', current_stock: 40 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110006', medicine_name: 'Omeprazole 20mg Capsule', current_stock: 65 },
-  { id: '9f9d7df9-7be8-466d-9642-882200110007', medicine_name: 'Levothyroxine 75mcg Tablet', current_stock: 95 }
-];
-
-export let metricsCache: DashboardMetrics = { ...initialMetrics };
+export let patientsCache: Patient[] = [];
+export let inventoryCache: { id: string; medicine_name: string; current_stock: number }[] = [];
+export let metricsCache: DashboardMetrics = {
+  todayAppointmentsCount: 0,
+  remainingAppointmentsCount: 0,
+  pendingReschedulesCount: 0,
+  notificationsCount: 0,
+  stockAlertsCount: 0
+};
 
 // Flag to track if we are using the live Supabase database or falling back to mock data
 export let isUsingSupabase = false;
@@ -188,10 +214,16 @@ export async function loadData(): Promise<boolean> {
     console.info('Successfully loaded all data from Supabase!');
     return true;
   } catch (err) {
-    console.error('Failed to load data from Supabase. Falling back to local mock data.', err);
+    console.error('Failed to load data from Supabase.', err);
     isUsingSupabase = false;
-    patientsCache = [...mockPatients];
-    metricsCache = { ...initialMetrics };
+    patientsCache = [];
+    metricsCache = {
+      todayAppointmentsCount: 0,
+      remainingAppointmentsCount: 0,
+      pendingReschedulesCount: 0,
+      notificationsCount: 0,
+      stockAlertsCount: 0
+    };
     return false;
   }
 }

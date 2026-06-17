@@ -1,11 +1,11 @@
 from typing import Dict, Any
-from src.band_config import HealthcareOrchestrationRoom, ReceptionNavigationRoom, BandSDK
+from src.band_config import PatientManagementRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
 
 class PatientNavigationAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("PatientNavigationAgent")
-        HealthcareOrchestrationRoom.join(self.agent)
+        PatientManagementRoom.join(self.agent)
         ReceptionNavigationRoom.join(self.agent)
         self.doctor_locations: Dict[str, Dict[str, str]] = {
             "doc-1": {"room": "Room 302", "floor": "3rd Floor"}, # Dr. Smith
@@ -31,7 +31,7 @@ class PatientNavigationAgent:
 
             directions = self._get_directions(doctor_id, current_location)
 
-            HealthcareOrchestrationRoom.broadcast("NAVIGATION_DIRECTIONS", {
+            PatientManagementRoom.broadcast("NAVIGATION_DIRECTIONS", {
                 "patientId": patient_id,
                 "doctorId": doctor_id,
                 "directions": directions

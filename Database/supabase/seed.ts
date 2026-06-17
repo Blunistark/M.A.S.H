@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { randomUUID } from 'crypto';
 
 const DOCTOR_ID = 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
 
@@ -1360,7 +1361,7 @@ const MEDICINES = [
 async function seed() {
   console.log('Cleaning up existing data...');
   
-  // Wipe prescription items, prescriptions, medical records, appointments, doctor details, profiles, medicine inventory
+  // Wipe child records first, then parent records
   await supabase.from('prescription_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('prescriptions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('medical_records').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -1369,179 +1370,288 @@ async function seed() {
   await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('medicine_inventory').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
-  console.log('Inserting doctor profile...');
-  const { error: docProfileErr } = await supabase.from('profiles').insert({
-    id: DOCTOR_ID,
-    full_name: 'Dr. Smith',
+  console.log('Inserting medicine inventory...');
+  const medicineInserts = MEDICINES.map(med => ({
+    id: med.id,
+    medicine_name: med.name,
+    current_stock: med.stock,
+    reorder_threshold: 10,
+    repeatedly_used: true
+  }));
+  const { error: medErr } = await supabase.from('medicine_inventory').insert(medicineInserts);
+  if (medErr) throw medErr;
+
+  console.log('Generating 20 doctor records...');
+  const profiles: any[] = [];
+  const doctorDetails: any[] = [];
+  const doctorIds: string[] = [];
+
+  // Hardcoded doctor to avoid frontend UI constraint issues
+  const primaryDocId = '22222222-2222-2222-2222-222222222222';
+  doctorIds.push(primaryDocId);
+  profiles.push({
+    id: primaryDocId,
+    full_name: 'Dr. Anita Desai',
     role: 'doctor',
     contact_number: '(555) 019-2834'
   });
-  if (docProfileErr) throw docProfileErr;
-
-  const { error: docDetailErr } = await supabase.from('doctor_details').insert({
-    doctor_id: DOCTOR_ID,
-    specialty: 'Cardiologist',
-    room_number: 'Room 4B',
+  doctorDetails.push({
+    doctor_id: primaryDocId,
+    specialty: 'Cardiology',
+    room_number: 'Wing B, Room 402',
     is_available: true
   });
-  if (docDetailErr) throw docDetailErr;
 
-  console.log('Inserting medicine inventory...');
-  for (const med of MEDICINES) {
-    const { error } = await supabase.from('medicine_inventory').insert({
-      id: med.id,
-      medicine_name: med.name,
-      current_stock: med.stock,
-      reorder_threshold: 10,
-      repeatedly_used: true
+  // Generate 19 more doctors
+  for (let i = 1; i < 20; i++) {
+    const isFemale = Math.random() > 0.5;
+    const fName = getRandomElement(isFemale ? FIRST_NAMES_FEMALE : FIRST_NAMES_MALE);
+    const lName = getRandomElement(LAST_NAMES);
+    const docId = randomUUID();
+    doctorIds.push(docId);
+    
+    profiles.push({
+      id: docId,
+      full_name: `Dr. ${fName} ${lName}`,
+      role: 'doctor',
+      contact_number: `(555) ${getRandomInt(100, 999)}-${getRandomInt(1000, 9999)}`
     });
-    if (error) throw error;
+
+    doctorDetails.push({
+      doctor_id: docId,
+      specialty: SPECIALTIES[i % SPECIALTIES.length],
+      room_number: `Building ${getRandomElement(['A', 'B', 'C'])}, Room ${getRandomInt(100, 500)}`,
+      is_available: Math.random() > 0.15
+    });
   }
 
-  console.log('Inserting patients and medical records...');
-  for (const p of PATIENTS) {
-    // 1. Insert Profile
-    const { error: pErr } = await supabase.from('profiles').insert({
-      id: p.id,
-      full_name: p.name,
-      role: 'patient',
-      contact_number: p.phone
-    });
-    if (pErr) throw pErr;
+  console.log('Generating 90 patient records...');
+  const patientIds: string[] = [];
+  const patientNames: string[] = [];
+  const patientPhones: string[] = [];
 
-    // 2. Insert Demographics Record
-    const { error: demoErr } = await supabase.from('medical_records').insert({
-      patient_id: p.id,
-      doctor_id: DOCTOR_ID,
+  for (let i = 0; i < 90; i++) {
+    const isFemale = Math.random() > 0.5;
+    const fName = getRandomElement(isFemale ? FIRST_NAMES_FEMALE : FIRST_NAMES_MALE);
+    const lName = getRandomElement(LAST_NAMES);
+    const pId = randomUUID();
+    const phone = `(555) ${getRandomInt(100, 999)}-${getRandomInt(1000, 9999)}`;
+    const fullName = `${fName} ${lName}`;
+
+    patientIds.push(pId);
+    patientNames.push(fullName);
+    patientPhones.push(phone);
+
+    profiles.push({
+      id: pId,
+      full_name: fullName,
+      role: 'patient',
+      contact_number: phone
+    });
+  }
+
+  // Bulk insert all profiles (doctors & patients)
+  console.log(`Inserting ${profiles.length} profiles into DB...`);
+  const { error: profsErr } = await supabase.from('profiles').insert(profiles);
+  if (profsErr) throw profsErr;
+
+  // Bulk insert doctor details
+  console.log(`Inserting ${doctorDetails.length} doctor details into DB...`);
+  const { error: docsErr } = await supabase.from('doctor_details').insert(doctorDetails);
+  if (docsErr) throw docsErr;
+
+  console.log('Generating medical records, appointments, and prescriptions...');
+  const medicalRecords: any[] = [];
+  const appointments: any[] = [];
+  const prescriptions: any[] = [];
+  const prescriptionItems: any[] = [];
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  for (let i = 0; i < 90; i++) {
+    const pId = patientIds[i];
+    const fullName = patientNames[i];
+    const phone = patientPhones[i];
+    const assocDocId = getRandomElement(doctorIds); // Assign a primary doctor for this patient's records
+
+    const gender = Math.random() > 0.5 ? 'Female' : 'Male';
+    const age = getRandomInt(18, 85);
+    const birthYear = new Date().getFullYear() - age;
+    const dob = `${getRandomInt(1, 12).toString().padStart(2, '0')}/${getRandomInt(1, 28).toString().padStart(2, '0')}/${birthYear}`;
+    const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase();
+    const email = `${fullName.toLowerCase().replace(/\s+/g, '.')}@email.com`;
+    const bloodType = getRandomElement(BLOOD_TYPES);
+    const address = `${getRandomInt(100, 999)} ${getRandomElement(['Maple St', 'Oak Ave', 'Pine Rd', 'Elm St', 'Birch Blvd'])}, New York, NY`;
+    const photo = getRandomPhoto(gender);
+
+    // 1. Demographics Record
+    medicalRecords.push({
+      patient_id: pId,
+      doctor_id: assocDocId,
       record_type: 'demographics',
       description: JSON.stringify({
-        dob: p.dob,
-        gender: p.gender,
-        bloodType: p.bloodType,
-        photo: p.photo,
-        age: p.age,
-        address: p.address,
-        email: p.email,
-        initials: p.initials
+        dob,
+        gender,
+        bloodType,
+        photo,
+        age,
+        address,
+        email,
+        initials
       }),
-      record_date: new Date().toISOString().split('T')[0]
+      record_date: todayStr
     });
-    if (demoErr) throw demoErr;
 
-    // 3. Insert Vitals Record
-    const { error: vitalsErr } = await supabase.from('medical_records').insert({
-      patient_id: p.id,
-      doctor_id: DOCTOR_ID,
+    // 2. Vitals Record
+    const bpSystolic = getRandomInt(110, 138);
+    const bpDiastolic = getRandomInt(68, 88);
+    const hr = getRandomInt(60, 92);
+    const weight = getRandomInt(110, 230);
+    medicalRecords.push({
+      patient_id: pId,
+      doctor_id: assocDocId,
       record_type: 'vitals',
-      description: JSON.stringify(p.vitals),
-      record_date: new Date().toISOString().split('T')[0]
+      description: JSON.stringify({
+        bp: `${bpSystolic}/${bpDiastolic}`,
+        hr: `${hr} bpm`,
+        weight: `${weight} lbs`
+      }),
+      record_date: todayStr
     });
-    if (vitalsErr) throw vitalsErr;
 
-    // 4. Insert Allergies
-    for (const allergy of p.allergies) {
-      const { error } = await supabase.from('medical_records').insert({
-        patient_id: p.id,
-        doctor_id: DOCTOR_ID,
-        record_type: 'allergy',
-        description: JSON.stringify(allergy),
-        record_date: new Date().toISOString().split('T')[0]
-      });
-      if (error) throw error;
+    // 3. Allergies (0 to 2 per patient)
+    const numAllergies = getRandomInt(0, 2);
+    if (numAllergies > 0) {
+      const selectedAllergies = getRandomElements(ALLERGIES_LIST, numAllergies);
+      for (const allergy of selectedAllergies) {
+        medicalRecords.push({
+          patient_id: pId,
+          doctor_id: assocDocId,
+          record_type: 'allergy',
+          description: JSON.stringify(allergy),
+          record_date: todayStr
+        });
+      }
     }
 
-    // 5. Insert Chronic Conditions
-    for (const cond of p.chronicConditions) {
-      const { error } = await supabase.from('medical_records').insert({
-        patient_id: p.id,
-        doctor_id: DOCTOR_ID,
-        record_type: 'chronic_condition',
-        description: cond,
-        record_date: new Date().toISOString().split('T')[0]
-      });
-      if (error) throw error;
+    // 4. Chronic Conditions (0 to 2 per patient)
+    const numConditions = getRandomInt(0, 2);
+    if (numConditions > 0) {
+      const selectedConditions = getRandomElements(CHRONIC_CONDITIONS_LIST, numConditions);
+      for (const cond of selectedConditions) {
+        medicalRecords.push({
+          patient_id: pId,
+          doctor_id: assocDocId,
+          record_type: 'chronic_condition',
+          description: cond,
+          record_date: todayStr
+        });
+      }
     }
 
-    // 6. Insert Past Tests
-    for (const test of p.pastTests) {
-      const { error } = await supabase.from('medical_records').insert({
-        patient_id: p.id,
-        doctor_id: DOCTOR_ID,
+    // 5. Past Tests (1 to 3 per patient)
+    const numTests = getRandomInt(1, 3);
+    const selectedTests = getRandomElements(TESTS_LIST, numTests);
+    const testDates = ['Oct 12, 2025', 'Nov 02, 2025', 'Dec 15, 2025', 'Jan 05, 2026', 'Feb 14, 2026', 'Mar 20, 2026'];
+    for (let t = 0; t < selectedTests.length; t++) {
+      const test = selectedTests[t];
+      medicalRecords.push({
+        patient_id: pId,
+        doctor_id: assocDocId,
         record_type: 'test_result',
-        description: JSON.stringify(test),
-        record_date: new Date().toISOString().split('T')[0]
+        description: JSON.stringify({
+          date: testDates[t % testDates.length],
+          name: test.name,
+          result: test.result,
+          resultClass: test.resultClass
+        }),
+        record_date: todayStr
       });
-      if (error) throw error;
     }
 
-    // 7. Insert Surgical History
-    for (const surg of p.surgicalHistory) {
-      const { error } = await supabase.from('medical_records').insert({
-        patient_id: p.id,
-        doctor_id: DOCTOR_ID,
+    // 6. Surgical History (0 to 1 per patient)
+    if (Math.random() > 0.6) {
+      const surgery = getRandomElement(SURGERIES_LIST);
+      const surgeryYear = getRandomInt(2010, 2025);
+      const surgeryMonths = ['Jan', 'Mar', 'Jun', 'Aug', 'Nov'];
+      medicalRecords.push({
+        patient_id: pId,
+        doctor_id: assocDocId,
         record_type: 'surgical_history',
-        description: JSON.stringify(surg),
-        record_date: new Date().toISOString().split('T')[0]
+        description: JSON.stringify({
+          name: surgery.name,
+          date: `${getRandomElement(surgeryMonths)} ${surgeryYear}`,
+          description: surgery.description,
+          checked: Math.random() > 0.5
+        }),
+        record_date: todayStr
       });
-      if (error) throw error;
     }
 
-    // 8. Insert Appointment if scheduled
-    if (p.time) {
-      const time24 = formatTimeTo24(p.time);
-      const scheduledTime = `2026-06-14T${time24}:00.000Z`;
-      
-      const { error: apptErr } = await supabase.from('appointments').insert({
-        patient_id: p.id,
-        doctor_id: DOCTOR_ID,
-        scheduled_time: scheduledTime,
-        status: mapStatus(p.status)
+    // 7. Appointment (scheduled on today's date at various times)
+    const apptHour = getRandomInt(8, 17); // 8 AM to 5 PM
+    const apptMin = getRandomElement([0, 15, 30, 45]);
+    const scheduledTime = new Date();
+    scheduledTime.setHours(apptHour, apptMin, 0, 0);
+
+    appointments.push({
+      patient_id: pId,
+      doctor_id: assocDocId,
+      scheduled_time: scheduledTime.toISOString(),
+      status: getRandomElement(STATUS_LIST)
+    });
+
+    // 8. Prescription (50% chance of prescription)
+    if (Math.random() > 0.5) {
+      const rxId = randomUUID();
+      prescriptions.push({
+        id: rxId,
+        patient_id: pId,
+        doctor_id: assocDocId,
+        status: getRandomElement(RX_STATUS_LIST),
+        doctor_comments: 'Patient to follow up in 2 weeks.'
       });
-      if (apptErr) throw apptErr;
+
+      // Prescription items (1 to 2 items)
+      const numItems = getRandomInt(1, 2);
+      const selectedMeds = getRandomElements(MEDICINES, numItems);
+      for (const med of selectedMeds) {
+        prescriptionItems.push({
+          prescription_id: rxId,
+          medicine_id: med.id,
+          dosage: getRandomElement(DOSAGES),
+          quantity: getRandomInt(10, 90)
+        });
+      }
     }
   }
 
-  // Create default prescription for John Doe (Penicillin, Lisinopril, Atorvastatin)
-  console.log('Inserting initial prescriptions...');
-  const johnDoeId = '550e8400-e29b-41d4-a716-446655440000';
-  const rxId = 'd8e3d8f8-8bb8-4e8c-bb01-e22200330001';
-  
-  const { error: rxErr } = await supabase.from('prescriptions').insert({
-    id: rxId,
-    patient_id: johnDoeId,
-    doctor_id: DOCTOR_ID,
-    status: 'active',
-    doctor_comments: 'Take medications as directed.'
-  });
-  if (rxErr) throw rxErr;
-
-  const rxItems = [
-    { prescription_id: rxId, medicine_id: '9f9d7df9-7be8-466d-9642-882200110001', dosage: '500mg - 1 cap TID', quantity: 30 },
-    { prescription_id: rxId, medicine_id: '9f9d7df9-7be8-466d-9642-882200110002', dosage: '10mg - 1 tab QD', quantity: 30 },
-    { prescription_id: rxId, medicine_id: '9f9d7df9-7be8-466d-9642-882200110003', dosage: '20mg - 1 tab QHS', quantity: 90 }
-  ];
-
-  for (const item of rxItems) {
-    const { error } = await supabase.from('prescription_items').insert(item);
-    if (error) throw error;
+  // Bulk insert medical records (chunks of 100 to avoid limits)
+  console.log(`Inserting ${medicalRecords.length} medical records...`);
+  for (let k = 0; k < medicalRecords.length; k += 100) {
+    const chunk = medicalRecords.slice(k, k + 100);
+    const { error: mrErr } = await supabase.from('medical_records').insert(chunk);
+    if (mrErr) throw mrErr;
   }
 
-  console.log('Seeding completed successfully!');
-}
+  // Bulk insert appointments
+  console.log(`Inserting ${appointments.length} appointments...`);
+  const { error: apptErr } = await supabase.from('appointments').insert(appointments);
+  if (apptErr) throw apptErr;
 
-function formatTimeTo24(timeStr: string): string {
-  const [time, modifier] = timeStr.split(' ');
-  let [hours, minutes] = time.split(':');
-  if (hours === '12') {
-    hours = '00';
+  // Bulk insert prescriptions
+  if (prescriptions.length > 0) {
+    console.log(`Inserting ${prescriptions.length} prescriptions...`);
+    const { error: rxErr } = await supabase.from('prescriptions').insert(prescriptions);
+    if (rxErr) throw rxErr;
   }
-  if (modifier === 'PM') {
-    hours = (parseInt(hours, 10) + 12).toString().padStart(2, '0');
-  } else {
-    hours = hours.padStart(2, '0');
+
+  // Bulk insert prescription items
+  if (prescriptionItems.length > 0) {
+    console.log(`Inserting ${prescriptionItems.length} prescription items...`);
+    const { error: rxItemsErr } = await supabase.from('prescription_items').insert(prescriptionItems);
+    if (rxItemsErr) throw rxItemsErr;
   }
-  return `${hours}:${minutes}`;
-}
 
 function mapStatus(status?: string): string {
   if (status === 'In Progress') return 'in_progress';

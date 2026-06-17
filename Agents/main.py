@@ -6,11 +6,13 @@ from dotenv import load_dotenv
 # Configure logging to see band-sdk execution details
 logging.basicConfig(level=logging.INFO)
 from src import (
-    HealthcareOrchestrationRoom,
+    PatientManagementRoom,
+    DoctorDashboardRoom,
     ReceptionNavigationRoom,
     ClinicalConsultRoom,
     PharmacyInventoryRoom,
     TelemetryAuditRoom,
+    PharmacistDashboardRoom,
     SummaryAgent,
     MedicineManagementAgent,
     StockManagementAgent,
@@ -18,6 +20,8 @@ from src import (
     PatientManagementAgent,
     PatientNavigationAgent,
     TelemetryAgent,
+    DoctorAssistantAgent,
+    PharmacistAgent,
 )
 
 
@@ -55,10 +59,12 @@ async def main():
     registration_agent = RegistrationAgent()
     patient_management_agent = PatientManagementAgent()
     patient_navigation_agent = PatientNavigationAgent()
+    doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
+    pharmacist_agent = PharmacistAgent()
 
 
     # Log simulation events for visibility
-    original_broadcast = HealthcareOrchestrationRoom.broadcast
+    original_broadcast = PatientManagementRoom.broadcast
 
     def wrapped_broadcast(event: str, payload: dict):
         if event == 'REORDER_SUGGESTION':
@@ -81,7 +87,7 @@ async def main():
         
         return original_broadcast(event, payload)
 
-    HealthcareOrchestrationRoom.broadcast = wrapped_broadcast
+    PatientManagementRoom.broadcast = wrapped_broadcast
 
     # Log simulation events for Reception-Navigation-Room
     original_reception_broadcast = ReceptionNavigationRoom.broadcast
@@ -129,6 +135,28 @@ async def main():
 
     PharmacyInventoryRoom.broadcast = wrapped_pharmacy_broadcast
 
+    # Log simulation events for Pharmacist-Dashboard-Room
+    original_pharmacist_broadcast = PharmacistDashboardRoom.broadcast
+
+    def wrapped_pharmacist_broadcast(event: str, payload: dict):
+        if event == 'PREPARE_MEDICINE':
+            print(f"[PHARMACIST DASHBOARD] Notification: New prescription order arrived. Please prepare medicine '{payload['prescription']['medicine']}' for patient '{payload['patientId']}'.")
+        elif event == 'STOCK_DEMAND_ALERT':
+            print(f"[PHARMACIST DASHBOARD] Alert: {payload['reason']}")
+        return original_pharmacist_broadcast(event, payload)
+
+    PharmacistDashboardRoom.broadcast = wrapped_pharmacist_broadcast
+
+    # Log simulation events for Doctor-Dashboard-Room
+    original_doctor_broadcast = DoctorDashboardRoom.broadcast
+
+    def wrapped_doctor_broadcast(event: str, payload: dict):
+        if event == 'ALTERNATIVE_MEDICINE_REQUESTED':
+            print(f"[DOCTOR DASHBOARD] Prescription Alert: Medicine '{payload['medicine']}' is OUT OF STOCK for patient '{payload['patientId']}'. Suggest alternative or comments.")
+        return original_doctor_broadcast(event, payload)
+
+    DoctorDashboardRoom.broadcast = wrapped_doctor_broadcast
+
     # Log simulation events for Telemetry-Audit-Room
     original_audit_broadcast = TelemetryAuditRoom.broadcast
 
@@ -157,6 +185,7 @@ async def main():
     med_in_stock = "Amoxicillin 500mg Capsule" if use_real_band else "Ibuprofen 400mg"
     med_out_of_stock = "Lisinopril 10mg Tablet" if use_real_band else "Rare-Antibiotic 500mg"
     doctor_id = "22222222-2222-2222-2222-222222222222" if use_real_band else "doc-1"
+    HealthcareOrchestrationRoom = PatientManagementRoom  # alias for simulation
     doctor_name = "Dr. Anita Desai" if use_real_band else "Dr. Smith"
 
     # 1. Patient data arrives, trigger summary
