@@ -64,7 +64,36 @@ export const DarkColors = {
 const stylesheetRegistry: { update: (colors: typeof LightColors) => void }[] = [];
 
 export const Theme = {
-  colors: LightColors,
+  colors: {
+    // Clinical Intelligence Redesign: Light Medical System
+    background: '#f7f9fb',        // Slate-tinted clinical background
+    surface: '#ffffff',           // Pure white card surfaces
+    surfaceElevated: '#f2f4f6',   // Slightly elevated gray surfaces
+    primary: '#0058bc',           // Professional medical blue
+    primaryContainer: '#d8e2ff',  // Soft primary accent tint
+    secondary: '#006b5f',         // Calming medical teal
+    secondaryContainer: '#62fae3', // Vibrant cyan/teal
+    tertiary: '#9e3d00',          // Accent tertiary orange
+    error: '#ba1a1a',             // Warning red
+    errorContainer: '#ffdad6',
+    
+    // Neutrals
+    onSurface: '#191c1e',         // High-contrast slate-charcoal text
+    onSurfaceVariant: '#414755',  // Muted secondary text
+    onBackground: '#191c1e',
+    outline: '#717786',           // Fine border outline
+    outlineVariant: '#c1c6d7',    // Super light line/border
+    
+    // Status colors
+    success: '#006b5f',           // Safe teal
+    warning: '#f1c40f',
+    
+    // Utilities
+    white: '#ffffff',
+    lightGray: '#e6e8ea',         // surface-container-high
+    superLightGray: '#eceef0',    // surface-container
+    shadowColor: '#0ea5e9',       // Soft blue shadow tint
+  },
   
   roundness: {
     sm: 8,                        // Rounded sm (0.5rem)
@@ -174,3 +203,4 @@ export const Theme = {
     }
   }
 };
+

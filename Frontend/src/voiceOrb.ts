@@ -1,0 +1,935 @@
+import { Router } from './router';
+import { fetchProfiles, askDoctorAssistant } from './api';
+import type { Profile } from './types';
+
+export class VoiceOrb {
+  private container: HTMLElement | null = null;
+  private transcriptBubble: HTMLElement | null = null;
+  private confirmBubble: HTMLElement | null = null;
+  private orb: HTMLElement | null = null;
+  private suggestionChips: HTMLElement | null = null;
+  private textBubble: HTMLElement | null = null;
+  private textInput: HTMLInputElement | null = null;
+  private textSubmit: HTMLElement | null = null;
+
+  private router: Router;
+  private recognition: any = null;
+  private isListening = false;
+  private isProcessing = false;
+  private isBackgroundListening = false;
+  private wakeWord = 'hey mash';
+  private currentRoute = 'dashboard';
+  private profilesCache: Profile[] = [];
+  private ttsEnabled = true;
+  private chatHistory: { role: 'user' | 'model'; text: string }[] = [];
+
+  // WebGL Shader variables
+  private canvas: HTMLCanvasElement | null = null;
+  private gl: WebGLRenderingContext | null = null;
+  private targetHover = 0;
+  private currentHover = 0;
+  private currentRot = 0;
+  private lastTime = 0;
+  private targetHue = 0;
+  private currentHue = 0;
+  private timeScale = 1.0;
+  private uniforms: any = {};
+
+  constructor(router: Router) {
+    this.router = router;
+    this.initElements();
+    if (!this.container) return;
+
+    this.initSpeechRecognition();
+    this.bindEvents();
+    this.loadProfiles();
+    this.initWebGL();
+
+    // Listen to route changes
+    window.addEventListener('page-route-changed', (e: any) => {
+      this.currentRoute = e.detail.route;
+      this.loadProfiles();
+      this.hideBubbles();
+      this.updateSuggestionChips(this.currentRoute);
+    });
+
+    // Initial suggestion chips render
+    this.updateSuggestionChips(this.currentRoute);
+  }
+
+  private initElements() {
+    this.container = document.getElementById('mash-voice-agent');
+    if (!this.container) return;
+
+    this.transcriptBubble = this.container.querySelector('.transcript-bubble');
+    this.confirmBubble = this.container.querySelector('.confirm-bubble');
+    this.orb = this.container.querySelector('.mash-voice-orb');
+    this.suggestionChips = document.getElementById('mash-suggestion-chips');
+    this.textBubble = document.getElementById('mash-text-bubble');
+    this.textInput = document.getElementById('mash-text-input') as HTMLInputElement;
+    this.textSubmit = document.getElementById('mash-text-submit');
+  }
+
+  private async loadProfiles() {
+    try {
+      this.profilesCache = await fetchProfiles();
+    } catch (e) {
+      console.warn('Failed to fetch profiles in VoiceOrb:', e);
+    }
+  }
+
+  private initSpeechRecognition() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('Web Speech API is not supported in this browser. Falling back to text command input.');
+      return;
+    }
+
+    try {
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.lang = 'en-US';
+
+      this.recognition.onstart = () => {
+        console.log('Speech recognition started');
+      };
+
+      this.recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const spoken = (finalTranscript || interimTranscript).trim().toLowerCase();
+        
+        if (!this.isListening) {
+          // Listen for wake word in idle state
+          if (spoken.includes(this.wakeWord) || spoken.includes('hey mash') || spoken.includes('hey m.a.s.h') || spoken.includes('hey mesh') || spoken.includes('hey max')) {
+            this.startActiveListening();
+          }
+        } else {
+          // Capturing active command
+          const textToShow = interimTranscript || finalTranscript;
+          this.updateTranscript(textToShow);
+          
+          if (finalTranscript) {
+            this.processCommand(finalTranscript);
+          }
+        }
+      };
+
+      this.recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          this.isBackgroundListening = false;
+        }
+      };
+
+      this.recognition.onend = () => {
+        // Restart background listening if not actively listening/processing
+        if (this.isBackgroundListening && !this.isListening && !this.isProcessing) {
+          try {
+            this.recognition.start();
+          } catch (e) {
+            // Already started
+          }
+        }
+      };
+
+      this.startBackgroundListening();
+    } catch (e) {
+      console.error('Failed to initialize Speech Recognition:', e);
+    }
+  }
+
+  private startBackgroundListening() {
+    if (!this.recognition) return;
+    this.isBackgroundListening = true;
+    try {
+      this.recognition.start();
+    } catch (e) {
+      // Already running
+    }
+  }
+
+  private startActiveListening() {
+    if (this.isListening || this.isProcessing) return;
+    
+    this.isListening = true;
+    this.setState('listening');
+    this.updateTranscript('...');
+    this.hideTextBubble();
+
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch (e) {}
+
+      // Reconfigure for single-shot command
+      this.recognition.continuous = false;
+      this.recognition.interimResults = true;
+
+      this.recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const text = finalTranscript || interimTranscript;
+        this.updateTranscript(text);
+
+        if (finalTranscript) {
+          this.processCommand(finalTranscript);
+        }
+      };
+
+      this.recognition.onend = () => {
+        // If we finished without processing a final result, reset to idle
+        if (this.isListening && !this.isProcessing) {
+          this.stopActiveListening();
+        }
+      };
+
+      try {
+        this.recognition.start();
+      } catch (e) {
+        console.error('Failed to start single shot recognition:', e);
+        this.showTextBubble();
+      }
+    } else {
+      // No speech API support, show text command input bubble
+      this.showTextBubble();
+    }
+  }
+
+  private stopActiveListening() {
+    this.isListening = false;
+    this.setState('idle');
+    this.hideTextBubble();
+    
+    // Restart background listening
+    if (this.recognition) {
+      this.recognition.onresult = null;
+      this.recognition.onend = null;
+      this.initSpeechRecognition(); // re-init continuous
+    }
+  }
+
+  private setState(state: 'idle' | 'listening' | 'processing' | 'confirmed') {
+    if (!this.container) return;
+    this.container.className = `mash-voice-agent-container state-${state}`;
+  }
+
+  private updateTranscript(text: string) {
+    if (!this.transcriptBubble) return;
+    const spokenTextEl = this.transcriptBubble.querySelector('.spoken-text');
+    if (spokenTextEl) {
+      spokenTextEl.textContent = text ? `"${text}"` : '';
+    }
+  }
+
+  private showConfirmation(text: string) {
+    if (!this.confirmBubble) return;
+    const confirmTextEl = this.confirmBubble.querySelector('.confirmed-text');
+    if (confirmTextEl) {
+      confirmTextEl.textContent = text;
+    }
+    
+    // Trigger speaking TTS
+    this.speak(text);
+  }
+
+  private speak(text: string) {
+    if (!this.ttsEnabled) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis failed:', e);
+    }
+  }
+
+  private showTextBubble() {
+    if (this.textBubble) {
+      this.textBubble.classList.add('visible');
+      if (this.textInput) {
+        this.textInput.value = '';
+        this.textInput.focus();
+      }
+    }
+  }
+
+  private hideTextBubble() {
+    if (this.textBubble) {
+      this.textBubble.classList.remove('visible');
+    }
+  }
+
+  private hideBubbles() {
+    this.hideTextBubble();
+    this.updateTranscript('');
+  }
+
+  private updateSuggestionChips(route: string) {
+    if (!this.suggestionChips) return;
+    
+    let chips: string[] = [];
+    if (route === 'dashboard') {
+      chips = ['New Appointment', 'Go to Prescriptions', 'Go to Patients'];
+    } else if (route === 'patients') {
+      chips = ['Search Ayush', 'Go to Dashboard', 'New Appointment'];
+    } else if (route === 'prescriptions') {
+      chips = ['Send to Pharmacy', 'Go to Dashboard', 'Go to Patients'];
+    } else if (route === 'patient-profile') {
+      chips = ['Book Appointment', 'Go to Dashboard', 'Go to Prescriptions'];
+    } else {
+      chips = ['Go to Dashboard', 'Go to Patients', 'Go to Prescriptions'];
+    }
+
+    this.suggestionChips.innerHTML = chips.map(chip => {
+      let cmd = chip.toLowerCase();
+      if (chip === 'Book Appointment' || chip === 'New Appointment') cmd = 'new appointment';
+      return `<button class="mash-chip" data-cmd="${cmd}">${chip}</button>`;
+    }).join('');
+
+    // Rebind events for the new chips
+    const chipBtns = this.suggestionChips.querySelectorAll('.mash-chip');
+    chipBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cmd = btn.getAttribute('data-cmd');
+        if (cmd) {
+          this.processCommand(cmd);
+        }
+      });
+    });
+  }
+
+  private bindEvents() {
+    if (this.orb) {
+      // Click orb to toggle active listening
+      this.orb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.isListening) {
+          this.stopActiveListening();
+        } else {
+          this.startActiveListening();
+        }
+      });
+
+      // Spacebar or Enter activation when focused
+      this.orb.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          this.startActiveListening();
+        }
+      });
+    }
+
+    // Text submit handlers
+    if (this.textSubmit && this.textInput) {
+      const submit = () => {
+        const cmd = this.textInput!.value.trim();
+        if (cmd) {
+          this.hideTextBubble();
+          this.processCommand(cmd);
+        }
+      };
+
+      this.textSubmit.addEventListener('click', submit);
+      this.textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          submit();
+        }
+      });
+    }
+
+    // Dismiss bubbles on outside click
+    document.addEventListener('click', () => {
+      if (!this.isListening && !this.isProcessing) {
+        this.hideTextBubble();
+      }
+    });
+
+    if (this.container) {
+      this.container.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+  }
+
+  private async processCommand(command: string) {
+    const cleanCmd = command.trim().toLowerCase();
+    console.log('Processing command:', cleanCmd);
+
+    this.isListening = false;
+    this.isProcessing = true;
+    this.setState('processing');
+    this.updateTranscript(command);
+
+    // Add a tiny artificial delay to show processing state and feel realistic
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Match routing / actions
+    let actionExecuted = false;
+    let confirmMessage = "I couldn't match that command. Try 'go to prescriptions' or 'new appointment'.";
+
+    // 1. ROUTING COMMANDS
+    if (cleanCmd.includes('dashboard') || cleanCmd.includes('home') || cleanCmd.includes('main page')) {
+      confirmMessage = 'Navigating to Dashboard';
+      this.router.navigate('dashboard');
+      actionExecuted = true;
+    } else if (cleanCmd.includes('prescriptions') || cleanCmd.includes('prescription writer') || cleanCmd.includes('medication')) {
+      confirmMessage = 'Navigating to Prescription Writer';
+      this.router.navigate('prescriptions');
+      actionExecuted = true;
+    } else if (cleanCmd.includes('schedule') || cleanCmd.includes('calendar') || cleanCmd.includes('appointments')) {
+      confirmMessage = 'Navigating to Schedule';
+      this.router.navigate('schedule');
+      actionExecuted = true;
+    } else if (cleanCmd.includes('patients list') || cleanCmd.includes('patients directory') || (cleanCmd.includes('patients') && !cleanCmd.includes('profile'))) {
+      confirmMessage = 'Navigating to Patients Directory';
+      this.router.navigate('patients');
+      actionExecuted = true;
+    } else if (cleanCmd.includes('pharmacy') || cleanCmd.includes('stock')) {
+      confirmMessage = 'Navigating to Pharmacy Portal';
+      this.router.navigate('pharmacy');
+      actionExecuted = true;
+    } else if (cleanCmd.includes('patient') && (cleanCmd.includes('profile') || cleanCmd.includes('go to') || cleanCmd.includes('open') || cleanCmd.includes('show'))) {
+      // Find patient profile by name
+      const patientName = this.extractPatientName(cleanCmd);
+      if (patientName) {
+        const patient = this.findCachedPatientByName(patientName);
+        if (patient) {
+          confirmMessage = `Opening profile for ${patient.full_name}`;
+          this.router.navigate('patient-profile', { patientId: patient.id });
+          actionExecuted = true;
+        } else {
+          confirmMessage = `I couldn't find a patient named ${patientName}`;
+        }
+      } else {
+        confirmMessage = 'Please specify a patient name, for example: open patient Ayush.';
+      }
+    } 
+    // 2. DASHBOARD SHORTAGE ALERT RESOLUTION
+    else if (this.currentRoute === 'dashboard' && (cleanCmd.includes('provide alternative') || cleanCmd.includes('resolve shortage') || cleanCmd.includes('alternative for'))) {
+      const patientName = this.extractPatientName(cleanCmd);
+      let btnToClick: HTMLElement | null = null;
+
+      if (patientName) {
+        const patient = this.findCachedPatientByName(patientName);
+        if (patient) {
+          btnToClick = document.querySelector(`.btn-resolve-alert[data-patient-id="${patient.id}"]`);
+        }
+      } else {
+        // Click the first shortage alert resolve button
+        btnToClick = document.querySelector('.btn-resolve-alert');
+      }
+
+      if (btnToClick) {
+        confirmMessage = 'Resolving shortage alert...';
+        this.flashElement(btnToClick);
+        btnToClick.click();
+        actionExecuted = true;
+      } else {
+        confirmMessage = 'No matching shortage alert found on the dashboard.';
+      }
+    }
+    // 3. SEARCH ON CORRESPONDING PAGES
+    else if (cleanCmd.includes('search') || cleanCmd.includes('find')) {
+      const searchTerm = cleanCmd.replace('search for', '').replace('search', '').replace('find', '').trim();
+      if (searchTerm) {
+        // Check if on Patients list page
+        if (this.currentRoute === 'patients') {
+          const searchInput = document.getElementById('patient-search-input') as HTMLInputElement;
+          if (searchInput) {
+            confirmMessage = `Searching patients for '${searchTerm}'`;
+            searchInput.value = searchTerm;
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            this.flashElement(searchInput);
+            actionExecuted = true;
+          }
+        } 
+        // Check if on Pharmacy page
+        else if (this.currentRoute === 'pharmacy') {
+          const searchInput = document.getElementById('pharmacy-search-input') as HTMLInputElement;
+          if (searchInput) {
+            confirmMessage = `Searching medicine inventory for '${searchTerm}'`;
+            searchInput.value = searchTerm;
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            this.flashElement(searchInput);
+            actionExecuted = true;
+          }
+        }
+      }
+    }
+    // 4. PAGE DYNAMIC CONTEXT CLICK
+    if (!actionExecuted) {
+      // General DOM scanning matching
+      const targetEl = this.scanInteractiveElements(cleanCmd);
+      if (targetEl) {
+        const text = targetEl.innerText || targetEl.getAttribute('aria-label') || targetEl.id || 'button';
+        confirmMessage = `Clicking '${text.trim().substring(0, 20)}'`;
+        this.flashElement(targetEl);
+        targetEl.click();
+        actionExecuted = true;
+      }
+    }
+
+    // 5. ACTION SPECIFIC FALLBACKS
+    if (!actionExecuted && (cleanCmd.includes('new appointment') || cleanCmd.includes('create appointment') || cleanCmd.includes('book appointment'))) {
+      // If we are on dashboard or profile, click button, else navigate to dashboard first
+      const openBtn = document.getElementById('open-appointment-btn') || document.getElementById('book-appointment-action') || document.getElementById('book-appt-floating');
+      if (openBtn) {
+        confirmMessage = 'Opening appointment scheduler';
+        this.flashElement(openBtn as HTMLElement);
+        openBtn.click();
+        actionExecuted = true;
+      } else {
+        confirmMessage = 'Navigating to Dashboard to open appointment scheduler';
+        await this.router.navigate('dashboard');
+        await new Promise(r => setTimeout(r, 600)); // Wait for render
+        const dashboardBtn = document.getElementById('open-appointment-btn');
+        if (dashboardBtn) {
+          this.flashElement(dashboardBtn);
+          dashboardBtn.click();
+        }
+        actionExecuted = true;
+      }
+    }
+
+    if (!actionExecuted) {
+      try {
+        confirmMessage = await askDoctorAssistant(command, this.chatHistory);
+        this.chatHistory.push({ role: 'user', text: command });
+        this.chatHistory.push({ role: 'model', text: confirmMessage });
+        if (this.chatHistory.length > 30) {
+          this.chatHistory = this.chatHistory.slice(-30);
+        }
+      } catch (err) {
+        console.error('Doctor Assistant chatbot query failed:', err);
+        confirmMessage = "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
+      }
+    }
+
+    // Set state to confirmed and show bubble
+    this.isProcessing = false;
+    this.setState('confirmed');
+    this.showConfirmation(confirmMessage);
+
+    // Auto return to idle state after a dynamic duration based on message length
+    const displayTimeout = Math.max(4000, confirmMessage.length * 60);
+    setTimeout(() => {
+      if (!this.isListening && !this.isProcessing) {
+        this.setState('idle');
+        this.stopActiveListening();
+      }
+    }, displayTimeout);
+  }
+
+  private extractPatientName(cmd: string): string | null {
+    // Examples: "go to patient Ayush", "open Ayush", "show John Doe's profile", "provide alternative for Ayush"
+    let clean = cmd
+      .replace('go to patient', '')
+      .replace('go to', '')
+      .replace('open patient', '')
+      .replace('open', '')
+      .replace('show patient', '')
+      .replace('show', '')
+      .replace("s profile", '')
+      .replace('profile', '')
+      .replace('provide alternative for', '')
+      .replace('resolve shortage for', '')
+      .trim();
+    
+    return clean.length > 0 ? clean : null;
+  }
+
+  private findCachedPatientByName(name: string): Profile | null {
+    const search = name.toLowerCase().trim();
+    return this.profilesCache.find(p => p.full_name.toLowerCase().includes(search)) || null;
+  }
+
+  private scanInteractiveElements(cmd: string): HTMLElement | null {
+    // Select all potentially interactive elements on page
+    const elements = Array.from(document.querySelectorAll<HTMLElement>(
+      'button, a, input[type="button"], input[type="submit"], [role="button"], .nav-item, .patient-row-btn, tr.patient-row-btn'
+    ));
+
+    let bestMatch: HTMLElement | null = null;
+    let bestScore = 0;
+
+    for (const el of elements) {
+      // Get text content
+      const text = (el.innerText || el.getAttribute('aria-label') || el.id || '').toLowerCase().trim();
+      if (!text) continue;
+
+      // Check for exact matching or high substring inclusion
+      if (text === cmd) {
+        return el;
+      }
+
+      // Fuzzy matching score based on word matching
+      let score = 0;
+      const cmdWords = cmd.split(/\s+/);
+
+      for (const cw of cmdWords) {
+        if (cw.length > 2 && text.includes(cw)) {
+          score += 1;
+        }
+      }
+
+      // Special tags match
+      if (cmd.includes('new') && text.includes('new') && text.includes('appointment')) score += 5;
+      if (cmd.includes('send') && text.includes('send') && text.includes('pharmacy')) score += 5;
+      if (cmd.includes('submit') && text.includes('send') && text.includes('pharmacy')) score += 5;
+      if (cmd.includes('resolve') && text.includes('alternative')) score += 5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = el;
+      }
+    }
+
+    return bestScore >= 1 ? bestMatch : null;
+  }
+
+  private flashElement(el: HTMLElement) {
+    el.classList.add('voice-target-highlight');
+    setTimeout(() => {
+      el.classList.remove('voice-target-highlight');
+    }, 2000);
+  }
+
+  private initWebGL() {
+    this.canvas = document.getElementById('mash-orb-canvas') as HTMLCanvasElement;
+    if (!this.canvas) return;
+
+    const gl = (this.canvas.getContext('webgl') || this.canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    if (!gl) {
+      console.warn('WebGL is not supported in this browser.');
+      return;
+    }
+    this.gl = gl;
+
+    const vs = `
+      precision highp float;
+      attribute vec2 position;
+      attribute vec2 uv;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
+    `;
+
+    const fs = `
+      precision highp float;
+      uniform float iTime;
+      uniform vec3 iResolution;
+      uniform float hue;
+      uniform float hover;
+      uniform float rot;
+      uniform float hoverIntensity;
+      uniform vec3 backgroundColor;
+      varying vec2 vUv;
+
+      vec3 rgb2yiq(vec3 c) {
+        float y = dot(c, vec3(0.299, 0.587, 0.114));
+        float i = dot(c, vec3(0.596, -0.274, -0.322));
+        float q = dot(c, vec3(0.211, -0.523, 0.312));
+        return vec3(y, i, q);
+      }
+      
+      vec3 yiq2rgb(vec3 c) {
+        float r = c.x + 0.956 * c.y + 0.621 * c.z;
+        float g = c.x - 0.272 * c.y - 0.647 * c.z;
+        float b = c.x - 1.106 * c.y + 1.703 * c.z;
+        return vec3(r, g, b);
+      }
+      
+      vec3 adjustHue(vec3 color, float hueDeg) {
+        float hueRad = hueDeg * 3.14159265 / 180.0;
+        vec3 yiq = rgb2yiq(color);
+        float cosA = cos(hueRad);
+        float sinA = sin(hueRad);
+        float i = yiq.y * cosA - yiq.z * sinA;
+        float q = yiq.y * sinA + yiq.z * cosA;
+        yiq.y = i;
+        yiq.z = q;
+        return yiq2rgb(yiq);
+      }
+      
+      vec3 hash33(vec3 p3) {
+        p3 = fract(p3 * vec3(0.1031, 0.11369, 0.13787));
+        p3 += dot(p3, p3.yxz + 19.19);
+        return -1.0 + 2.0 * fract(vec3(
+          p3.x + p3.y,
+          p3.x + p3.z,
+          p3.y + p3.z
+        ) * p3.zyx);
+      }
+      
+      float snoise3(vec3 p) {
+        const float K1 = 0.333333333;
+        const float K2 = 0.166666667;
+        vec3 i = floor(p + (p.x + p.y + p.z) * K1);
+        vec3 d0 = p - (i - (i.x + i.y + i.z) * K2);
+        vec3 e = step(vec3(0.0), d0 - d0.yzx);
+        vec3 i1 = e * (1.0 - e.zxy);
+        vec3 i2 = 1.0 - e.zxy * (1.0 - e);
+        vec3 d1 = d0 - (i1 - K2);
+        vec3 d2 = d0 - (i2 - K1);
+        vec3 d3 = d0 - 0.5;
+        vec4 h = max(0.6 - vec4(
+          dot(d0, d0),
+          dot(d1, d1),
+          dot(d2, d2),
+          dot(d3, d3)
+        ), 0.0);
+        vec4 n = h * h * h * h * vec4(
+          dot(d0, hash33(i)),
+          dot(d1, hash33(i + i1)),
+          dot(d2, hash33(i + i2)),
+          dot(d3, hash33(i + 1.0))
+        );
+        return dot(vec4(31.316), n);
+      }
+      
+      vec4 extractAlpha(vec3 colorIn) {
+        float a = max(max(colorIn.r, colorIn.g), colorIn.b);
+        return vec4(colorIn.rgb / (a + 1e-5), a);
+      }
+      
+      // Base colors (blue fade)
+      const vec3 baseColor1 = vec3(0.0, 0.45, 1.0);
+      const vec3 baseColor2 = vec3(0.0, 0.85, 0.95);
+      const vec3 baseColor3 = vec3(0.02, 0.04, 0.2);
+      const float innerRadius = 0.6;
+      const float noiseScale = 0.65;
+      
+      float light1(float intensity, float attenuation, float dist) {
+        return intensity / (1.0 + dist * attenuation);
+      }
+      
+      float light2(float intensity, float attenuation, float dist) {
+        return intensity / (1.0 + dist * dist * attenuation);
+      }
+      
+      vec4 draw(vec2 uv) {
+        vec3 color1 = adjustHue(baseColor1, hue);
+        vec3 color2 = adjustHue(baseColor2, hue);
+        vec3 color3 = adjustHue(baseColor3, hue);
+        
+        float ang = atan(uv.y, uv.x);
+        float len = length(uv);
+        float invLen = len > 0.0 ? 1.0 / len : 0.0;
+        
+        float bgLuminance = dot(backgroundColor, vec3(0.299, 0.587, 0.114));
+        
+        float n0 = snoise3(vec3(uv * noiseScale, iTime * 0.5)) * 0.5 + 0.5;
+        float r0 = mix(mix(innerRadius, 1.0, 0.4), mix(innerRadius, 1.0, 0.6), n0);
+        float d0 = distance(uv, (r0 * invLen) * uv);
+        float v0 = light1(1.0, 10.0, d0);
+
+        v0 *= smoothstep(r0 * 1.05, r0, len);
+        float innerFade = smoothstep(r0 * 0.8, r0 * 0.95, len);
+        v0 *= mix(innerFade, 1.0, bgLuminance * 0.7);
+        float cl = cos(ang + iTime * 2.0) * 0.5 + 0.5;
+        
+        float a = iTime * -1.0;
+        vec2 pos = vec2(cos(a), sin(a)) * r0;
+        float d = distance(uv, pos);
+        float v1 = light2(1.5, 5.0, d);
+        v1 *= light1(1.0, 50.0, d0);
+        
+        float v2 = smoothstep(1.0, mix(innerRadius, 1.0, n0 * 0.5), len);
+        float v3 = smoothstep(innerRadius, mix(innerRadius, 1.0, 0.5), len);
+        
+        vec3 colBase = mix(color1, color2, cl);
+        float fadeAmount = mix(1.0, 0.1, bgLuminance);
+        
+        vec3 darkCol = mix(color3, colBase, v0);
+        darkCol = (darkCol + v1) * v2 * v3;
+        darkCol = clamp(darkCol, 0.0, 1.0);
+        
+        vec3 lightCol = (colBase + v1) * mix(1.0, v2 * v3, fadeAmount);
+        lightCol = mix(backgroundColor, lightCol, v0);
+        lightCol = clamp(lightCol, 0.0, 1.0);
+        
+        vec3 finalCol = mix(darkCol, lightCol, bgLuminance);
+        
+        return extractAlpha(finalCol);
+      }
+      
+      vec4 mainImage(vec2 fragCoord) {
+        vec2 center = iResolution.xy * 0.5;
+        float size = min(iResolution.x, iResolution.y);
+        vec2 uv = (fragCoord - center) / size * 2.0;
+        
+        float angle = rot;
+        float s = sin(angle);
+        float c = cos(angle);
+        uv = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
+        
+        uv.x += hover * hoverIntensity * 0.1 * sin(uv.y * 10.0 + iTime);
+        uv.y += hover * hoverIntensity * 0.1 * sin(uv.x * 10.0 + iTime);
+        
+        return draw(uv);
+      }
+      
+      void main() {
+        vec2 fragCoord = vUv * iResolution.xy;
+        vec4 col = mainImage(fragCoord);
+        gl_FragColor = vec4(col.rgb * col.a, col.a);
+      }
+    `;
+
+    const compile = (type: number, src: string) => {
+      const s = gl.createShader(type);
+      if (!s) return null;
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error('Shader compilation error:', gl.getShaderInfoLog(s));
+      }
+      return s;
+    };
+
+    const vsShader = compile(gl.VERTEX_SHADER, vs);
+    const fsShader = compile(gl.FRAGMENT_SHADER, fs);
+    if (!vsShader || !fsShader) return;
+
+    const prog = gl.createProgram();
+    if (!prog) return;
+    gl.attachShader(prog, vsShader);
+    gl.attachShader(prog, fsShader);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('Program link error:', gl.getProgramInfoLog(prog));
+      return;
+    }
+    gl.useProgram(prog);
+
+    // vertices quad
+    const vertices = new Float32Array([
+      -1.0, -1.0,   0.0, 0.0,
+       1.0, -1.0,   1.0, 0.0,
+      -1.0,  1.0,   0.0, 1.0,
+       1.0,  1.0,   1.0, 1.0
+    ]);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const FSIZE = vertices.BYTES_PER_ELEMENT;
+    const pos = gl.getAttribLocation(prog, 'position');
+    gl.enableVertexAttribArray(pos);
+    gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, FSIZE * 4, 0);
+
+    const uvLoc = gl.getAttribLocation(prog, 'uv');
+    gl.enableVertexAttribArray(uvLoc);
+    gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2);
+
+    this.uniforms = {
+      iTime: gl.getUniformLocation(prog, 'iTime'),
+      iResolution: gl.getUniformLocation(prog, 'iResolution'),
+      hue: gl.getUniformLocation(prog, 'hue'),
+      hover: gl.getUniformLocation(prog, 'hover'),
+      rot: gl.getUniformLocation(prog, 'rot'),
+      hoverIntensity: gl.getUniformLocation(prog, 'hoverIntensity'),
+      backgroundColor: gl.getUniformLocation(prog, 'backgroundColor')
+    };
+
+    this.syncCanvasSize();
+
+    if (this.orb) {
+      this.orb.addEventListener('mouseenter', () => { this.targetHover = 1.0; });
+      this.orb.addEventListener('mouseleave', () => { this.targetHover = 0.0; });
+    }
+
+    const renderLoop = (t: number) => {
+      requestAnimationFrame(renderLoop);
+      this.renderWebGL(t);
+    };
+    requestAnimationFrame(renderLoop);
+  }
+
+  private syncCanvasSize() {
+    if (!this.canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.clientWidth || 60;
+    const h = this.canvas.clientHeight || 60;
+    if (this.canvas.width !== w * dpr || this.canvas.height !== h * dpr) {
+      this.canvas.width = w * dpr;
+      this.canvas.height = h * dpr;
+    }
+  }
+
+  private renderWebGL(t: number) {
+    const gl = this.gl;
+    if (!gl || !this.canvas) return;
+
+    this.syncCanvasSize();
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const dt = (t - this.lastTime) * 0.001;
+    this.lastTime = t;
+
+    let state = 'idle';
+    if (this.isListening) state = 'listening';
+    else if (this.isProcessing) state = 'processing';
+    else if (this.container?.classList.contains('state-confirmed')) state = 'confirmed';
+
+    if (state === 'idle') {
+      this.targetHue = 0.0;
+      this.timeScale += (0.5 - this.timeScale) * 0.1;
+    } else if (state === 'listening') {
+      this.targetHue = -15.0;
+      this.timeScale += (2.0 - this.timeScale) * 0.1;
+    } else if (state === 'processing') {
+      this.targetHue = 20.0;
+      this.timeScale += (1.2 - this.timeScale) * 0.1;
+      this.currentRot += dt * 0.8;
+    } else if (state === 'confirmed') {
+      this.targetHue = -100.0;
+      this.timeScale += (1.0 - this.timeScale) * 0.1;
+    }
+
+    this.currentHue += (this.targetHue - this.currentHue) * 0.1;
+    this.currentHover += (this.targetHover - this.currentHover) * 0.1;
+
+    if (this.targetHover > 0.5) {
+      this.currentRot += dt * 0.3;
+    }
+
+    gl.uniform1f(this.uniforms.iTime, t * 0.001 * this.timeScale);
+    gl.uniform3f(this.uniforms.iResolution, this.canvas.width, this.canvas.height, this.canvas.width / this.canvas.height);
+    gl.uniform1f(this.uniforms.hue, this.currentHue);
+    gl.uniform1f(this.uniforms.hover, this.currentHover);
+    gl.uniform1f(this.uniforms.rot, this.currentRot);
+    gl.uniform1f(this.uniforms.hoverIntensity, 0.3);
+    gl.uniform3f(this.uniforms.backgroundColor, 0.0, 0.0, 0.0);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}

@@ -128,6 +128,7 @@ export class Router {
       if (view.onMount) {
         view.onMount(viewport, this);
       }
+      window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
 
@@ -171,6 +172,7 @@ export class Router {
       if (view.onMount) {
         view.onMount(viewport, this);
       }
+      window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
 
@@ -294,6 +296,7 @@ export class Router {
     }
 
     this.bindLayoutEvents();
+    window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
   }
 
   private bindLayoutEvents() {

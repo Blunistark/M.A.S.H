@@ -342,6 +342,28 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
+// PATCH /api/appointments/:id
+app.patch('/api/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scheduled_time, status } = req.body;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .update({ scheduled_time, status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ message: error.message });
+    }
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // PATCH /api/appointments/patient/:patientId/complete
 app.patch('/api/appointments/patient/:patientId/complete', async (req, res) => {
   try {
@@ -433,12 +455,12 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
 
     if (itemsErr) throw itemsErr;
 
-    // 4. Also update any existing active prescription for this patient to 'completed'
+    // 4. Also update any existing active or alternative_requested prescription for this patient to 'completed'
     await supabase
       .from('prescriptions')
       .update({ status: 'completed' })
       .eq('patient_id', patient_id)
-      .eq('status', 'active')
+      .in('status', ['active', 'alternative_requested'])
       .neq('id', rx.id);
 
     res.status(201).json(rx);
@@ -678,6 +700,118 @@ app.get('/api/medicine_inventory', async (req, res) => {
     res.json(data || []);
   } catch (err) {
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/doctor-chat
+app.post('/api/doctor-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    // 1. Fetch appointments for Dr. Smith
+    const { data: appointments } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('doctor_id', 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd');
+
+    // 2. Fetch profiles to match patient names
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role');
+
+    // 3. Fetch medical records
+    const { data: medicalRecords } = await supabase
+      .from('medical_records')
+      .select('*');
+
+    // 4. Fetch inventory details
+    const { data: inventory } = await supabase
+      .from('medicine_inventory')
+      .select('*');
+
+    // Format schedule
+    const scheduleStr = (appointments || []).map(appt => {
+      const patient = (profiles || []).find(p => p.id === appt.patient_id);
+      const patientName = patient ? patient.full_name : 'Unknown Patient';
+      return `- Time: ${appt.scheduled_time}, Patient: ${patientName}, Status: ${appt.status}`;
+    }).join('\n');
+
+    // Format medical records
+    const recordsStr = (medicalRecords || []).map(record => {
+      const patient = (profiles || []).find(p => p.id === record.patient_id);
+      if (!patient) return null;
+      let desc = record.description;
+      return `- Patient: ${patient.full_name}, Record Type: ${record.record_type}, Details: ${desc}`;
+    }).filter(Boolean).join('\n');
+
+    // Format inventory
+    const inventoryStr = (inventory || []).map(item => {
+      return `- Medicine: ${item.medicine_name}, Stock: ${item.current_stock}, Reorder Threshold: ${item.reorder_threshold}`;
+    }).join('\n');
+
+    const systemInstruction = `You are the personal AI assistant for Dr. Anita Desai (also known as Dr. Smith). 
+You speak like a friendly, knowledgeable clinical colleague — not a stiff chatbot or a report generator.
+
+Today's Schedule / Appointments:
+${scheduleStr || 'No appointments scheduled today.'}
+
+Patient Medical History Context:
+${recordsStr || 'No patient records found.'}
+
+Medicine Inventory Stock Levels:
+${inventoryStr || 'No stock details available.'}
+
+Guidelines:
+1. Speak like a real professional clinical assistant.
+2. When asked about patient history or today's schedule, summarize details conversationally.
+3. Be friendly, brief, and concise. Speak in short paragraphs. No huge lists or markdown tables unless requested.`;
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    
+    // Map history to Gemini API format
+    const contents = (history || []).map((h: any) => ({
+      role: h.role === 'model' ? 'model' : 'user',
+      parts: [{ text: h.text }]
+    }));
+    
+    // Append the current message
+    contents.push({
+      role: 'user',
+      parts: [{ text: message }]
+    });
+
+    const response = await globalThis.fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini error:', errorText);
+      return res.status(500).json({ message: `Gemini API returned error: ${response.status}` });
+    }
+
+    const resData = await response.json();
+    const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+    res.json({ reply: replyText });
+  } catch (err: any) {
+    console.error('Chat error:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
   }
 });
 
