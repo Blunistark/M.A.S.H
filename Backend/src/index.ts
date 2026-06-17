@@ -389,7 +389,10 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
   try {
     const { patient_id, doctor_id, items, doctor_comments } = req.body;
 
+    console.log(`[Prescription API] Received: patient_id=${patient_id}, doctor_id=${doctor_id}, items=${JSON.stringify(items)}, comments=${doctor_comments}`);
+
     if (!patient_id || !items || !Array.isArray(items) || items.length === 0) {
+      console.log(`[Prescription API] REJECTED: Missing patient_id or items`);
       return res.status(400).json({ message: 'patient_id and items[] are required' });
     }
 
@@ -436,15 +439,35 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
 
     if (invErr) throw invErr;
 
-    // 3. Create prescription items
+    // 3. Create prescription items (with fuzzy medicine name matching)
     const prescriptionItems = items.map((item: any) => {
-      const med = (inventory || []).find(
-        (m: any) => m.medicine_name.toLowerCase() === item.name.toLowerCase()
+      const itemName = (item.name || '').toLowerCase().trim();
+      // Tier 1: Exact match
+      let med = (inventory || []).find(
+        (m: any) => m.medicine_name.toLowerCase() === itemName
       );
+      // Tier 2: Inventory name contains item name or vice-versa
+      if (!med) {
+        med = (inventory || []).find(
+          (m: any) => m.medicine_name.toLowerCase().includes(itemName) || itemName.includes(m.medicine_name.toLowerCase())
+        );
+      }
+      // Tier 3: First word match (e.g. "Tizanidine" matches "Tizanidine HCl 2mg Tablet")
+      if (!med && itemName.split(' ').length > 0) {
+        const firstWord = itemName.split(' ')[0];
+        if (firstWord.length > 3) {
+          med = (inventory || []).find(
+            (m: any) => m.medicine_name.toLowerCase().includes(firstWord)
+          );
+        }
+      }
+      
+      console.log(`[Prescription Item] "${item.name}" → ${med ? `matched: ${med.medicine_name} (${med.id})` : 'NO MATCH (medicine_id will be null)'}`);
+      
       return {
         prescription_id: rx.id,
         medicine_id: med ? med.id : null,
-        dosage: `${item.dosage} - ${item.frequency}`,
+        dosage: `${item.dosage || 'as directed'} - ${item.frequency || 'as needed'}`,
         quantity: item.quantity || item.duration || 7
       };
     });
@@ -711,6 +734,26 @@ app.post('/api/doctor-chat', async (req, res) => {
       return res.status(400).json({ message: 'Message is required' });
     }
 
+    // Try delegating to the python agent_server on port 8000
+    try {
+      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/doctor-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message, history })
+      });
+      if (agentResponse.ok) {
+        const agentData = (await agentResponse.json()) as { reply: string; action?: any };
+        console.log('Response from Python DoctorAgent received successfully.');
+        return res.json({ reply: agentData.reply, action: agentData.action });
+      } else {
+        console.warn('Python agent server returned non-ok status, falling back to direct Gemini call.');
+      }
+    } catch (err) {
+      console.warn('Python agent server is unreachable, falling back to direct Gemini call:', err);
+    }
+
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
     }
@@ -808,7 +851,108 @@ Guidelines:
 
     const resData = await response.json();
     const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-    res.json({ reply: replyText });
+
+    // --- Extract navigation action from the user's message (fallback action extraction) ---
+    let action: any = undefined;
+    const msgLower = message.toLowerCase();
+
+    // Check for patient profile navigation intent
+    const patientNavPatterns = [
+      /(?:open|show|go\s+to|view|navigate\s+to)\s+(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?(.+?)(?:'s)?\s*(?:profile|page|record)?$/i,
+      /(?:open|show|go\s+to|view)\s+(.+?)(?:'s)?\s*(?:profile|page)?$/i,
+    ];
+
+    let extractedName: string | null = null;
+    for (const pattern of patientNavPatterns) {
+      const match = message.match(pattern);
+      if (match && match[1]) {
+        extractedName = match[1].trim();
+        break;
+      }
+    }
+
+    if (extractedName && profiles) {
+      const searchLower = extractedName.toLowerCase();
+      const searchWords = searchLower.split(/\s+/).filter((w: string) => w.length > 1);
+      const patients = (profiles as any[]).filter((p: any) => p.role === 'patient');
+      
+      let bestMatch: any = null;
+      let bestScore = 0;
+
+      for (const p of patients) {
+        const fullName = (p.full_name || '').toLowerCase();
+        const nameWords = fullName.split(/\s+/);
+        let score = 0;
+
+        if (fullName === searchLower) { score += 20; }
+        else if (fullName.includes(searchLower)) { score += 10; }
+
+        for (const sw of searchWords) {
+          if (nameWords.some((nw: string) => nw === sw)) score += 5;
+          else if (nameWords.some((nw: string) => nw.startsWith(sw))) score += 3;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = p;
+        }
+      }
+
+      if (bestMatch && bestScore >= 3) {
+        action = { type: 'navigate', route: 'patient-profile', patientId: bestMatch.id };
+        console.log(`[Fallback] Resolved patient '${extractedName}' → ${bestMatch.full_name} (${bestMatch.id})`);
+      }
+    }
+
+    // Check for simple page navigation intent
+    if (!action) {
+      const routeMap: Record<string, string> = {
+        'dashboard': 'dashboard',
+        'home': 'dashboard',
+        'main page': 'dashboard',
+        'prescriptions': 'prescriptions',
+        'prescription writer': 'prescriptions',
+        'schedule': 'schedule',
+        'calendar': 'schedule',
+        'appointments': 'schedule',
+        'patients': 'patients',
+        'patients list': 'patients',
+        'patients directory': 'patients',
+        'pharmacy': 'pharmacy',
+        'stock': 'pharmacy',
+      };
+
+      const navPrefixes = ['go to', 'navigate to', 'open', 'show', 'take me to'];
+      for (const prefix of navPrefixes) {
+        if (msgLower.includes(prefix)) {
+          const afterPrefix = msgLower.split(prefix).pop()?.trim() || '';
+          for (const [keyword, route] of Object.entries(routeMap)) {
+            if (afterPrefix.includes(keyword)) {
+              action = { type: 'navigate', route };
+              break;
+            }
+          }
+          if (action) break;
+        }
+      }
+
+      // Also check if message itself is just the page name
+      if (!action) {
+        for (const [keyword, route] of Object.entries(routeMap)) {
+          if (msgLower === keyword || msgLower === `go to ${keyword}`) {
+            action = { type: 'navigate', route };
+            break;
+          }
+        }
+      }
+
+      // Check for appointment booking intent
+      if (!action && (msgLower.includes('new appointment') || msgLower.includes('book appointment') || msgLower.includes('create appointment'))) {
+        action = { type: 'navigate', route: 'new-appointment' };
+      }
+    }
+
+    res.json({ reply: replyText, action });
   } catch (err: any) {
     console.error('Chat error:', err);
     res.status(500).json({ message: err.message || 'Internal server error' });

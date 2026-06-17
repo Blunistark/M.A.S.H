@@ -302,3 +302,84 @@ async def get_doctor_schedule(doctor_id: str) -> str:
     if not schedule:
         return "No appointments found for today."
     return json.dumps(schedule, indent=2)
+
+async def create_prescription_in_supabase(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None) -> bool:
+    """Helper to create prescription by calling the backend api."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        print("[Prescription] ERROR: SUPABASE_URL or SUPABASE_ANON_KEY not set")
+        return False
+        
+    patient_id = None
+    try:
+        async with httpx.AsyncClient() as client:
+            search_name = patient_name.strip()
+            print(f"[Prescription] Resolving patient name: '{search_name}'")
+            res = await client.get(
+                f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
+                headers=get_headers()
+            )
+            if res.status_code == 200 and res.json():
+                patient_id = res.json()[0]["id"]
+                matched_name = res.json()[0].get("full_name", "?")
+                print(f"[Prescription] Resolved patient: '{matched_name}' → ID: {patient_id}")
+            else:
+                first_word = search_name.split()[0]
+                print(f"[Prescription] Full name not found, trying first word: '{first_word}'")
+                res = await client.get(
+                    f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{first_word}*&role=eq.patient", 
+                    headers=get_headers()
+                )
+                if res.status_code == 200 and res.json():
+                    patient_id = res.json()[0]["id"]
+                    matched_name = res.json()[0].get("full_name", "?")
+                    print(f"[Prescription] Resolved patient (partial): '{matched_name}' → ID: {patient_id}")
+    except Exception as e:
+        print(f"[Prescription] ERROR resolving patient by name: {e}")
+        
+    if not patient_id:
+        print(f"[Prescription] FAILED: Could not resolve patient_id for '{patient_name}'")
+        return False
+
+    backend_url = "http://127.0.0.1:3000/api/prescriptions/send-to-pharmacy"
+    payload = {
+        "patient_id": patient_id,
+        "doctor_id": "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd",
+        "items": items,
+        "doctor_comments": doctor_comments
+    }
+    
+    print(f"[Prescription] Sending to backend: {json.dumps(payload, indent=2)}")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(backend_url, json=payload)
+            print(f"[Prescription] Backend response: status={res.status_code} body={res.text[:500]}")
+            if res.status_code in (200, 201):
+                print(f"[Prescription] SUCCESS: Prescription pushed to Supabase for {patient_name}")
+                return True
+            else:
+                print(f"[Prescription] FAILED: Backend returned {res.status_code}")
+                return False
+    except Exception as e:
+        print(f"[Prescription] ERROR sending to backend: {e}")
+    return False
+
+@tool
+async def create_prescription(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None) -> str:
+    """Create a new prescription for a patient and send it to the pharmacy database.
+    Use this when the doctor confirms the prescription is ready to be written, processed, or sent.
+    Args:
+        patient_name: The name of the patient (e.g. "Bob Smith")
+        items: A list of prescription items, where each item has keys:
+            - "name": The exact name of the medicine (e.g. "Amoxicillin 500mg Capsule" or "Albuterol HFA")
+            - "dosage": The dosage string (e.g. "500mg" or "1 inhalation")
+            - "frequency": The frequency string (e.g. "twice daily" or "before food")
+            - "duration": The duration in days as an integer (e.g. 3)
+            - "quantity": The total quantity to dispense as an integer (e.g. 6)
+        doctor_comments: Optional additional instructions or comments from the doctor.
+    """
+    success = await create_prescription_in_supabase(patient_name, items, doctor_comments)
+    if success:
+        return f"Successfully created prescription for {patient_name} in Supabase and pushed it to the pharmacy."
+    return f"Failed to create prescription for {patient_name}. Ensure the patient exists and the backend is running."
+

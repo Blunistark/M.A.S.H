@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const crypto_1 = __importDefault(require("crypto"));
 const supabase_1 = require("./config/supabase");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -13,6 +14,113 @@ const PORT = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Routes
+// POST /api/auth/signup
+app.post('/api/auth/signup', async (req, res) => {
+    try {
+        const { email, password, full_name, contact_number } = req.body;
+        if (!email || !password || !full_name) {
+            return res.status(400).json({ message: 'Email, password and full name are required' });
+        }
+        const { data, error } = await supabase_1.supabase.auth.signUp({
+            email,
+            password,
+        });
+        if (error) {
+            return res.status(400).json({ message: error.message });
+        }
+        const authUser = data.user;
+        if (!authUser) {
+            return res.status(400).json({ message: 'Signup failed to create user' });
+        }
+        // Insert profile
+        const { data: profile, error: profileErr } = await supabase_1.supabase
+            .from('profiles')
+            .insert([
+            {
+                id: authUser.id,
+                full_name,
+                role: 'patient',
+                contact_number: contact_number || null,
+            }
+        ])
+            .select()
+            .single();
+        if (profileErr) {
+            return res.status(500).json({ message: `Profile creation failed: ${profileErr.message}` });
+        }
+        res.status(201).json({
+            user: authUser,
+            profile,
+            session: data.session,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Internal server error' });
+    }
+});
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+        const { data, error } = await supabase_1.supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        if (error) {
+            return res.status(400).json({ message: error.message });
+        }
+        const authUser = data.user;
+        if (!authUser) {
+            return res.status(400).json({ message: 'Login failed' });
+        }
+        // Fetch profile
+        const { data: profile, error: profileErr } = await supabase_1.supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+        let userProfile = profile;
+        if (profileErr) {
+            console.warn('Profile not found for authenticated user, creating default profile');
+            const { data: newProfile } = await supabase_1.supabase
+                .from('profiles')
+                .insert([
+                {
+                    id: authUser.id,
+                    full_name: email.split('@')[0],
+                    role: 'patient',
+                }
+            ])
+                .select()
+                .single();
+            userProfile = newProfile;
+        }
+        res.json({
+            user: authUser,
+            profile: userProfile,
+            session: data.session,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Internal server error' });
+    }
+});
+// POST /api/auth/logout
+app.post('/api/auth/logout', async (req, res) => {
+    try {
+        const { error } = await supabase_1.supabase.auth.signOut();
+        if (error) {
+            return res.status(400).json({ message: error.message });
+        }
+        res.json({ message: 'Logged out successfully' });
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Internal server error' });
+    }
+});
 // GET /api/metrics
 app.get('/api/metrics', async (req, res) => {
     try {
@@ -75,6 +183,73 @@ app.get('/api/profiles/:id', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+// POST /api/profiles
+app.post('/api/profiles', async (req, res) => {
+    try {
+        const { full_name, contact_number } = req.body;
+        if (!full_name) {
+            return res.status(400).json({ message: 'Full name is required' });
+        }
+        const newId = crypto_1.default.randomUUID();
+        // Create profile
+        const { data: profile, error: profileErr } = await supabase_1.supabase
+            .from('profiles')
+            .insert([
+            {
+                id: newId,
+                full_name,
+                role: 'patient',
+                contact_number: contact_number || null,
+            }
+        ])
+            .select()
+            .single();
+        if (profileErr) {
+            return res.status(500).json({ message: profileErr.message });
+        }
+        // Resolve a valid doctor ID dynamically from the database
+        const { data: doctors } = await supabase_1.supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'doctor')
+            .limit(1);
+        const resolvedDoctorId = doctors && doctors.length > 0
+            ? doctors[0].id
+            : 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
+        // Insert default demographics record
+        const initials = full_name
+            .split(' ')
+            .map((n) => n[0])
+            .join('')
+            .substring(0, 2)
+            .toUpperCase();
+        const { error: mrErr } = await supabase_1.supabase.from('medical_records').insert([
+            {
+                patient_id: newId,
+                doctor_id: resolvedDoctorId,
+                record_type: 'demographics',
+                description: JSON.stringify({
+                    dob: '01/01/1990',
+                    gender: 'Not Specified',
+                    bloodType: 'O+',
+                    photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=300',
+                    age: 30,
+                    address: 'Not Provided',
+                    email: 'notprovided@email.com',
+                    initials
+                }),
+                record_date: new Date().toISOString().split('T')[0]
+            }
+        ]);
+        if (mrErr) {
+            console.error('Demographics creation warning:', mrErr);
+        }
+        res.status(201).json(profile);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Internal server error' });
+    }
+});
 // GET /api/doctor_details
 app.get('/api/doctor_details', async (req, res) => {
     try {
@@ -105,15 +280,52 @@ app.get('/api/appointments', async (req, res) => {
 app.post('/api/appointments', async (req, res) => {
     try {
         const { patient_id, doctor_id, scheduled_time, status } = req.body;
+        let resolvedDoctorId = doctor_id;
+        // Check if the doctor profile exists
+        const { data: doctorProfile } = await supabase_1.supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', doctor_id)
+            .single();
+        if (!doctorProfile) {
+            const { data: firstDoc } = await supabase_1.supabase
+                .from('profiles')
+                .select('id')
+                .eq('role', 'doctor')
+                .limit(1);
+            if (firstDoc && firstDoc.length > 0) {
+                resolvedDoctorId = firstDoc[0].id;
+            }
+        }
         const { data, error } = await supabase_1.supabase
             .from('appointments')
-            .insert([{ patient_id, doctor_id, scheduled_time, status }])
+            .insert([{ patient_id, doctor_id: resolvedDoctorId, scheduled_time, status }])
             .select()
             .single();
         if (error) {
             return res.status(500).json({ message: error.message });
         }
         res.status(201).json(data);
+    }
+    catch (err) {
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+// PATCH /api/appointments/:id
+app.patch('/api/appointments/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { scheduled_time, status } = req.body;
+        const { data, error } = await supabase_1.supabase
+            .from('appointments')
+            .update({ scheduled_time, status })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) {
+            return res.status(500).json({ message: error.message });
+        }
+        res.json(data);
     }
     catch (err) {
         res.status(500).json({ message: 'Internal server error' });
@@ -145,12 +357,32 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
         if (!patient_id || !items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ message: 'patient_id and items[] are required' });
         }
+        let resolvedDoctorId = doctor_id;
+        // Check if the doctor profile exists
+        const { data: doctorProfile } = await supabase_1.supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', doctor_id || '')
+            .single();
+        if (!doctorProfile) {
+            const { data: firstDoc } = await supabase_1.supabase
+                .from('profiles')
+                .select('id')
+                .eq('role', 'doctor')
+                .limit(1);
+            if (firstDoc && firstDoc.length > 0) {
+                resolvedDoctorId = firstDoc[0].id;
+            }
+            else {
+                resolvedDoctorId = '22222222-2222-2222-2222-222222222222';
+            }
+        }
         // 1. Create the prescription with status 'pushed_to_pharma'
         const { data: rx, error: rxErr } = await supabase_1.supabase
             .from('prescriptions')
             .insert({
             patient_id,
-            doctor_id: doctor_id || 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd',
+            doctor_id: resolvedDoctorId,
             status: 'pushed_to_pharma',
             doctor_comments: doctor_comments || null
         })
@@ -179,12 +411,12 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
             .insert(prescriptionItems);
         if (itemsErr)
             throw itemsErr;
-        // 4. Also update any existing active prescription for this patient to 'completed'
+        // 4. Also update any existing active or alternative_requested prescription for this patient to 'completed'
         await supabase_1.supabase
             .from('prescriptions')
             .update({ status: 'completed' })
             .eq('patient_id', patient_id)
-            .eq('status', 'active')
+            .in('status', ['active', 'alternative_requested'])
             .neq('id', rx.id);
         res.status(201).json(rx);
     }
@@ -404,6 +636,104 @@ app.get('/api/medicine_inventory', async (req, res) => {
     }
     catch (err) {
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+// POST /api/doctor-chat
+app.post('/api/doctor-chat', async (req, res) => {
+    try {
+        const { message, history } = req.body;
+        if (!message) {
+            return res.status(400).json({ message: 'Message is required' });
+        }
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
+        }
+        // 1. Fetch appointments for Dr. Smith
+        const { data: appointments } = await supabase_1.supabase
+            .from('appointments')
+            .select('*')
+            .eq('doctor_id', 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd');
+        // 2. Fetch profiles to match patient names
+        const { data: profiles } = await supabase_1.supabase
+            .from('profiles')
+            .select('id, full_name, role');
+        // 3. Fetch medical records
+        const { data: medicalRecords } = await supabase_1.supabase
+            .from('medical_records')
+            .select('*');
+        // 4. Fetch inventory details
+        const { data: inventory } = await supabase_1.supabase
+            .from('medicine_inventory')
+            .select('*');
+        // Format schedule
+        const scheduleStr = (appointments || []).map(appt => {
+            const patient = (profiles || []).find(p => p.id === appt.patient_id);
+            const patientName = patient ? patient.full_name : 'Unknown Patient';
+            return `- Time: ${appt.scheduled_time}, Patient: ${patientName}, Status: ${appt.status}`;
+        }).join('\n');
+        // Format medical records
+        const recordsStr = (medicalRecords || []).map(record => {
+            const patient = (profiles || []).find(p => p.id === record.patient_id);
+            if (!patient)
+                return null;
+            let desc = record.description;
+            return `- Patient: ${patient.full_name}, Record Type: ${record.record_type}, Details: ${desc}`;
+        }).filter(Boolean).join('\n');
+        // Format inventory
+        const inventoryStr = (inventory || []).map(item => {
+            return `- Medicine: ${item.medicine_name}, Stock: ${item.current_stock}, Reorder Threshold: ${item.reorder_threshold}`;
+        }).join('\n');
+        const systemInstruction = `You are the personal AI assistant for Dr. Anita Desai (also known as Dr. Smith). 
+You speak like a friendly, knowledgeable clinical colleague — not a stiff chatbot or a report generator.
+
+Today's Schedule / Appointments:
+${scheduleStr || 'No appointments scheduled today.'}
+
+Patient Medical History Context:
+${recordsStr || 'No patient records found.'}
+
+Medicine Inventory Stock Levels:
+${inventoryStr || 'No stock details available.'}
+
+Guidelines:
+1. Speak like a real professional clinical assistant.
+2. When asked about patient history or today's schedule, summarize details conversationally.
+3. Be friendly, brief, and concise. Speak in short paragraphs. No huge lists or markdown tables unless requested.`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
+        // Map history to Gemini API format
+        const contents = (history || []).map((h) => ({
+            role: h.role === 'model' ? 'model' : 'user',
+            parts: [{ text: h.text }]
+        }));
+        // Append the current message
+        contents.push({
+            role: 'user',
+            parts: [{ text: message }]
+        });
+        const response = await globalThis.fetch(geminiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents,
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                }
+            })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Gemini error:', errorText);
+            return res.status(500).json({ message: `Gemini API returned error: ${response.status}` });
+        }
+        const resData = await response.json();
+        const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+        res.json({ reply: replyText });
+    }
+    catch (err) {
+        console.error('Chat error:', err);
+        res.status(500).json({ message: err.message || 'Internal server error' });
     }
 });
 // Start server
