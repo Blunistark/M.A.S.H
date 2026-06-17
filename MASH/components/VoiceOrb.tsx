@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
-import Svg, { Defs, Path, Circle, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Defs, Circle, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import { Theme } from '../theme';
 
@@ -9,9 +9,9 @@ interface VoiceOrbProps {
   state?: 'idle' | 'listening' | 'processing' | 'speaking';
 }
 
-// Spherical grid segmentation
-const LAT_COUNT = 15;
-const LNG_COUNT = 20;
+// Spherical grid segmentation (dense for rich point-cloud representation)
+const LAT_COUNT = 22;
+const LNG_COUNT = 32;
 
 // Base sphere coordinates (latitude-longitude grid)
 const baseGrid: { nx: number; ny: number; nz: number; i: number; j: number }[] = [];
@@ -35,18 +35,18 @@ for (let i = 0; i <= LAT_COUNT; i++) {
   }
 }
 
-// Scattered glowing particles around the orb perimeter
-const particleData = Array.from({ length: 45 }).map((_, idx) => {
+// Scattered glowing particles around the orb perimeter (increased count and size range)
+const particleData = Array.from({ length: 65 }).map((_, idx) => {
   const theta = Math.random() * Math.PI - Math.PI / 2;
   const phi = Math.random() * 2 * Math.PI;
   return {
     nx: Math.cos(theta) * Math.sin(phi),
     ny: Math.sin(theta),
     nz: Math.cos(theta) * Math.cos(phi),
-    rOffset: 25 + Math.random() * 25,
-    speed: 1.5 + Math.random() * 2,
-    size: 1.0 + Math.random() * 2.0,
-    color: idx % 3 === 0 ? '#00BFFF' : idx % 3 === 1 ? '#FF00FF' : '#ffffff',
+    rOffset: 20 + Math.random() * 30,
+    speed: 1.2 + Math.random() * 2.2,
+    size: 0.8 + Math.random() * 1.8,
+    color: idx % 3 === 0 ? '#00E5FF' : idx % 3 === 1 ? '#FF00FF' : '#ffffff',
   };
 });
 
@@ -252,64 +252,32 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     projected[v.i][v.j] = { x: xp, y: yp, z: z2 };
   });
 
-  // 5. Construct latitude UV grid paths split by front/back to hide back-lines
-  let latFrontPath = '';
-  let latBackPath = '';
+  // 5. Render grid intersection dots (front side only, with depth cueing size & opacity)
+  const gridDots: React.ReactNode[] = [];
   for (let i = 0; i <= LAT_COUNT; i++) {
     for (let j = 0; j < LNG_COUNT; j++) {
-      const nextJ = (j + 1) % LNG_COUNT;
-      const p1 = projected[i][j];
-      const p2 = projected[i][nextJ];
-      const avgZ = (p1.z + p2.z) / 2;
-      
-      const segmentStr = ` M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-      if (avgZ < 0) {
-        latFrontPath += segmentStr;
-      } else {
-        latBackPath += segmentStr;
-      }
-    }
-  }
-
-  // 6. Construct longitude UV grid paths split by front/back
-  let lngFrontPath = '';
-  let lngBackPath = '';
-  for (let j = 0; j < LNG_COUNT; j++) {
-    for (let i = 0; i < LAT_COUNT; i++) {
-      const p1 = projected[i][j];
-      const p2 = projected[i + 1][j];
-      const avgZ = (p1.z + p2.z) / 2;
-      
-      const segmentStr = ` M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-      if (avgZ < 0) {
-        lngFrontPath += segmentStr;
-      } else {
-        lngBackPath += segmentStr;
-      }
-    }
-  }
-
-  // 7. Render grid intersection dots (front side only)
-  const gridDots: React.ReactNode[] = [];
-  for (let i = 0; i <= LAT_COUNT; i += 2) {
-    for (let j = 0; j < LNG_COUNT; j += 2) {
       const pt = projected[i][j];
-      if (pt.z < 0) {
+      if (pt && pt.z < 0) {
+        // Volumetric depth ratio: 1.0 at closest center, 0 at edges
+        const depthRatio = Math.max(0, Math.min(1, -pt.z / R));
+        const size = 0.5 + depthRatio * 1.0 + volume * 0.5;
+        const opacity = (0.22 + depthRatio * 0.78) * (0.85 + volume * 0.15);
+        
         gridDots.push(
           <Circle
             key={`dot-${i}-${j}`}
             cx={pt.x}
             cy={pt.y}
-            r={1.0}
-            fill="#ffffff"
-            opacity={0.85 + volume * 0.15}
+            r={size}
+            fill="url(#meshGrad)"
+            opacity={opacity}
           />
         );
       }
     }
   }
 
-  // 8. Project and render perimeter particles
+  // 6. Project and render perimeter particles
   const particleNodes = particleData.map((p, idx) => {
     const drift = Math.sin(time * p.speed + idx) * 5 + volume * 20;
     const pR = R + p.rOffset + drift;
@@ -348,11 +316,18 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     );
   });
 
-  // 9. Smoky nebula offsets (overlapping drift)
-  const glow1X = 150 + Math.sin(time * 1.2) * 16;
-  const glow1Y = 150 + Math.cos(time * 0.9) * 12;
-  const glow2X = 150 + Math.cos(time * 1.5) * 18;
-  const glow2Y = 150 + Math.sin(time * 1.1) * 16;
+  // 7. Smoky nebula offsets (4 drifting layers)
+  const glowCyanX = 130 + Math.sin(time * 1.5) * 20;
+  const glowCyanY = 120 + Math.cos(time * 1.2) * 15;
+
+  const glowMagentaX = 170 + Math.cos(time * 1.8) * 20;
+  const glowMagentaY = 180 + Math.sin(time * 1.4) * 15;
+
+  const glowPurpleX = 150 + Math.sin(time * 0.8) * 12;
+  const glowPurpleY = 150 + Math.cos(time * 1.0) * 12;
+
+  const glowCoreX = 150 + Math.sin(time * 2.2 + volume * 2) * 8;
+  const glowCoreY = 150 + Math.cos(time * 2.5 + volume * 2) * 8;
 
   return (
     <View style={styles.container}>
@@ -360,74 +335,69 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
         <View style={styles.canvasWrapper}>
           <Svg width={300} height={300} viewBox="0 0 300 300">
             <Defs>
-              {/* Electric blue to hot magenta wireframe gradient */}
-              <LinearGradient id="meshGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#00BFFF" stopOpacity={0.95} />
+              {/* Electric blue to hot magenta global gradient */}
+              <LinearGradient id="meshGrad" x1="75" y1="75" x2="225" y2="225" gradientUnits="userSpaceOnUse">
+                <Stop offset="0%" stopColor="#00E5FF" stopOpacity={0.95} />
                 <Stop offset="50%" stopColor="#8A2BE2" stopOpacity={0.8} />
                 <Stop offset="100%" stopColor="#FF00FF" stopOpacity={0.95} />
               </LinearGradient>
               
               {/* Dynamic smoky radial gradients */}
-              <RadialGradient id="smokyBlue" cx="50%" cy="50%" rx="50%" ry="50%">
-                <Stop offset="0%" stopColor="#00BFFF" stopOpacity={0.35 + volume * 0.25} />
-                <Stop offset="55%" stopColor="#8A2BE2" stopOpacity={0.12 + volume * 0.1} />
+              <RadialGradient id="glowCyan" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#00E5FF" stopOpacity={0.45 + volume * 0.3} />
+                <Stop offset="40%" stopColor="#00BFFF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="70%" stopColor="#8A2BE2" stopOpacity={0.08 + volume * 0.05} />
                 <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
               </RadialGradient>
 
-              <RadialGradient id="smokyMagenta" cx="50%" cy="50%" rx="50%" ry="50%">
-                <Stop offset="0%" stopColor="#FF00FF" stopOpacity={0.35 + volume * 0.25} />
-                <Stop offset="55%" stopColor="#8A2BE2" stopOpacity={0.12 + volume * 0.1} />
+              <RadialGradient id="glowMagenta" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#FF007F" stopOpacity={0.45 + volume * 0.3} />
+                <Stop offset="40%" stopColor="#FF00FF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="70%" stopColor="#8A2BE2" stopOpacity={0.08 + volume * 0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="glowPurple" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#7F00FF" stopOpacity={0.35 + volume * 0.2} />
+                <Stop offset="60%" stopColor="#4B0082" stopOpacity={0.12 + volume * 0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="glowCore" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.6 + volume * 0.4} />
+                <Stop offset="25%" stopColor="#00E5FF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="60%" stopColor="#7F00FF" stopOpacity={0.05} />
                 <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
               </RadialGradient>
             </Defs>
 
             {/* Overlapping smoky nebula backgrounds */}
             <Circle
-              cx={glow1X}
-              cy={glow1Y}
-              r={105 + volume * 25}
-              fill="url(#smokyBlue)"
+              cx={glowPurpleX}
+              cy={glowPurpleY}
+              r={120 + volume * 20}
+              fill="url(#glowPurple)"
             />
             <Circle
-              cx={glow2X}
-              cy={glow2Y}
+              cx={glowCyanX}
+              cy={glowCyanY}
+              r={105 + volume * 25}
+              fill="url(#glowCyan)"
+            />
+            <Circle
+              cx={glowMagentaX}
+              cy={glowMagentaY}
               r={95 + volume * 25}
-              fill="url(#smokyMagenta)"
+              fill="url(#glowMagenta)"
+            />
+            <Circle
+              cx={glowCoreX}
+              cy={glowCoreY}
+              r={70 + volume * 30}
+              fill="url(#glowCore)"
             />
 
-            {/* Back UV Grid lines (significantly faded) */}
-            <Path
-              d={latBackPath}
-              fill="none"
-              stroke="url(#meshGrad)"
-              strokeWidth={0.4}
-              opacity={0.12}
-            />
-            <Path
-              d={lngBackPath}
-              fill="none"
-              stroke="url(#meshGrad)"
-              strokeWidth={0.4}
-              opacity={0.12}
-            />
-
-            {/* Front UV Grid lines (clear and crisp) */}
-            <Path
-              d={latFrontPath}
-              fill="none"
-              stroke="url(#meshGrad)"
-              strokeWidth={0.8}
-              opacity={0.8 + volume * 0.2}
-            />
-            <Path
-              d={lngFrontPath}
-              fill="none"
-              stroke="url(#meshGrad)"
-              strokeWidth={0.8}
-              opacity={0.8 + volume * 0.2}
-            />
-
-            {/* Grid Intersections / Vertices (white dots at line junctions) */}
+            {/* Dense 3D Vertices/Dots */}
             {gridDots}
 
             {/* Scattered escaping particles perimeter */}
