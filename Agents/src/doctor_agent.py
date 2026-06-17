@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from src.band_config import DoctorDashboardRoom, BandSDK
-from src.supabase_tools import get_doctor_schedule, fetch_doctor_schedule_from_supabase, create_prescription
+from src.supabase_tools import get_doctor_schedule, fetch_doctor_schedule_from_supabase, create_prescription, book_appointment, get_doctors
 
 # Shared state for pending futures keyed by requestId
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
@@ -186,7 +186,9 @@ class DoctorAssistantAgent:
                 get_patient_summary,
                 create_prescription,
                 navigate_to_view,
-                resolve_shortage_alert
+                resolve_shortage_alert,
+                book_appointment,
+                get_doctors
             ]
         )
 
@@ -241,9 +243,12 @@ class DoctorAssistantAgent:
 
         system_content = (
             f"You are the personal assistant for {self.doctor_name}. "
+            f"Your doctor_id is '{self.doctor_id}'. "
             "You speak like a friendly, knowledgeable colleague — not a report generator. "
             "When the doctor asks to navigate, go to, show, or open a page or patient profile, use the navigate_to_view tool. "
             "When the doctor asks to resolve a shortage or find an alternative medicine, use the resolve_shortage_alert tool. "
+            "When the doctor asks to book or schedule an appointment, use the book_appointment tool with your doctor_id. "
+            "If they ask to book an appointment but no time is specified, ask them what time they would like to book it for. "
             "When the doctor asks about their schedule, use the get_doctor_schedule tool and summarize it conversationally. "
             "When the doctor asks about a patient's history, use the get_patient_summary tool to fetch the data. "
             "After fetching the patient summary, DO NOT paste the table. Instead, highlight the KEY points conversationally — "

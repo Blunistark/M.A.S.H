@@ -522,6 +522,19 @@ export class VoiceOrb {
       if (this.chatHistory.length > 30) {
         this.chatHistory = this.chatHistory.slice(-30);
       }
+
+      // If the agent successfully returned a reply, count it as handled
+      if (confirmMessage) {
+        actionExecuted = true;
+        
+        // Auto-refresh the current view if we mutated appointments or prescriptions
+        const lowerMsg = confirmMessage.toLowerCase();
+        if (lowerMsg.includes('booked') || lowerMsg.includes('scheduled') || lowerMsg.includes('rescheduled') || lowerMsg.includes('prescription')) {
+          setTimeout(() => {
+            this.router.navigate(this.currentRoute);
+          }, 800);
+        }
+      }
     } catch (err) {
       console.error('Doctor Assistant agent query failed or was unreachable:', err);
       // We will fall back to local routing logic below
