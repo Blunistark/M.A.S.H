@@ -10,6 +10,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    padding-top: 100px; /* Prevent overlap with fixed header */
     padding-bottom: 80px; /* Reset padding bottom on desktop */
 }
 
