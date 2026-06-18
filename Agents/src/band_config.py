@@ -52,6 +52,8 @@ class BandAgent:
                     from band import Agent
                     from band.config import load_agent_config
                     agent_id, api_key = load_agent_config(config_key, config_path="agent_config.yaml")
+                    if agent_id and agent_id.startswith("Y"):
+                        agent_id = agent_id[1:]
                     rest_url = os.getenv("BAND_REST_URL") or os.getenv("THENVOI_REST_URL") or "https://app.band.ai"
                     ws_url = os.getenv("BAND_WS_URL") or os.getenv("THENVOI_WS_URL") or "wss://app.band.ai/api/v1/socket/websocket"
                     
@@ -255,9 +257,13 @@ class BandSDK:
         from band import Agent
         from band.config import load_agent_config
         from band.client.rest import AsyncRestClient, ChatRoomRequest
+        from thenvoi_rest.types.participant_request import ParticipantRequest
+        import yaml
 
         try:
             agent_id, api_key = load_agent_config("my_agent", config_path="agent_config.yaml")
+            if agent_id and agent_id.startswith("Y"):
+                agent_id = agent_id[1:]
         except Exception as e:
             raise RuntimeError(f"Failed to load agent configuration: {e}")
 
@@ -333,7 +339,48 @@ class BandSDK:
             if name in MOCK_ROOMS:
                 MOCK_ROOMS[name].id = rid
 
-        # 4. Initialize real agent
+        # 4. Sync room participants dynamically to prevent 403 websocket rejections
+        room_participants = {
+            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent"],
+            "Doctor-Dashboard-Room": ["doctor_agent", "summary_agent"],
+            "Reception-Navigation-Room": ["patient_navigation_agent", "registration_agent"],
+            "Clinical-Consult-Room": ["summary_agent", "doctor_agent"],
+            "Pharmacy-Inventory-Room": ["medicine_management_agent", "pharmacist_agent"],
+            "Telemetry-Audit-Room": ["telemetry_agent"],
+            "Pharmacist-Dashboard-Room": ["pharmacist_agent"]
+        }
+
+        agent_config = {}
+        try:
+            with open("agent_config.yaml", "r") as f:
+                agent_config = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"[BandSDK] Warning: Could not load agent_config.yaml for participant sync: {e}")
+
+        for room_name, keys in room_participants.items():
+            rid = ROOM_NAME_TO_ID.get(room_name)
+            if not rid:
+                continue
+            try:
+                participants_res = await client.agent_api_participants.list_agent_chat_participants(chat_id=rid)
+                current_ids = {p.id for p in participants_res.data} if participants_res and participants_res.data else set()
+                for key in keys:
+                    p_conf = agent_config.get(key)
+                    if p_conf:
+                        p_id = p_conf.get("agent_id")
+                        if p_id:
+                            if p_id.startswith("Y"):
+                                p_id = p_id[1:]
+                            if p_id not in current_ids:
+                                print(f"[BandSDK] Adding participant '{key}' ({p_id}) to room '{room_name}'...")
+                                await client.agent_api_participants.add_agent_chat_participant(
+                                    chat_id=rid,
+                                    participant=ParticipantRequest(participant_id=p_id, role="member")
+                                )
+            except Exception as e:
+                print(f"[BandSDK] Warning: Failed to sync participants for '{room_name}': {e}")
+
+        # 5. Initialize real agent
         adapter = BandSimpleAdapter()
         real_agent = Agent.create(
             adapter=adapter,
