@@ -12,6 +12,8 @@ let inventoryFilter: 'all' | 'high' | 'low' = 'all';
 let inventorySearchQuery: string = '';
 let activeTab: 'prescriptions' | 'history' = 'prescriptions';
 let selectedPrescriptionId: string | null = null;
+let currentInventory: MedicineInventory[] = [];
+let isLowStockModalExpanded = false;
 
 function showOverlayAlert(title: string, message: string, type: 'success' | 'error' | 'info' = 'info', callback?: () => void) {
   const overlay = document.createElement('div');
@@ -84,8 +86,128 @@ function showOverlayPrompt(title: string, message: string, placeholder: string, 
   });
 }
 
+function showLowStockModal(lowMeds: MedicineInventory[], container: HTMLElement, router: Router) {
+  let overlay = document.getElementById('low-stock-warning-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'low-stock-warning-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.bottom = '24px';
+    overlay.style.right = '24px';
+    overlay.style.zIndex = '99999';
+    overlay.style.background = 'transparent';
+    document.body.appendChild(overlay);
+  }
+
+  if (!isLowStockModalExpanded) {
+    // Render collapsed state (floating action button)
+    overlay.style.width = '64px';
+    overlay.style.height = '64px';
+    overlay.style.maxWidth = '64px';
+    overlay.innerHTML = `
+      <button id="low-stock-toggle-btn" style="position: absolute; bottom: 0; right: 0; width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: 1px solid rgba(255, 255, 255, 0.15); color: white; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.45); transition: all 0.2s ease; outline: none;" title="View Low Stock Items">
+        ⚠️
+        <span style="position: absolute; top: -5px; right: -5px; background: #ffffff; color: #dc2626; font-size: 11px; font-weight: 800; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.3); border: 1.5px solid #dc2626;">
+          ${lowMeds.length}
+        </span>
+      </button>
+    `;
+
+    const toggleBtn = overlay.querySelector('#low-stock-toggle-btn');
+    toggleBtn?.addEventListener('click', () => {
+      isLowStockModalExpanded = true;
+      showLowStockModal(lowMeds, container, router);
+    });
+  } else {
+    // Render expanded state (popup card list)
+    overlay.style.width = '420px';
+    overlay.style.maxWidth = 'calc(100vw - 48px)';
+    overlay.style.height = 'auto';
+
+    const itemsHtml = lowMeds.map(med => {
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s ease;">
+          <div style="text-align: left; margin-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+            <h4 style="margin: 0 0 2px 0; font-size: 13px; font-weight: 600; color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${med.medicine_name}">${med.medicine_name}</h4>
+            <span style="font-size: 11px; color: #f87171; font-weight: 500;">Stock: ${med.current_stock} / 200</span>
+          </div>
+          <button class="modal-restock-btn" data-med-id="${med.id}" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 11px; cursor: pointer; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25); transition: all 0.2s; white-space: nowrap;">
+            +100 units
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    overlay.innerHTML = `
+      <div class="rx-prompt-modal" style="width: 100%; background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%); border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); border-radius: 16px; padding: 20px; text-align: center; font-family: var(--font-sans); position: relative;">
+        <button id="low-stock-collapse-btn" style="position: absolute; top: 16px; right: 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #cbd5e1; cursor: pointer; font-size: 12px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Hide Details">
+          ✕
+        </button>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px; justify-content: flex-start; padding-right: 30px;">
+          <span style="font-size: 18px;">⚠️</span>
+          <h3 style="margin: 0; font-family: var(--font-heading); font-size: 15px; font-weight: 700; color: #ffffff;">Critical Stock Alert</h3>
+        </div>
+        <p style="margin: 0 0 14px 0; font-size: 12px; color: #94a3b8; line-height: 1.4; text-align: left;">The following medications are running critically low (half capacity &plusmn; 10 units or less). Please restock them:</p>
+        
+        <div style="max-height: 220px; overflow-y: auto; margin-bottom: 0; padding-right: 4px;">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+
+    const collapseBtn = overlay.querySelector('#low-stock-collapse-btn');
+    collapseBtn?.addEventListener('click', () => {
+      isLowStockModalExpanded = false;
+      showLowStockModal(lowMeds, container, router);
+    });
+
+    const restockBtns = overlay.querySelectorAll('.modal-restock-btn');
+    restockBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const medId = btn.getAttribute('data-med-id');
+        if (medId) {
+          try {
+            (btn as HTMLButtonElement).disabled = true;
+            btn.textContent = 'Restocking...';
+            
+            await restockMedicine(medId, 100);
+            
+            const data = await fetchPharmacyData();
+            currentInventory = data.inventory;
+            
+            const remainingLow = currentInventory.filter(med => med.current_stock <= 110);
+            if (remainingLow.length > 0) {
+              showLowStockModal(remainingLow, container, router);
+            } else {
+              isLowStockModalExpanded = false;
+              const existingOverlay = document.getElementById('low-stock-warning-overlay');
+              if (existingOverlay) {
+                existingOverlay.remove();
+              }
+              showOverlayAlert('Success', 'All inventory items successfully restocked.', 'success', () => {
+                router.navigate('pharmacy');
+              });
+            }
+          } catch (err) {
+            console.error('Restocking error:', err);
+            (btn as HTMLButtonElement).disabled = false;
+            btn.textContent = '+100 units';
+            alert('Failed to restock medicine.');
+          }
+        }
+      });
+    });
+  }
+}
+
 export class PharmacyView implements View {
   public async render(): Promise<string> {
+    const existingOverlay = document.getElementById('low-stock-warning-overlay');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
     // 1. Fetch aggregated data from backend /pharmacy endpoint
     let prescriptions: any[] = [];
     let inventory: MedicineInventory[] = [];
@@ -94,6 +216,7 @@ export class PharmacyView implements View {
       const data = await fetchPharmacyData();
       prescriptions = data.prescriptions;
       inventory = data.inventory;
+      currentInventory = data.inventory;
     } catch (err) {
       console.error('Error loading pharmacy data:', err);
     }
@@ -418,6 +541,11 @@ export class PharmacyView implements View {
   }
 
   public onMount(container: HTMLElement, router: Router): void {
+    const lowStockMeds = currentInventory.filter(med => med.current_stock <= 110);
+    if (lowStockMeds.length > 0) {
+      showLowStockModal(lowStockMeds, container, router);
+    }
+
     // Refresh button click
     const refreshBtn = container.querySelector('#refresh-pharma-data');
     if (refreshBtn) {

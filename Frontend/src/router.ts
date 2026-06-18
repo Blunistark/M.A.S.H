@@ -93,6 +93,11 @@ export class Router {
   }
 
   private async renderCurrentView() {
+    const existingLowStockOverlay = document.getElementById('low-stock-warning-overlay');
+    if (existingLowStockOverlay) {
+      existingLowStockOverlay.remove();
+    }
+
     const view = this.views[this.currentRoute];
     if (!view) {
       console.error(`View ${this.currentRoute} not registered`);
