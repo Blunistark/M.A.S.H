@@ -136,16 +136,26 @@ app.post('/api/auth/logout', async (req, res) => {
 // GET /api/metrics
 app.get('/api/metrics', async (req, res) => {
   try {
+    // Today's date range in UTC
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
     // Today's appointments count
     const { count: todayCount, error: todayErr } = await supabase
       .from('appointments')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .gte('scheduled_time', todayStart.toISOString())
+      .lte('scheduled_time', todayEnd.toISOString());
 
-    // Remaining appointments count (scheduled)
+    // Remaining appointments count (scheduled, today only)
     const { count: remainingCount, error: remainingErr } = await supabase
       .from('appointments')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'scheduled');
+      .eq('status', 'scheduled')
+      .gte('scheduled_time', todayStart.toISOString())
+      .lte('scheduled_time', todayEnd.toISOString());
 
     // Stock alerts count (current_stock <= reorder_threshold)
     // Supabase JS doesn't support complex column-to-column comparisons directly via filters,
@@ -154,8 +164,8 @@ app.get('/api/metrics', async (req, res) => {
       .from('medicine_inventory')
       .select('current_stock, reorder_threshold');
 
-    const stockAlertsCount = inventory 
-      ? inventory.filter(m => m.current_stock <= m.reorder_threshold).length 
+    const stockAlertsCount = inventory
+      ? inventory.filter(m => m.current_stock <= m.reorder_threshold).length
       : 0;
 
     if (todayErr || remainingErr || invErr) {
@@ -461,9 +471,9 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
           );
         }
       }
-      
+
       console.log(`[Prescription Item] "${item.name}" → ${med ? `matched: ${med.medicine_name} (${med.id})` : 'NO MATCH (medicine_id will be null)'}`);
-      
+
       return {
         prescription_id: rx.id,
         medicine_id: med ? med.id : null,
@@ -499,7 +509,7 @@ app.get('/api/pharmacy', async (req, res) => {
     const { data: prescriptions, error: rxErr } = await supabase
       .from('prescriptions')
       .select('*');
-    
+
     if (rxErr) throw rxErr;
 
     const { data: items, error: itemsErr } = await supabase
@@ -526,7 +536,7 @@ app.get('/api/pharmacy', async (req, res) => {
     const detailedPrescriptions = rxList.map(rx => {
       const patient = (profiles || []).find(p => p.id === rx.patient_id);
       const doctor = (profiles || []).find(p => p.id === rx.doctor_id);
-      
+
       const rxItems = (items || []).filter(item => item.prescription_id === rx.id).map(item => {
         const med = (inventory || []).find(inv => inv.id === item.medicine_id);
         const inStock = med ? (med.current_stock >= item.quantity) : false;
@@ -758,11 +768,18 @@ app.post('/api/doctor-chat', async (req, res) => {
       return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
     }
 
-    // 1. Fetch appointments for Dr. Smith
+    // 1. Fetch today's appointments for Dr. Smith
+    const fbTodayStart = new Date();
+    fbTodayStart.setUTCHours(0, 0, 0, 0);
+    const fbTodayEnd = new Date();
+    fbTodayEnd.setUTCHours(23, 59, 59, 999);
+
     const { data: appointments } = await supabase
       .from('appointments')
       .select('*')
-      .eq('doctor_id', 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd');
+      .eq('doctor_id', 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd')
+      .gte('scheduled_time', fbTodayStart.toISOString())
+      .lte('scheduled_time', fbTodayEnd.toISOString());
 
     // 2. Fetch profiles to match patient names
     const { data: profiles } = await supabase
@@ -817,13 +834,13 @@ Guidelines:
 3. Be friendly, brief, and concise. Speak in short paragraphs. No huge lists or markdown tables unless requested.`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
-    
+
     // Map history to Gemini API format
     const contents = (history || []).map((h: any) => ({
       role: h.role === 'model' ? 'model' : 'user',
       parts: [{ text: h.text }]
     }));
-    
+
     // Append the current message
     contents.push({
       role: 'user',
@@ -875,7 +892,7 @@ Guidelines:
       const searchLower = extractedName.toLowerCase();
       const searchWords = searchLower.split(/\s+/).filter((w: string) => w.length > 1);
       const patients = (profiles as any[]).filter((p: any) => p.role === 'patient');
-      
+
       let bestMatch: any = null;
       let bestScore = 0;
 
@@ -1035,12 +1052,12 @@ Guidelines:
 4. No markdown tables or long dumps unless the user explicitly requests them.`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
-    
+
     const contents = (history || []).map((h: any) => ({
       role: h.role === 'model' ? 'model' : 'user',
       parts: [{ text: h.text }]
     }));
-    
+
     contents.push({
       role: 'user',
       parts: [{ text: message }]
@@ -1103,48 +1120,52 @@ Guidelines:
   }
 });
 
-// POST /api/tts
+// POST /api/tts - uses Sarvam AI text-to-speech
 app.post('/api/tts', async (req, res) => {
   try {
-    const { text, voiceId = 'pNInz6obpgDQGcFmaJcg' } = req.body; // Default Adam voice
+    const { text } = req.body;
     if (!text) {
       return res.status(400).json({ message: 'Text is required' });
     }
 
-    if (!process.env.ELEVENLABS_API_KEY) {
-      return res.status(500).json({ message: 'ELEVENLABS_API_KEY is not configured' });
+    if (!process.env.SARVAM_API_KEY) {
+      return res.status(500).json({ message: 'SARVAM_API_KEY is not configured' });
     }
 
-    const response = await globalThis.fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const response = await globalThis.fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
       headers: {
-        'Accept': 'audio/mpeg',
-        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'api-subscription-key': process.env.SARVAM_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         text,
-        model_id: 'eleven_turbo_v2_5', // Usually faster and better
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
+        target_language_code: 'en-IN',
+        speaker: 'anushka'
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('ElevenLabs API error:', errText);
-      return res.status(response.status).json({ message: 'Error from ElevenLabs API' });
+      console.error('Sarvam API error:', errText);
+      return res.status(response.status).json({ message: 'Error from Sarvam API' });
     }
 
+    interface SarvamResponse {
+      audios: string[];
+    }
+    const resData = (await response.json()) as SarvamResponse;
+    if (!resData.audios || resData.audios.length === 0) {
+      return res.status(500).json({ message: 'No audio returned from Sarvam API' });
+    }
+
+    const audioBase64 = resData.audios[0];
+    const buffer = Buffer.from(audioBase64, 'base64');
+
     res.set({
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': 'audio/wav',
       'Transfer-Encoding': 'chunked'
     });
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     res.send(buffer);
   } catch (err: any) {
     console.error('TTS error:', err);

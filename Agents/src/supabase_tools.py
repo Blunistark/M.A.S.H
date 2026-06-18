@@ -2,6 +2,7 @@ import os
 import json
 import httpx
 from typing import Dict, Any, List
+from datetime import datetime
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 
@@ -20,8 +21,9 @@ async def fetch_doctors_from_supabase() -> List[Dict[str, Any]]:
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return []
     
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
     url = f"{SUPABASE_URL}/rest/v1/doctor_details?select=doctor_id,specialty,room_number,is_available,profiles(full_name)"
-    appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)"
+    appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)&scheduled_time=gte.{today_str}T00:00:00Z&scheduled_time=lte.{today_str}T23:59:59Z"
     
     try:
         async with httpx.AsyncClient() as client:
@@ -159,6 +161,8 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
         
+    doctor_id = resolve_doctor_id(doctor_id)
+        
     # First, lookup patient_id by name (case insensitive)
     patient_id = "550e8400-e29b-41d4-a716-446655440000" # Fallback to John Doe
     try:
@@ -176,7 +180,8 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
     
     # Format slot_time into a proper timestamp if it is just HH:MM
     if len(slot_time) == 5 and ":" in slot_time:
-        slot_time = f"2026-06-17T{slot_time}:00Z"
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        slot_time = f"{today_str}T{slot_time}:00Z"
     
     url = f"{SUPABASE_URL}/rest/v1/appointments"
     try:
@@ -213,7 +218,8 @@ async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: s
         pass
         
     if len(new_slot_time) == 5 and ":" in new_slot_time:
-        new_slot_time = f"2026-06-17T{new_slot_time}:00Z"
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        new_slot_time = f"{today_str}T{new_slot_time}:00Z"
         
     url = f"{SUPABASE_URL}/rest/v1/appointments?patient_id=eq.{patient_id}"
     try:
@@ -251,13 +257,53 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
     else:
         return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."
 
-async def fetch_doctor_schedule_from_supabase(doctor_id: str) -> List[Dict[str, Any]]:
+def resolve_doctor_id(doctor_id_or_name: str) -> str:
+    if not doctor_id_or_name:
+        return "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
+    
+    val = str(doctor_id_or_name).strip().lower()
+    
+    # If it looks like a valid UUID, return it
+    try:
+        import uuid
+        uuid.UUID(val)
+        return doctor_id_or_name
+    except ValueError:
+        pass
+        
+    # If it's a name or "me"/"my", map it to Dr. Smith's ID
+    if "smith" in val or "anita" in val or "desai" in val or "me" in val or "my" in val:
+        return "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
+        
+    return doctor_id_or_name
+
+async def fetch_doctor_schedule_from_supabase(doctor_id: str, date_str: str = None) -> List[Dict[str, Any]]:
     """Fetch the given doctor's appointments and patient details."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return []
     
+    doctor_id = resolve_doctor_id(doctor_id)
+    
+    # Clean up and parse the date string
+    if date_str:
+        date_str = str(date_str).strip().lower()
+        if date_str in ("today", "today's", "now", "current"):
+            target_date = datetime.utcnow().strftime("%Y-%m-%d")
+        else:
+            import re
+            match = re.search(r'\d{4}-\d{2}-\d{2}', date_str)
+            if match:
+                target_date = match.group(0)
+            else:
+                target_date = datetime.utcnow().strftime("%Y-%m-%d")
+    else:
+        target_date = datetime.utcnow().strftime("%Y-%m-%d")
+        
+    start_time = f"{target_date}T00:00:00Z"
+    end_time = f"{target_date}T23:59:59Z"
+    
     # Step 1: Fetch appointments (no join - keep it simple)
-    url = f"{SUPABASE_URL}/rest/v1/appointments?doctor_id=eq.{doctor_id}&status=in.(scheduled,in_progress)&select=scheduled_time,status,patient_id&order=scheduled_time.asc"
+    url = f"{SUPABASE_URL}/rest/v1/appointments?doctor_id=eq.{doctor_id}&status=in.(scheduled,in_progress)&scheduled_time=gte.{start_time}&scheduled_time=lte.{end_time}&select=scheduled_time,status,patient_id&order=scheduled_time.asc"
     
     try:
         async with httpx.AsyncClient() as client:
@@ -296,11 +342,13 @@ async def fetch_doctor_schedule_from_supabase(doctor_id: str) -> List[Dict[str, 
     return []
 
 @tool
-async def get_doctor_schedule(doctor_id: str) -> str:
-    """Fetch the schedule and appointments for a specific doctor. Pass the doctor's UUID."""
-    schedule = await fetch_doctor_schedule_from_supabase(doctor_id)
+async def get_doctor_schedule(doctor_id: str, date: str = None) -> str:
+    """Fetch the schedule and appointments for a specific doctor. Pass the doctor's UUID. Optionally pass a date string in YYYY-MM-DD format (defaults to today)."""
+    print(f"[DEBUG TOOL get_doctor_schedule] doctor_id={doctor_id}, date={date}")
+    schedule = await fetch_doctor_schedule_from_supabase(doctor_id, date)
     if not schedule:
-        return "No appointments found for today."
+        target_date = date if date else datetime.utcnow().strftime("%Y-%m-%d")
+        return f"No appointments found for {target_date}."
     return json.dumps(schedule, indent=2)
 
 async def create_prescription_in_supabase(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None) -> bool:

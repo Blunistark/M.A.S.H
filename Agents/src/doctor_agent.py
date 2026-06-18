@@ -193,8 +193,10 @@ class DoctorAssistantAgent:
         )
 
     def setup_listeners(self):
+        from src.supabase_tools import resolve_doctor_id
+        
         def on_booking_confirmed(payload: Dict[str, Any]):
-            doc_id = payload.get("doctorId")
+            doc_id = resolve_doctor_id(payload.get("doctorId"))
             if doc_id == self.doctor_id:
                 patient_name = payload.get("patientName", "A patient")
                 slot_time = payload.get("slotTime", "unknown time")
@@ -209,7 +211,7 @@ class DoctorAssistantAgent:
                     future.set_result(payload)
 
         def on_alt_medicine_requested(payload: Dict[str, Any]):
-            doc_id = payload.get("doctorId")
+            doc_id = resolve_doctor_id(payload.get("doctorId")) if payload.get("doctorId") else None
             if not doc_id or doc_id == self.doctor_id:
                 patient_name = payload.get("patientName") or f"Patient ID {payload.get('patientId', 'Unknown')}"
                 medicine = payload.get("medicine", "requested medicine")
@@ -221,8 +223,11 @@ class DoctorAssistantAgent:
         self.agent.on_event("ALTERNATIVE_MEDICINE_REQUESTED", on_alt_medicine_requested)
 
     async def load_schedule_to_patient_map(self):
-        """Fetch the schedule and store patient name→UUID for quick lookup during conversation."""
-        schedule = await fetch_doctor_schedule_from_supabase(self.doctor_id)
+        """Fetch today's schedule and store patient name→UUID for quick lookup during conversation."""
+        from datetime import datetime
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        schedule = await fetch_doctor_schedule_from_supabase(self.doctor_id, today_str)
+        self.patient_map.clear()
         for item in schedule:
             name = item.get("patientName", "")
             pid = item.get("patientId")
@@ -233,6 +238,11 @@ class DoctorAssistantAgent:
     async def process_doctor_query(self, messages: list) -> list:
         """Process an interactive conversation with the doctor."""
         self.pending_actions = []
+        try:
+            await self.load_schedule_to_patient_map()
+        except Exception as e:
+            print(f"Error loading schedule in process_doctor_query: {e}")
+            
         patient_map_hint = ""
         if self.patient_map:
             names = ", ".join(n.title() for n in self.patient_map.keys())
@@ -241,9 +251,12 @@ class DoctorAssistantAgent:
                 "If the doctor asks about any of them, use get_patient_summary with their exact name."
             )
 
+        from datetime import datetime
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
         system_content = (
             f"You are the personal assistant for {self.doctor_name}. "
             f"Your doctor_id is '{self.doctor_id}'. "
+            f"Today's date is {today_str}. "
             "You speak like a friendly, knowledgeable colleague — not a report generator. "
             "When the doctor asks to navigate, go to, show, or open a page or patient profile, use the navigate_to_view tool. "
             "When the doctor asks to resolve a shortage or find an alternative medicine, use the resolve_shortage_alert tool. "
