@@ -1,5 +1,6 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
+import { API_BASE } from '../api';
 
 interface TelemetryEvent {
   id: string;
@@ -154,10 +155,7 @@ export class TelemetryView implements View {
 
   private async fetchInitialState() {
     try {
-      const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:3000'
-        : 'https://m-a-s-h-backend.onrender.com';
-        
+      const baseUrl = API_BASE.replace(/\/api\/?$/, '');
       const res = await fetch(`${baseUrl}/api/telemetry/state`);
       if (res.ok) {
         this.rooms = await res.json();
@@ -180,9 +178,8 @@ export class TelemetryView implements View {
   }
 
   private connectWebSocket() {
-    const wsBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'ws://localhost:3000'
-      : 'wss://m-a-s-h-backend.onrender.com';
+    const baseUrl = API_BASE.replace(/\/api\/?$/, '');
+    const wsBaseUrl = baseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 
     this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream`);
     
