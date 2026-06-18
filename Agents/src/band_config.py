@@ -169,11 +169,13 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
     from band.client.rest import ChatEventRequest, DEFAULT_REQUEST_OPTIONS
     try:
         # Make the payload visible in the UI for non-join events
+        msg_type = "task"
         if event != "AGENT_JOINED" and event != "STATE_UPDATED":
+            msg_type = "text"
             try:
-                display_content = f"[{event}]\n```json\n{json.dumps(payload, indent=2)}\n```"
+                display_content = f"**Event: {event}**\n```json\n{json.dumps(payload, indent=2)}\n```"
             except Exception:
-                display_content = f"[{event}]\n{str(payload)}"
+                display_content = f"**Event: {event}**\n{str(payload)}"
         else:
             display_content = event
 
@@ -181,7 +183,7 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
             chat_id=room_id,
             event=ChatEventRequest(
                 content=display_content,
-                message_type="task",
+                message_type=msg_type,
                 metadata=payload
             ),
             request_options=DEFAULT_REQUEST_OPTIONS
