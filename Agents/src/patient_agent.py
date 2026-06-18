@@ -91,18 +91,25 @@ class PatientManagementAgent:
     async def process_patient_query(self, messages: list) -> list:
         """Process an interactive conversation to book an appointment.
         Pass in the full message history. Returns the updated message history."""
+        from datetime import datetime, timedelta
+        # Local system timezone offset relative to user's local date
+        now_local = datetime.utcnow() + timedelta(hours=5, minutes=30)
+        local_date_str = now_local.strftime("%Y-%m-%d")
+        local_day_of_week = now_local.strftime("%A")
+        
         system_msg = {
             "role": "system",
             "content": (
                 "You are the MASH Patient Management Assistant. "
                 "Your job is to understand patient symptoms, suggest an appropriate doctor by using the get_doctors tool. "
+                f"Today's Date: {local_date_str} ({local_day_of_week}). "
                 "First, ask the patient which date they prefer for the appointment (e.g. Today, Tomorrow, or a specific date). "
                 "When asking for a date, YOU MUST append a few date options at the end of your message in the format [DATES: Today, Tomorrow, Day After Tomorrow]. "
                 "Once the patient chooses a date, call the get_doctors tool passing the selected date in YYYY-MM-DD format (or leave empty for today). "
                 "CRITICAL: ONLY offer the exact time slots returned in the 'availableSlots' array from the get_doctors tool. Do NOT guess or hallucinate available times. "
                 "If the tool returns no doctors, say so. "
-                "Once the patient chooses a valid slot, book the appointment using the book_appointment tool. "
-                "If the patient wants to reschedule, use the reschedule_appointment tool instead of booking a new one. "
+                "Once the patient chooses a valid slot, book the appointment using the book_appointment tool, passing the correct date parameter (e.g. '2026-06-20' or 'tomorrow'). "
+                "If the patient wants to reschedule, use the reschedule_appointment tool instead of booking a new one, passing the correct date parameter. "
                 "Always confirm the doctor and time slot with the patient before booking. "
                 "CRITICAL: Whenever you suggest time slots to the patient to choose from, you MUST append them at the very end of your response in the format [SLOTS: time1, time2]. For example: '... Which time works best? [SLOTS: 09:00, 10:00, 14:00]'"
             )
