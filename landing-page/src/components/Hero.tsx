@@ -16,6 +16,10 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
 
     return (
         <section className="hero" id="hero">
+            <div className="hero-image-wrapper">
+                <img src={HERO_IMAGE} alt="Hero Background" className="hero-image" />
+            </div>
+            <div className="hero-overlay"></div>
 
             <motion.div
                 className="hero-content"
