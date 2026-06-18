@@ -6,11 +6,97 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from src.band_config import DoctorDashboardRoom, BandSDK
-from src.supabase_tools import get_doctor_schedule, fetch_doctor_schedule_from_supabase, create_prescription, book_appointment, get_doctors, fetch_medical_records_from_supabase
+from src.band_config import DoctorDashboardRoom, PatientManagementRoom, BandSDK
+from src.supabase_tools import (
+    get_doctor_schedule,
+    fetch_doctor_schedule_from_supabase,
+    create_prescription,
+    book_appointment,
+    get_doctors,
+    fetch_medical_records_from_supabase,
+    save_patient_summary_to_supabase
+)
 
 # Shared state for pending futures keyed by requestId
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
+
+def compile_patient_summary_table(patient_name: str, db_records: List[Dict[str, Any]]) -> str:
+    """Build a markdown table from the raw medical records."""
+    history_items, allergy_items, test_rows, surgery_rows = [], [], [], []
+
+    for record in db_records:
+        rtype = record.get("record_type", "")
+        desc = record.get("description", "")
+        record_date = record.get("record_date", "")
+
+        desc_data: Dict[str, Any] = {}
+        if isinstance(desc, str) and desc.startswith("{"):
+            try:
+                desc_data = json.loads(desc)
+            except Exception:
+                pass
+        elif isinstance(desc, dict):
+            desc_data = desc
+
+        if rtype == "chronic_condition":
+            history_items.append(desc if isinstance(desc, str) else str(desc))
+        elif rtype == "allergy":
+            name = desc_data.get("name") or desc
+            severity = desc_data.get("severity", "Unknown")
+            allergy_items.append(f"{name} (Severity: {severity})")
+        elif rtype == "test_result":
+            test_rows.append({
+                "name": desc_data.get("name", "Unknown Test"),
+                "date": desc_data.get("date") or record_date,
+                "result": desc_data.get("result", "—")
+            })
+        elif rtype == "surgical_history":
+            surgery_rows.append({
+                "procedure": desc_data.get("name", "Unknown Procedure"),
+                "date": desc_data.get("date") or record_date,
+                "outcome": desc_data.get("description") or "Successful recovery"
+            })
+
+    lines = [f"## Patient Summary: {patient_name}", ""]
+
+    # Conditions & Allergies
+    lines.append("### Medical History & Allergies")
+    lines.append("| Category | Details |")
+    lines.append("|----------|---------|")
+    if history_items:
+        for h in history_items:
+            lines.append(f"| Condition | {h} |")
+    else:
+        lines.append("| Condition | No chronic conditions recorded |")
+    if allergy_items:
+        for a in allergy_items:
+            lines.append(f"| Allergy | {a} |")
+    else:
+        lines.append("| Allergy | No known allergies |")
+    lines.append("")
+
+    # Test Results
+    lines.append("### Diagnostic Tests")
+    if test_rows:
+        lines.append("| Test Name | Date | Result |")
+        lines.append("|-----------|------|--------|")
+        for t in test_rows:
+            lines.append(f"| {t['name']} | {t['date']} | {t['result']} |")
+    else:
+        lines.append("_No diagnostic tests recorded._")
+    lines.append("")
+
+    # Surgeries
+    lines.append("### Surgical History")
+    if surgery_rows:
+        lines.append("| Procedure | Date | Outcome |")
+        lines.append("|-----------|------|---------|")
+        for s in surgery_rows:
+            lines.append(f"| {s['procedure']} | {s['date']} | {s['outcome']} |")
+    else:
+        lines.append("_No surgical history recorded._")
+
+    return "\n".join(lines)
 
 class DoctorAssistantAgent:
     def __init__(self, doctor_id: str, doctor_name: str):
@@ -41,16 +127,37 @@ class DoctorAssistantAgent:
             # Resolve name to UUID using the schedule map
             name_key = patient_name.strip().lower()
             patient_id = agent_self.patient_map.get(name_key)
+            resolved_name = patient_name
 
             if not patient_id:
                 # Try partial match
                 for stored_name, pid in agent_self.patient_map.items():
                     if name_key in stored_name or stored_name in name_key:
                         patient_id = pid
+                        resolved_name = stored_name
                         break
 
             if not patient_id:
-                return f"Could not find a patient named '{patient_name}' in today's schedule. Please check the name and try again."
+                # Query Supabase to find the patient
+                try:
+                    import httpx
+                    from src.supabase_tools import SUPABASE_URL, get_headers
+                    search_name = patient_name.split()[0] if patient_name else ""
+                    if search_name:
+                        url = f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient"
+                        async with httpx.AsyncClient() as client:
+                            res = await client.get(url, headers=get_headers())
+                            if res.status_code == 200 and res.json():
+                                first_match = res.json()[0]
+                                patient_id = first_match["id"]
+                                resolved_name = first_match.get("full_name", patient_name)
+                                # Cache it
+                                agent_self.patient_map[resolved_name.strip().lower()] = patient_id
+                except Exception as e:
+                    print(f"Error querying Supabase in get_patient_summary: {e}")
+
+            if not patient_id:
+                return f"Could not find a patient named '{patient_name}' in the database. Please check the name and try again."
 
             req_id = str(uuid_lib.uuid4())
             loop = asyncio.get_event_loop()
@@ -60,14 +167,25 @@ class DoctorAssistantAgent:
             DoctorDashboardRoom.broadcast("PATIENT_SUMMARY_REQUESTED", {
                 "requestId": req_id,
                 "patientId": patient_id,
-                "patientName": patient_name,
+                "patientName": resolved_name,
             })
 
             try:
-                result = await asyncio.wait_for(asyncio.shield(future), timeout=15.0)
+                # Set a lower timeout to avoid waiting too long when WS is disconnected
+                result = await asyncio.wait_for(asyncio.shield(future), timeout=3.0)
                 return result.get("summary", "No summary available.")
             except asyncio.TimeoutError:
-                return f"Timed out waiting for the patient summary for {patient_name}. The Summary Agent may be unavailable."
+                print(f"[get_patient_summary] Timeout waiting for summary response for {resolved_name}. Falling back to direct database retrieval.")
+                try:
+                    db_records = await fetch_medical_records_from_supabase(patient_id)
+                    summary_table = compile_patient_summary_table(resolved_name, db_records)
+                    # Sync to database to keep summaries cached
+                    await save_patient_summary_to_supabase(patient_id, summary_table)
+                    # Update room state
+                    PatientManagementRoom.update_state(f"patient_summary_{patient_id}", summary_table)
+                    return summary_table
+                except Exception as e:
+                    return f"Timed out waiting for summary agent, and database fallback failed: {e}"
             finally:
                 PENDING_REQUESTS.pop(req_id, None)
 
@@ -253,11 +371,23 @@ class DoctorAssistantAgent:
             )
 
         from datetime import datetime
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        now_utc = datetime.utcnow()
+        today_str = now_utc.strftime("%Y-%m-%d")
+        day_of_week_utc = now_utc.strftime("%A")
+        time_utc = now_utc.strftime("%I:%M %p")
+        
+        # Local system timezone
+        now_local = datetime.now()
+        local_date_str = now_local.strftime("%Y-%m-%d")
+        local_day_of_week = now_local.strftime("%A")
+        time_local = now_local.strftime("%I:%M %p")
+        
         system_content = (
             f"You are the personal assistant for {self.doctor_name}. "
             f"Your doctor_id is '{self.doctor_id}'. "
-            f"Today's date is {today_str}. "
+            f"Today's Date & Time (UTC): {today_str} ({day_of_week_utc}), current time: {time_utc}.\n"
+            f"Today's Date & Time (Local): {local_date_str} ({local_day_of_week}), current time: {time_local}.\n"
+            "Use the date corresponding to the database records (simulated as June 18, 2026 if today's date in UTC is June 18, 2026, or use local/UTC dates accordingly) for schedule checks and appointment queries. "
             "You speak like a friendly, knowledgeable colleague — not a report generator. "
             "When the doctor asks to navigate, go to, show, or open a page or patient profile, use the navigate_to_view tool. "
             "When the doctor asks to resolve a shortage or find an alternative medicine, use the resolve_shortage_alert tool. "
