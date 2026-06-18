@@ -7,7 +7,8 @@ import {
   createProfile,
   fetchPrescriptions,
   fetchPrescriptionItems,
-  fetchMedicineInventory
+  fetchMedicineInventory,
+  getPatientPhotoUrl
 } from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
@@ -135,8 +136,9 @@ export class DashboardView implements View {
         <tr class="patient-row-btn" data-patient-id="${patient.id}">
           <td>
             <div class="patient-cell">
-              <div class="patient-initials-avatar ${avatarClass}">
-                ${initials}
+              <div class="patient-initials-avatar ${avatarClass}" style="position: relative; overflow: hidden;">
+                <img src="${getPatientPhotoUrl(patient.full_name)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+                <span>${initials}</span>
               </div>
               <span class="patient-name-bold">${patient.full_name}</span>
             </div>
@@ -228,8 +230,9 @@ export class DashboardView implements View {
         upcomingPatientHTML = `
           <div class="upcoming-patient-body">
             <div class="upcoming-patient-info">
-              <div class="patient-avatar-wrapper" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; width: 44px; height: 44px; border-radius: 50%;">
-                ${initials}
+              <div class="patient-avatar-wrapper" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; width: 44px; height: 44px; border-radius: 50%; position: relative; overflow: hidden;">
+                <img src="${getPatientPhotoUrl(patient.full_name)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+                <span>${initials}</span>
               </div>
               <div class="upcoming-patient-text">
                 <span class="upcoming-patient-name">${patient.full_name}</span>

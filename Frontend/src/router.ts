@@ -99,32 +99,15 @@ export class Router {
       `;
 
       const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
-      this.showPreloader(viewport);
+      viewport.innerHTML = this.getSkeletonHTML('auth');
 
       try {
         const htmlContent = await view.render(this.currentParams);
-        const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
-        const children = Array.from(viewport.childNodes);
-        children.forEach(child => {
-          if (child !== preloader) {
-            viewport.removeChild(child);
-          }
-        });
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        while (tempDiv.firstChild) {
-          viewport.appendChild(tempDiv.firstChild);
-        }
-
-        if (preloader) {
-          viewport.appendChild(preloader);
-        }
+        viewport.innerHTML = htmlContent;
 
         if (view.onMount) {
           view.onMount(viewport, this);
         }
-        this.hidePreloader(viewport);
       } catch (err) {
         console.error('Render error:', err);
         viewport.innerHTML = `
@@ -133,12 +116,8 @@ export class Router {
             <h3 style="margin-bottom: 8px;">Failed to load authentication page</h3>
           </div>
         `;
-        this.hidePreloader(viewport);
       }
 
-      if (view.onMount) {
-        view.onMount(viewport, this);
-      }
       window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
@@ -151,32 +130,15 @@ export class Router {
       `;
 
       const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
-      this.showPreloader(viewport);
+      viewport.innerHTML = this.getSkeletonHTML('pharmacy');
 
       try {
         const htmlContent = await view.render(this.currentParams);
-        const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
-        const children = Array.from(viewport.childNodes);
-        children.forEach(child => {
-          if (child !== preloader) {
-            viewport.removeChild(child);
-          }
-        });
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        while (tempDiv.firstChild) {
-          viewport.appendChild(tempDiv.firstChild);
-        }
-
-        if (preloader) {
-          viewport.appendChild(preloader);
-        }
+        viewport.innerHTML = htmlContent;
 
         if (view.onMount) {
           view.onMount(viewport, this);
         }
-        this.hidePreloader(viewport);
       } catch (err) {
         console.error('Render error:', err);
         viewport.innerHTML = `
@@ -186,12 +148,8 @@ export class Router {
             <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
           </div>
         `;
-        this.hidePreloader(viewport);
       }
 
-      if (view.onMount) {
-        view.onMount(viewport, this);
-      }
       window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
       return;
     }
@@ -241,32 +199,15 @@ export class Router {
         existingViewport.className = 'main-viewport';
       }
 
-      this.showPreloader(existingViewport);
+      existingViewport.innerHTML = this.getSkeletonHTML(this.currentRoute);
 
       try {
         const htmlContent = await view.render(this.currentParams);
-        const preloader = existingViewport.querySelector('.mash-page-preloader') as HTMLElement;
-        const children = Array.from(existingViewport.childNodes);
-        children.forEach(child => {
-          if (child !== preloader) {
-            existingViewport.removeChild(child);
-          }
-        });
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        while (tempDiv.firstChild) {
-          existingViewport.appendChild(tempDiv.firstChild);
-        }
-
-        if (preloader) {
-          existingViewport.appendChild(preloader);
-        }
+        existingViewport.innerHTML = htmlContent;
 
         if (view.onMount) {
           view.onMount(existingViewport, this);
         }
-        this.hidePreloader(existingViewport);
       } catch (err) {
         console.error('Render error:', err);
         existingViewport.innerHTML = `
@@ -276,7 +217,6 @@ export class Router {
             <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
           </div>
         `;
-        this.hidePreloader(existingViewport);
       }
 
       this.bindLayoutEvents();
@@ -347,32 +287,15 @@ export class Router {
       viewport.className = 'main-viewport';
     }
 
-    this.showPreloader(viewport);
+    viewport.innerHTML = this.getSkeletonHTML(this.currentRoute);
 
     try {
       const htmlContent = await view.render(this.currentParams);
-      const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
-      const children = Array.from(viewport.childNodes);
-      children.forEach(child => {
-        if (child !== preloader) {
-          viewport.removeChild(child);
-        }
-      });
-
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = htmlContent;
-      while (tempDiv.firstChild) {
-        viewport.appendChild(tempDiv.firstChild);
-      }
-
-      if (preloader) {
-        viewport.appendChild(preloader);
-      }
+      viewport.innerHTML = htmlContent;
 
       if (view.onMount) {
         view.onMount(viewport, this);
       }
-      this.hidePreloader(viewport);
     } catch (err) {
       console.error('Render error:', err);
       viewport.innerHTML = `
@@ -382,47 +305,184 @@ export class Router {
           <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
         </div>
       `;
-      this.hidePreloader(viewport);
     }
     
     this.bindLayoutEvents();
     window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
   }
 
-  private showPreloader(viewport: HTMLElement) {
-    let preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
-    if (!preloader) {
-      preloader = document.createElement('div');
-      preloader.className = 'mash-page-preloader';
-      preloader.innerHTML = `
-        <div class="preloader-content">
-          <div class="preloader-spinner-container">
-            <div class="preloader-orbit-outer"></div>
-            <div class="preloader-orbit-middle"></div>
-            <div class="preloader-orbit-inner"></div>
-            <div class="preloader-glow-core"></div>
+  private getSkeletonHTML(route: string): string {
+    if (route === 'dashboard') {
+      return `
+        <div class="skeleton-page dashboard-skeleton">
+          <header class="skeleton-header">
+            <div class="skeleton-title-block">
+              <div class="skeleton-line" style="width: 220px; height: 28px; background: #e2e8f0; margin-bottom: 8px;"></div>
+              <div class="skeleton-line" style="width: 160px; height: 14px; background: #cbd5e1;"></div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div class="skeleton-line" style="width: 100px; height: 16px; background: #e2e8f0;"></div>
+              <div class="skeleton-circle" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0;"></div>
+            </div>
+          </header>
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; padding: 0 40px 40px 40px; flex-grow: 1; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div style="display: flex; gap: 16px;">
+                <div class="skeleton-card" style="flex: 1; height: 110px; border-radius: 16px; background: #ffffff;"></div>
+                <div class="skeleton-card" style="flex: 1; height: 110px; border-radius: 16px; background: #ffffff;"></div>
+                <div class="skeleton-card" style="flex: 1; height: 110px; border-radius: 16px; background: #ffffff;"></div>
+              </div>
+              <div class="skeleton-card" style="flex-grow: 1; min-height: 300px; border-radius: 20px; background: #ffffff;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div class="skeleton-card" style="height: 320px; border-radius: 20px; background: #ffffff;"></div>
+              <div class="skeleton-card" style="flex-grow: 1; min-height: 120px; border-radius: 20px; background: #ffffff;"></div>
+            </div>
           </div>
-          <span class="preloader-text">Syncing Clinical Data...</span>
         </div>
       `;
-      viewport.appendChild(preloader);
     }
     
-    // force reflow
-    preloader.offsetHeight;
-    preloader.classList.add('visible');
-  }
-
-  private hidePreloader(viewport: HTMLElement) {
-    const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
-    if (preloader) {
-      preloader.classList.remove('visible');
-      setTimeout(() => {
-        if (preloader.parentNode === viewport) {
-          viewport.removeChild(preloader);
-        }
-      }, 350);
+    if (route === 'patients') {
+      return `
+        <div class="skeleton-page patients-skeleton">
+          <header class="skeleton-header">
+            <div class="skeleton-title-block">
+              <div class="skeleton-line" style="width: 180px; height: 28px; background: #e2e8f0; margin-bottom: 8px;"></div>
+              <div class="skeleton-line" style="width: 200px; height: 14px; background: #cbd5e1;"></div>
+            </div>
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <div class="skeleton-search-bar" style="width: 260px; height: 36px; border-radius: 10px; background: #e2e8f0;"></div>
+              <div class="skeleton-circle" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0;"></div>
+            </div>
+          </header>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; padding: 0 40px 40px 40px; overflow-y: auto; flex-grow: 1; box-sizing: border-box;">
+            ${Array(4).fill(0).map(() => `
+              <div class="skeleton-card" style="height: 290px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; padding: 24px; background: #ffffff; box-sizing: border-box;">
+                <div class="skeleton-circle" style="width: 72px; height: 72px; border-radius: 50%; margin-bottom: 16px; background: #e2e8f0;"></div>
+                <div class="skeleton-line" style="width: 140px; height: 18px; margin-bottom: 8px; background: #e2e8f0;"></div>
+                <div class="skeleton-line" style="width: 60px; height: 12px; margin-bottom: 24px; background: #cbd5e1;"></div>
+                <div class="skeleton-line" style="width: 80%; height: 10px; margin-bottom: 8px; background: #f1f5f9;"></div>
+                <div class="skeleton-line" style="width: 60%; height: 10px; margin-bottom: 24px; background: #f1f5f9;"></div>
+                <div class="skeleton-button" style="width: 100%; height: 36px; border-radius: 8px; background: #e2e8f0;"></div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
     }
+    
+    if (route === 'patient-profile') {
+      return `
+        <div class="skeleton-page profile-skeleton" style="background: #f8fafc; flex-grow: 1;">
+          <div class="skeleton-hero-banner" style="height: 240px; background: #0f172a; padding: 32px 40px; display: flex; flex-direction: column; justify-content: space-between; position: relative; box-sizing: border-box;">
+            <div class="skeleton-line" style="width: 100px; height: 24px; background: rgba(255,255,255,0.15); border-radius: 6px;"></div>
+            <div style="display: flex; justify-content: center; width: 100%;">
+              <div class="skeleton-circle" style="width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 4px solid rgba(255,255,255,0.3);"></div>
+            </div>
+          </div>
+          <div class="skeleton-floating-bar" style="margin: -45px auto 0 auto; width: 90%; height: 90px; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: flex; align-items: center; padding: 0 24px; gap: 16px; box-sizing: border-box; position: relative; z-index: 10;">
+            <div class="skeleton-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0;"></div>
+            <div style="flex: 1;">
+              <div class="skeleton-line" style="width: 160px; height: 16px; margin-bottom: 6px; background: #e2e8f0;"></div>
+              <div class="skeleton-line" style="width: 100px; height: 12px; background: #cbd5e1;"></div>
+            </div>
+            <div class="skeleton-button" style="width: 110px; height: 36px; border-radius: 8px; background: #e2e8f0;"></div>
+            <div class="skeleton-button" style="width: 110px; height: 36px; border-radius: 8px; background: #e2e8f0;"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 40px; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div class="skeleton-card" style="height: 280px; border-radius: 16px; background: #ffffff;"></div>
+              <div class="skeleton-card" style="height: 200px; border-radius: 16px; background: #ffffff;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div class="skeleton-card" style="height: 180px; border-radius: 16px; background: #ffffff;"></div>
+              <div class="skeleton-card" style="height: 300px; border-radius: 16px; background: #ffffff;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (route === 'prescriptions') {
+      return `
+        <div class="skeleton-page prescriptions-skeleton">
+          <header class="skeleton-header">
+            <div class="skeleton-title-block">
+              <div class="skeleton-line" style="width: 200px; height: 28px; background: #e2e8f0; margin-bottom: 8px;"></div>
+              <div class="skeleton-line" style="width: 150px; height: 14px; background: #cbd5e1;"></div>
+            </div>
+          </header>
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px; padding: 0 40px 40px 40px; flex-grow: 1; box-sizing: border-box;">
+            <div class="skeleton-card" style="height: 500px; border-radius: 16px; background: #ffffff;"></div>
+            <div class="skeleton-card" style="height: 500px; border-radius: 16px; background: #ffffff;"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (route === 'schedule') {
+      return `
+        <div class="skeleton-page schedule-skeleton">
+          <header class="skeleton-header">
+            <div class="skeleton-title-block">
+              <div class="skeleton-line" style="width: 160px; height: 28px; background: #e2e8f0; margin-bottom: 8px;"></div>
+              <div class="skeleton-line" style="width: 180px; height: 14px; background: #cbd5e1;"></div>
+            </div>
+          </header>
+          <div style="padding: 0 40px 40px 40px; flex-grow: 1; display: flex; flex-direction: column; box-sizing: border-box;">
+            <div class="skeleton-card" style="flex-grow: 1; border-radius: 16px; padding: 24px; background: #ffffff; min-height: 400px; box-sizing: border-box;">
+              <div class="skeleton-line" style="width: 130px; height: 20px; margin-bottom: 32px; background: #e2e8f0;"></div>
+              <div style="display: flex; flex-direction: column; gap: 20px;">
+                ${Array(4).fill(0).map(() => `
+                  <div style="display: flex; align-items: center; gap: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; box-sizing: border-box;">
+                    <div class="skeleton-circle" style="width: 36px; height: 36px; border-radius: 50%; background: #e2e8f0;"></div>
+                    <div class="skeleton-line" style="width: 150px; height: 16px; background: #e2e8f0;"></div>
+                    <div class="skeleton-line" style="width: 100px; height: 14px; background: #cbd5e1;"></div>
+                    <div class="skeleton-line" style="width: 80px; height: 14px; background: #cbd5e1; margin-left: auto;"></div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (route === 'pharmacy') {
+      return `
+        <div class="skeleton-page pharmacy-skeleton" style="padding: 40px; box-sizing: border-box; flex-grow: 1; display: flex; flex-direction: column; background: #f8fafc;">
+          <div class="skeleton-line" style="width: 220px; height: 30px; margin-bottom: 8px; background: #cbd5e1;"></div>
+          <div class="skeleton-line" style="width: 160px; height: 14px; margin-bottom: 32px; background: #e2e8f0;"></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; flex-grow: 1;">
+            <div class="skeleton-card" style="border-radius: 16px; background: #ffffff; min-height: 380px;"></div>
+            <div class="skeleton-card" style="border-radius: 16px; background: #ffffff; min-height: 380px;"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (route === 'auth') {
+      return `
+        <div class="skeleton-page auth-skeleton" style="display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; background: #f8fafc; box-sizing: border-box;">
+          <div class="skeleton-card" style="width: 420px; height: 500px; border-radius: 24px; padding: 40px; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; background: #ffffff;">
+            <div class="skeleton-circle" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 24px; background: #e2e8f0;"></div>
+            <div class="skeleton-line" style="width: 160px; height: 24px; margin-bottom: 8px; background: #cbd5e1;"></div>
+            <div class="skeleton-line" style="width: 200px; height: 14px; margin-bottom: 40px; background: #cbd5e1;"></div>
+            <div class="skeleton-line" style="width: 100%; height: 44px; border-radius: 12px; margin-bottom: 16px; background: #f1f5f9;"></div>
+            <div class="skeleton-line" style="width: 100%; height: 44px; border-radius: 12px; margin-bottom: 24px; background: #f1f5f9;"></div>
+            <div class="skeleton-button" style="width: 100%; height: 44px; border-radius: 12px; background: #e2e8f0;"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    return `
+      <div class="skeleton-page generic-skeleton" style="padding: 40px; flex-grow: 1; box-sizing: border-box;">
+        <div class="skeleton-line" style="width: 200px; height: 28px; margin-bottom: 24px; background: #cbd5e1;"></div>
+        <div class="skeleton-card" style="width: 100%; height: 400px; border-radius: 16px; background: #ffffff;"></div>
+      </div>
+    `;
   }
 
   private bindLayoutEvents() {

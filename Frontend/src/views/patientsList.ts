@@ -1,5 +1,5 @@
 import { type View, Router } from '../router';
-import { fetchProfiles, fetchMedicalRecords, fetchAppointments } from '../api';
+import { fetchProfiles, fetchMedicalRecords, fetchAppointments, getPatientPhotoUrl } from '../api';
 import { getIcon } from '../assets/icons';
 import { supabase } from '../supabase';
 
@@ -70,10 +70,22 @@ export class PatientsListView implements View {
     const patientCards = filteredPatients.map(patient => {
       const initials = getInitials(patient.full_name);
       
+      // Extract demographics for this patient to obtain gender
+      const patientRecords = allRecords.filter(r => r.patient_id === patient.id);
+      const demoRec = patientRecords.find(r => r.record_type === 'demographics');
+      let gender = 'Not Specified';
+      if (demoRec) {
+        try {
+          const demo = JSON.parse(demoRec.description);
+          gender = demo.gender || 'Not Specified';
+        } catch (e) {}
+      }
+      
       return `
         <div class="patient-profile-card">
-          <div class="patient-card-avatar-wrapper" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">
-            ${initials}
+          <div class="patient-card-avatar-wrapper" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px; position: relative;">
+            <img src="${getPatientPhotoUrl(patient.full_name, gender)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+            <span>${initials}</span>
           </div>
           <h3 class="patient-card-name">${patient.full_name}</h3>
           <div class="patient-card-details">

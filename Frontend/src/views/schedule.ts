@@ -1,7 +1,7 @@
 import type { View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { supabase } from '../supabase';
-import { fetchAppointments, fetchProfiles, updateAppointment } from '../api';
+import { fetchAppointments, fetchProfiles, updateAppointment, getPatientPhotoUrl } from '../api';
 import type { Appointment, Profile } from '../types';
 
 export class ScheduleView implements View {
@@ -439,8 +439,9 @@ export class ScheduleView implements View {
         <tr class="schedule-row" data-patient-name="${patientName.toLowerCase()}" data-status="${appt.status}" data-date="${appt.scheduled_time}">
           <td>
             <div class="patient-cell">
-              <div class="patient-initials-avatar ${avatarClass}">
-                ${initials}
+              <div class="patient-initials-avatar ${avatarClass}" style="position: relative; overflow: hidden;">
+                <img src="${getPatientPhotoUrl(patientName)}" alt="${patientName}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+                <span>${initials}</span>
               </div>
               <span class="patient-name-bold">${patientName}</span>
             </div>

@@ -7,7 +7,8 @@ import {
   fetchPrescriptionItems,
   fetchMedicineInventory,
   fetchDoctorDetails,
-  fetchAppointments
+  fetchAppointments,
+  getPatientPhotoUrl
 } from '../api';
 import type { Profile } from '../types';
 import { getIcon } from '../assets/icons';
@@ -46,6 +47,15 @@ export class PatientProfileView implements View {
     const surgeries = records.filter(r => r.record_type === 'Surgery');
     const aiSummaries = records.filter(r => r.record_type === 'ai_summary');
     const latestAiSummary = aiSummaries.length > 0 ? aiSummaries[aiSummaries.length - 1] : null;
+
+    const demoRec = records.find(r => r.record_type === 'demographics');
+    let gender = 'Not Specified';
+    if (demoRec) {
+      try {
+        const demo = JSON.parse(demoRec.description);
+        gender = demo.gender || 'Not Specified';
+      } catch (e) {}
+    }
 
     let aiSummaryCardHTML = '';
     if (latestAiSummary) {
@@ -186,8 +196,9 @@ export class PatientProfileView implements View {
         <!-- Centered Glowing Patient Photo inside banner -->
         <div class="patient-hero-content">
           <div class="patient-glowing-aura"></div>
-          <div class="patient-hero-avatar-large" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: bold; border-radius: 50%; width: 120px; height: 120px; border: 4px solid white;">
-            ${initials}
+          <div class="patient-hero-avatar-large" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: bold; border-radius: 50%; width: 120px; height: 120px; border: 4px solid white; position: relative; overflow: hidden;">
+            <img src="${getPatientPhotoUrl(patient.full_name, gender)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+            <span>${initials}</span>
           </div>
         </div>
 
@@ -196,8 +207,9 @@ export class PatientProfileView implements View {
       <!-- Floating Patient Demographics Glass Card -->
       <section class="patient-floating-card">
         <div class="floating-patient-info">
-          <div class="floating-avatar-circle" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;">
-            ${initials}
+          <div class="floating-avatar-circle" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; position: relative; overflow: hidden;">
+            <img src="${getPatientPhotoUrl(patient.full_name, gender)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+            <span>${initials}</span>
           </div>
           <div class="floating-details-block">
             <h2 class="floating-patient-name">${patient.full_name}</h2>
