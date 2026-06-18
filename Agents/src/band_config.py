@@ -396,7 +396,7 @@ class BandSDK:
                     chat_id=rid,
                     event=ChatEventRequest(
                         content=f"**[SYSTEM]** You are viewing the **{name}** session.",
-                        message_type="text",
+                        message_type="message",
                         metadata={}
                     ),
                     request_options=DEFAULT_REQUEST_OPTIONS
