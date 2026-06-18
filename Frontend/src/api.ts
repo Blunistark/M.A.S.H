@@ -194,3 +194,51 @@ export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
 
   return response.arrayBuffer();
 }
+
+export function getPatientPhotoUrl(fullName: string, gender?: string): string {
+  const name = fullName.toLowerCase();
+  
+  // Custom stock photo mappings for specific patients in the database
+  if (name.includes('bob smith')) {
+    return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('sarah jenkins')) {
+    return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('elena rostova')) {
+    return 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('marcus thompson')) {
+    return 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('shiva')) {
+    return 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('john doe')) {
+    return 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('alice johnson')) {
+    return 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('david miller')) {
+    return 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('james wilson')) {
+    return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('lisa cuddy')) {
+    return 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150';
+  }
+  if (name.includes('remy hadley') || name.includes('thirteen')) {
+    return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150';
+  }
+
+  // Fallback by gender or name heuristics
+  const isFemale = (gender && gender.toLowerCase() === 'female') ||
+                   /\b(sarah|elena|alice|lisa|remy|mary|jane|linda|patricia|elizabeth|susan|jessica|sarah|karen|nancy|lisa|betty|margaret|sandra|ashley|dorothy|kimberly|emily|donna|michelle|carol|amanda|melissa|deborah|stephanie|rebecca|sharon|laura|cynthia|kathleen|amy|shirley|angela|helen|anna|brenda|pamela|nicole|samantha|katherine|emma|ruth|christine|debra|rachel|carolyn|janet|catherine|heather)\b/i.test(fullName);
+
+  if (isFemale) {
+    return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150';
+  }
+  return 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150';
+}

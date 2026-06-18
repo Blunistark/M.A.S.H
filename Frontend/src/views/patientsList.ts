@@ -1,5 +1,5 @@
 import { type View, Router } from '../router';
-import { fetchProfiles, fetchMedicalRecords, fetchAppointments } from '../api';
+import { fetchProfiles, fetchMedicalRecords, fetchAppointments, getPatientPhotoUrl } from '../api';
 import { getIcon } from '../assets/icons';
 import { supabase } from '../supabase';
 
@@ -70,10 +70,46 @@ export class PatientsListView implements View {
     const patientCards = filteredPatients.map(patient => {
       const initials = getInitials(patient.full_name);
       
+      // Extract demographics for this patient to obtain gender
+      const patientRecords = allRecords.filter(r => r.patient_id === patient.id);
+      const demoRec = patientRecords.find(r => r.record_type === 'demographics');
+      let gender = 'Not Specified';
+      if (demoRec) {
+        try {
+          const demo = JSON.parse(demoRec.description);
+          gender = demo.gender || 'Not Specified';
+        } catch (e) {}
+      }
+      
+      // Get the next scheduled/in_progress appointment, or the latest completed one
+      const patientAppts = allAppointments.filter(a => a.patient_id === patient.id && a.doctor_id === activeDoctorId);
+      const sortedAppts = patientAppts.sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime());
+      const nextAppt = sortedAppts.find(a => a.status === 'scheduled' || a.status === 'in_progress') || sortedAppts[sortedAppts.length - 1];
+
+      let apptDateStr = 'No appointments scheduled';
+      if (nextAppt) {
+        const apptDate = new Date(nextAppt.scheduled_time);
+        const datePart = apptDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC'
+        });
+        let hours = apptDate.getUTCHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const minutes = apptDate.getUTCMinutes().toString().padStart(2, '0');
+        const timePart = `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+        
+        apptDateStr = `${datePart} at ${timePart}`;
+      }
+      
       return `
         <div class="patient-profile-card">
-          <div class="patient-card-avatar-wrapper" style="background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">
-            ${initials}
+          <div class="patient-card-avatar-wrapper" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px; position: relative;">
+            <img src="${getPatientPhotoUrl(patient.full_name, gender)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+            <span>${initials}</span>
           </div>
           <h3 class="patient-card-name">${patient.full_name}</h3>
           <div class="patient-card-details">
@@ -88,6 +124,10 @@ export class PatientsListView implements View {
             <div class="patient-contact-item" style="opacity: 0.5;">
               ${getIcon('mail', 'patient-contact-icon')}
               <span>No email provided</span>
+            </div>
+            <div class="patient-contact-item" style="opacity: 0.85; margin-top: 4px;">
+              ${getIcon('calendar', 'patient-contact-icon')}
+              <span>Appt: ${apptDateStr}</span>
             </div>
           </div>
 
@@ -118,7 +158,7 @@ export class PatientsListView implements View {
             </button>
             <div class="user-quick-profile">
               <span class="user-name">${userName}</span>
-              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="${userName}" class="user-avatar" />
+              <img src="/src/assets/dr-profile.jpg" alt="${userName}" class="user-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'" />
             </div>
           </div>
         </div>

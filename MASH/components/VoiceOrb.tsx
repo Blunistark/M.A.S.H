@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
-import Svg, { Defs, Path, Circle, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Defs, Circle, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import { Theme } from '../theme';
 
@@ -9,9 +9,15 @@ interface VoiceOrbProps {
   state?: 'idle' | 'listening' | 'processing' | 'speaking';
 }
 
+<<<<<<< HEAD
+// Spherical grid segmentation (dense for rich point-cloud representation)
+const LAT_COUNT = 22;
+const LNG_COUNT = 32;
+=======
 const PARTICLE_COUNT = 300; // High density for a rich particle cloud
 const SPHERE_RADIUS = 95;   // Size of the particle orb
 const CENTER = 110;         // Center coordinates in a 220x220 container
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
 // Shades of blue, cyan, and white matching the image palette
 const PALETTE = [
@@ -54,6 +60,22 @@ const generateParticles = () => {
   }
 }
 
+<<<<<<< HEAD
+// Scattered glowing particles around the orb perimeter (increased count and size range)
+const particleData = Array.from({ length: 65 }).map((_, idx) => {
+  const theta = Math.random() * Math.PI - Math.PI / 2;
+  const phi = Math.random() * 2 * Math.PI;
+  return {
+    nx: Math.cos(theta) * Math.sin(phi),
+    ny: Math.sin(theta),
+    nz: Math.cos(theta) * Math.cos(phi),
+    rOffset: 20 + Math.random() * 30,
+    speed: 1.2 + Math.random() * 2.2,
+    size: 0.8 + Math.random() * 1.8,
+    color: idx % 3 === 0 ? '#00E5FF' : idx % 3 === 1 ? '#FF00FF' : '#ffffff',
+  };
+});
+=======
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
   const breathScale = useRef(new Animated.Value(1.0)).current;
   const shimmerPhase = useRef(new Animated.Value(0)).current;
@@ -61,6 +83,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   const glowOpacity = useRef(new Animated.Value(0.3)).current;
   const rippleScale = useRef(new Animated.Value(1.0)).current;
   const rippleOpacity = useRef(new Animated.Value(0)).current;
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) => {
   const [time, setTime] = useState(0);
@@ -80,11 +103,21 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
 
     stopAllAnimations();
 
+<<<<<<< HEAD
+    async function startRecording() {
+      if (state !== 'listening') {
+        if (recordingRef.current) {
+          stopRecording();
+        }
+        return;
+      }
+=======
     let breathAnim: Animated.CompositeAnimation;
     let shimmerAnim: Animated.CompositeAnimation;
     let rotationAnim: Animated.CompositeAnimation;
     let glowAnim: Animated.CompositeAnimation;
     let rippleAnim: Animated.CompositeAnimation | null = null;
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
     switch (state) {
       case 'listening':
@@ -187,7 +220,37 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     activeAnimations.current = [breathAnim, shimmerAnim, rotationAnim, glowAnim];
     if (rippleAnim) activeAnimations.current.push(rippleAnim);
 
+<<<<<<< HEAD
+        recordingRef.current = recording;
+
+        intervalIdRef.current = setInterval(async () => {
+          try {
+            if (recordingRef.current) {
+              const status = await recordingRef.current.getStatusAsync();
+              if (status.canRecord && status.metering !== undefined) {
+                const db = status.metering;
+                const minDb = -60;
+                let normVol = (db - minDb) / -minDb;
+                if (normVol < 0) normVol = 0;
+                if (normVol > 1) normVol = 1;
+                
+                setVolume(v => v * 0.7 + normVol * 0.3);
+              }
+            }
+          } catch (e) {
+            // Ignore polling errors
+          }
+        }, 50);
+
+      } catch (err) {
+        console.warn('VoiceOrb: Failed to start recording session', err);
+      }
+    }
+
+    startRecording();
+=======
     activeAnimations.current.forEach(anim => anim.start());
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
     return () => {
       stopAllAnimations();
@@ -219,6 +282,31 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
     }
   };
 
+<<<<<<< HEAD
+  // 3. Fallback / AI speaking state simulated volume reactivity
+  useEffect(() => {
+    let simInterval: any = null;
+    if (state !== 'listening') {
+      setVolume(0);
+      
+      simInterval = setInterval(() => {
+        const now = Date.now() / 1000;
+        if (state === 'speaking') {
+          const speakVol = 0.15 + Math.abs(Math.sin(now * 7.5) * Math.cos(now * 3.1)) * 0.45;
+          setVolume(speakVol);
+        } else if (state === 'processing') {
+          const procVol = 0.05 + Math.sin(now * 18) * 0.03;
+          setVolume(procVol);
+        } else {
+          setVolume(0);
+        }
+      }, 30);
+    }
+    return () => {
+      if (simInterval) clearInterval(simInterval);
+    };
+  }, [state]);
+=======
   const getDriftX = (idx: number) => {
     const direction = idx % 2 === 0 ? 1 : -1;
     const amount = (idx % 4 + 2) * 1.2;
@@ -227,6 +315,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
       outputRange: [0, direction * amount, 0],
     });
   };
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
   const getDriftY = (idx: number) => {
     const direction = (idx + 1) % 2 === 0 ? 1 : -1;
@@ -250,6 +339,104 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
   const layer2Particles = particles.filter((_, idx) => idx % 3 === 1);
   const layer3Particles = particles.filter((_, idx) => idx % 3 === 2);
 
+<<<<<<< HEAD
+  baseGrid.forEach(v => {
+    // Generate organic 3D wave displacement
+    const wave = Math.sin(2.2 * v.nx + time * 3.8) * Math.cos(2.0 * v.ny + time * 2.5) +
+                 Math.sin(3.0 * v.nz - time * 3.0) * Math.cos(v.nx + time * 4.2) +
+                 Math.sin(1.5 * v.ny - time * 1.8) * Math.cos(2.5 * v.nz + time * 1.2);
+                 
+    const deformedR = R + wave * deformationAmp;
+    
+    // 3D Point
+    const px = deformedR * v.nx;
+    const py = deformedR * v.ny;
+    const pz = deformedR * v.nz;
+    
+    // Rotate Y
+    const x1 = px * Math.cos(rotY) - pz * Math.sin(rotY);
+    const z1 = px * Math.sin(rotY) + pz * Math.cos(rotY);
+    const y1 = py;
+    
+    // Rotate X
+    const y2 = y1 * Math.cos(rotX) - z1 * Math.sin(rotX);
+    const z2 = y1 * Math.sin(rotX) + z1 * Math.cos(rotX);
+    const x2 = x1;
+    
+    // Perspective Projection
+    const scale = cameraDistance / (cameraDistance + z2);
+    const soundScale = 1.0 + volume * 0.12;
+    
+    const xp = centerX + x2 * scale * soundScale;
+    const yp = centerY + y2 * scale * soundScale;
+    
+    projected[v.i][v.j] = { x: xp, y: yp, z: z2 };
+  });
+
+  // 5. Render grid intersection dots (front side only, with depth cueing size & opacity)
+  const gridDots: React.ReactNode[] = [];
+  for (let i = 0; i <= LAT_COUNT; i++) {
+    for (let j = 0; j < LNG_COUNT; j++) {
+      const pt = projected[i][j];
+      if (pt && pt.z < 0) {
+        // Volumetric depth ratio: 1.0 at closest center, 0 at edges
+        const depthRatio = Math.max(0, Math.min(1, -pt.z / R));
+        const size = 0.5 + depthRatio * 1.0 + volume * 0.5;
+        const opacity = (0.22 + depthRatio * 0.78) * (0.85 + volume * 0.15);
+        
+        gridDots.push(
+          <Circle
+            key={`dot-${i}-${j}`}
+            cx={pt.x}
+            cy={pt.y}
+            r={size}
+            fill="url(#meshGrad)"
+            opacity={opacity}
+          />
+        );
+      }
+    }
+  }
+
+  // 6. Project and render perimeter particles
+  const particleNodes = particleData.map((p, idx) => {
+    const drift = Math.sin(time * p.speed + idx) * 5 + volume * 20;
+    const pR = R + p.rOffset + drift;
+    
+    const px = pR * p.nx;
+    const py = pR * p.ny;
+    const pz = pR * p.nz;
+    
+    const px1 = px * Math.cos(rotY) - pz * Math.sin(rotY);
+    const pz1 = px * Math.sin(rotY) + pz * Math.cos(rotY);
+    const py1 = py;
+    
+    const py2 = py1 * Math.cos(rotX) - pz1 * Math.sin(rotX);
+    const pz2 = py1 * Math.sin(rotX) + pz1 * Math.cos(rotX);
+    const px2 = px1;
+    
+    const scale = cameraDistance / (cameraDistance + pz2);
+    const soundScale = 1.0 + volume * 0.12;
+    
+    const pxp = centerX + px2 * scale * soundScale;
+    const pyp = centerY + py2 * scale * soundScale;
+    
+    const depthOpacity = (pz2 + 120) / 240;
+    const pulseOpacity = 0.35 + Math.sin(time * 4 + idx) * 0.25;
+    const finalOpacity = Math.max(0.08, Math.min(1.0, depthOpacity * pulseOpacity + volume * 0.35));
+    
+    return (
+      <Circle
+        key={idx}
+        cx={pxp}
+        cy={pyp}
+        r={p.size}
+        fill={p.color}
+        opacity={finalOpacity}
+      />
+    );
+  });
+=======
   const renderParticles = (particlesList: typeof particles, startIndex: number) => {
     return particlesList.map((p, listIdx) => {
       const idx = startIndex + listIdx * 3;
@@ -276,9 +463,93 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
       );
     });
   };
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
+
+  // 7. Smoky nebula offsets (4 drifting layers)
+  const glowCyanX = 130 + Math.sin(time * 1.5) * 20;
+  const glowCyanY = 120 + Math.cos(time * 1.2) * 15;
+
+  const glowMagentaX = 170 + Math.cos(time * 1.8) * 20;
+  const glowMagentaY = 180 + Math.sin(time * 1.4) * 15;
+
+  const glowPurpleX = 150 + Math.sin(time * 0.8) * 12;
+  const glowPurpleY = 150 + Math.cos(time * 1.0) * 12;
+
+  const glowCoreX = 150 + Math.sin(time * 2.2 + volume * 2) * 8;
+  const glowCoreY = 150 + Math.cos(time * 2.5 + volume * 2) * 8;
 
   return (
     <View style={styles.container}>
+<<<<<<< HEAD
+      <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.touchArea}>
+        <View style={styles.canvasWrapper}>
+          <Svg width={300} height={300} viewBox="0 0 300 300">
+            <Defs>
+              {/* Electric blue to hot magenta global gradient */}
+              <LinearGradient id="meshGrad" x1="75" y1="75" x2="225" y2="225" gradientUnits="userSpaceOnUse">
+                <Stop offset="0%" stopColor="#00E5FF" stopOpacity={0.95} />
+                <Stop offset="50%" stopColor="#8A2BE2" stopOpacity={0.8} />
+                <Stop offset="100%" stopColor="#FF00FF" stopOpacity={0.95} />
+              </LinearGradient>
+              
+              {/* Dynamic smoky radial gradients */}
+              <RadialGradient id="glowCyan" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#00E5FF" stopOpacity={0.45 + volume * 0.3} />
+                <Stop offset="40%" stopColor="#00BFFF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="70%" stopColor="#8A2BE2" stopOpacity={0.08 + volume * 0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="glowMagenta" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#FF007F" stopOpacity={0.45 + volume * 0.3} />
+                <Stop offset="40%" stopColor="#FF00FF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="70%" stopColor="#8A2BE2" stopOpacity={0.08 + volume * 0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="glowPurple" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#7F00FF" stopOpacity={0.35 + volume * 0.2} />
+                <Stop offset="60%" stopColor="#4B0082" stopOpacity={0.12 + volume * 0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+
+              <RadialGradient id="glowCore" cx="50%" cy="50%" rx="50%" ry="50%">
+                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.6 + volume * 0.4} />
+                <Stop offset="25%" stopColor="#00E5FF" stopOpacity={0.25 + volume * 0.15} />
+                <Stop offset="60%" stopColor="#7F00FF" stopOpacity={0.05} />
+                <Stop offset="100%" stopColor="#06061A" stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+
+            {/* Overlapping smoky nebula backgrounds */}
+            <Circle
+              cx={glowPurpleX}
+              cy={glowPurpleY}
+              r={120 + volume * 20}
+              fill="url(#glowPurple)"
+            />
+            <Circle
+              cx={glowCyanX}
+              cy={glowCyanY}
+              r={105 + volume * 25}
+              fill="url(#glowCyan)"
+            />
+            <Circle
+              cx={glowMagentaX}
+              cy={glowMagentaY}
+              r={95 + volume * 25}
+              fill="url(#glowMagenta)"
+            />
+            <Circle
+              cx={glowCoreX}
+              cy={glowCoreY}
+              r={70 + volume * 30}
+              fill="url(#glowCore)"
+            />
+
+            {/* Dense 3D Vertices/Dots */}
+            {gridDots}
+=======
       {/* Soft blue-cyan halo glow matching screenshot */}
       <Animated.View
         style={[
@@ -301,6 +572,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ onPress, state = 'idle' }) =
           <Animated.View style={[styles.layerContainer, { transform: [{ rotateY: rotY1 }, { rotateX: rotX1 }] }]}>
             {renderParticles(layer1Particles, 0)}
           </Animated.View>
+>>>>>>> 3f2016b2a9532c19ce8e3ec1eadefda1d9934699
 
           {/* Layer 2: Orbiting particles */}
           <Animated.View style={[styles.layerContainer, { transform: [{ rotateY: rotY2 }, { rotateX: rotX2 }] }]}>
