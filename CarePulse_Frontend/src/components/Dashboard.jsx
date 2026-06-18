@@ -210,11 +210,8 @@ const Dashboard = () => {
             </div>
 
             {/* Bottom Centered Orb Container */}
-            <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>Say something...</span>
-              <div style={{ position: 'relative', width: '100px', height: '100px' }}>
-                <VoiceOrb onCommand={sendDirectMessage} className="orb" />
-              </div>
+            <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <VoiceOrb onCommand={sendDirectMessage} className="orb" />
             </div>
           </div>
         )}
