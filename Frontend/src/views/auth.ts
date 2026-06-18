@@ -11,7 +11,7 @@ export class AuthView implements View {
         <div class="auth-card">
           <div class="auth-brand">
             ${getIcon('activity', 'auth-logo-icon')}
-            <span>MedConnect<span class="logo-highlight"> Pro</span></span>
+            <span>MASH</span>
           </div>
           
           <div class="auth-header">
