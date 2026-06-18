@@ -2,7 +2,7 @@ import asyncio
 import time
 import os
 import json
-from typing import Callable, Any, Dict, List
+from typing import Callable, Any, Dict, List, Set
 from dotenv import load_dotenv
 from src.telemetry import Telemetry
 
@@ -13,6 +13,11 @@ USE_REAL_BAND = os.getenv("USE_REAL_BAND", "false").lower() == "true"
 
 ROOM_ID_TO_NAME: Dict[str, str] = {}
 ROOM_NAME_TO_ID: Dict[str, str] = {}
+
+# Global registry for active real WebSocket clients and local agents
+ACTIVE_REAL_AGENTS: Dict[str, Any] = {}
+LOCAL_AGENTS_BY_CONFIG_KEY: Dict[str, List['BandAgent']] = {}
+STARTED_REAL_AGENTS: Set[str] = set()
 
 def get_config_key_for_agent(agent_name: str) -> str:
     name = agent_name.lower()
@@ -48,27 +53,37 @@ class BandAgent:
         if USE_REAL_BAND and not name.startswith("UI-Listener-"):
             config_key = get_config_key_for_agent(name)
             if config_key:
-                try:
-                    from band import Agent
-                    from band.config import load_agent_config
-                    agent_id, api_key = load_agent_config(config_key, config_path="agent_config.yaml")
-                    if agent_id and agent_id.startswith("Y"):
-                        agent_id = agent_id[1:]
-                    rest_url = os.getenv("BAND_REST_URL") or os.getenv("THENVOI_REST_URL") or "https://app.band.ai"
-                    ws_url = os.getenv("BAND_WS_URL") or os.getenv("THENVOI_WS_URL") or "wss://app.band.ai/api/v1/socket/websocket"
-                    
-                    adapter = BandAgentAdapter(self)
-                    self.real_agent = Agent.create(
-                        adapter=adapter,
-                        agent_id=agent_id,
-                        api_key=api_key,
-                        ws_url=ws_url,
-                        rest_url=rest_url,
-                        preprocessor=BandPreprocessor(),
-                    )
-                    print(f"[BandSDK] Configured real agent client for '{name}' using config key '{config_key}'")
-                except Exception as e:
-                    print(f"[BandSDK] Warning: Failed to load config/create real agent for '{name}': {e}")
+                # Register in local agents list
+                if config_key not in LOCAL_AGENTS_BY_CONFIG_KEY:
+                    LOCAL_AGENTS_BY_CONFIG_KEY[config_key] = []
+                LOCAL_AGENTS_BY_CONFIG_KEY[config_key].append(self)
+                
+                # Create real agent connection if it doesn't exist yet
+                if config_key not in ACTIVE_REAL_AGENTS:
+                    try:
+                        from band import Agent
+                        from band.config import load_agent_config
+                        agent_id, api_key = load_agent_config(config_key, config_path="agent_config.yaml")
+                        if agent_id and agent_id.startswith("Y"):
+                            agent_id = agent_id[1:]
+                        rest_url = os.getenv("BAND_REST_URL") or os.getenv("THENVOI_REST_URL") or "https://app.band.ai"
+                        ws_url = os.getenv("BAND_WS_URL") or os.getenv("THENVOI_WS_URL") or "wss://app.band.ai/api/v1/socket/websocket"
+                        
+                        adapter = BandAgentAdapter(config_key)
+                        real_agent = Agent.create(
+                            adapter=adapter,
+                            agent_id=agent_id,
+                            api_key=api_key,
+                            ws_url=ws_url,
+                            rest_url=rest_url,
+                            preprocessor=BandPreprocessor(),
+                        )
+                        ACTIVE_REAL_AGENTS[config_key] = real_agent
+                        print(f"[BandSDK] Configured real agent client for '{name}' using config key '{config_key}'")
+                    except Exception as e:
+                        print(f"[BandSDK] Warning: Failed to load config/create real agent for '{name}': {e}")
+                
+                self.real_agent = ACTIVE_REAL_AGENTS.get(config_key)
 
     def on_event(self, event: str, handler: Callable[[Any], Any]):
         if event not in self.handlers:
@@ -121,10 +136,12 @@ class BandRoom:
         if self.name != "Telemetry-Audit-Room":
             TelemetryAuditRoom.broadcast("AGENT_JOINED", {"room": self.name, "agent": agent.name})
         
-        if USE_REAL_BAND and agent.real_agent and not agent.real_agent_started:
-            agent.real_agent_started = True
-            print(f"[BandSDK] Starting WebSocket client connection for real agent '{agent.name}'...")
-            asyncio.create_task(agent.real_agent.start())
+        if USE_REAL_BAND and agent.real_agent:
+            config_key = get_config_key_for_agent(agent.name)
+            if config_key and config_key not in STARTED_REAL_AGENTS:
+                STARTED_REAL_AGENTS.add(config_key)
+                print(f"[BandSDK] Starting WebSocket client connection for real agent '{agent.name}' (shared)...")
+                asyncio.create_task(agent.real_agent.start())
 
     def broadcast(self, event: str, payload: Any):
         if USE_REAL_BAND:
@@ -201,9 +218,9 @@ try:
             room.broadcast_local(event_name, payload)
 
     class BandAgentAdapter(SimpleAdapter[Any]):
-        def __init__(self, band_agent: BandAgent):
+        def __init__(self, config_key: str):
             super().__init__()
-            self.band_agent = band_agent
+            self.config_key = config_key
 
         async def on_message(
             self,
@@ -224,8 +241,10 @@ try:
                 except Exception:
                     payload = msg.content
 
-            print(f"[BandSDK] Real Agent '{self.band_agent.name}' received event '{event_name}' in room {room_id}")
-            self.band_agent.emit(event_name, payload)
+            print(f"[BandSDK] Real Agent client for '{self.config_key}' received event '{event_name}' in room {room_id}")
+            local_agents = LOCAL_AGENTS_BY_CONFIG_KEY.get(self.config_key, [])
+            for agent in local_agents:
+                agent.emit(event_name, payload)
 
     class BandPreprocessor(DefaultPreprocessor):
         async def process(self, ctx, event, agent_id):
@@ -235,7 +254,8 @@ except ImportError:
     class BandSimpleAdapter:
         pass
     class BandAgentAdapter:
-        pass
+        def __init__(self, config_key: str):
+            pass
     class BandPreprocessor:
         pass
 
@@ -404,15 +424,14 @@ class BandSDK:
             BandSDK.real_agent = None
             print("[BandSDK] Stopped Real Agent connection.")
 
-        for room in MOCK_ROOMS.values():
-            for agent in room.agents:
-                if agent.real_agent and agent.real_agent_started:
-                    try:
-                        print(f"[BandSDK] Stopping WebSocket connection for real agent '{agent.name}'...")
-                        await agent.real_agent.stop()
-                        agent.real_agent_started = False
-                    except Exception as e:
-                        print(f"[BandSDK] Error stopping real agent '{agent.name}': {e}")
+        for config_key, real_agent in ACTIVE_REAL_AGENTS.items():
+            try:
+                print(f"[BandSDK] Stopping WebSocket connection for real agent role '{config_key}'...")
+                await real_agent.stop()
+            except Exception as e:
+                print(f"[BandSDK] Error stopping real agent '{config_key}': {e}")
+        ACTIVE_REAL_AGENTS.clear()
+        STARTED_REAL_AGENTS.clear()
 
 PatientManagementRoom = BandSDK.create_room("Patient-Management-Room")
 DoctorDashboardRoom = BandSDK.create_room("Doctor-Dashboard-Room")
