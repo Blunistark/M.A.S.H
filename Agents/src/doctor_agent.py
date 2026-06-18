@@ -1,12 +1,13 @@
 import asyncio
 import uuid as uuid_lib
+import json
 from typing import Dict, Any, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from src.band_config import DoctorDashboardRoom, BandSDK
-from src.supabase_tools import get_doctor_schedule, fetch_doctor_schedule_from_supabase, create_prescription, book_appointment, get_doctors
+from src.supabase_tools import get_doctor_schedule, fetch_doctor_schedule_from_supabase, create_prescription, book_appointment, get_doctors, fetch_medical_records_from_supabase
 
 # Shared state for pending futures keyed by requestId
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
