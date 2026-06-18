@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Pills, Bed, Info, ArrowRight, Activity, User, Volume2, VolumeX, MapPin, Sparkles } from 'lucide-react';
+import { Pill, Bed, Info, ArrowRight, Activity, User, Volume2, VolumeX, MapPin, Sparkles } from 'lucide-react';
 import './Navigation.css';
 
 const destinations = {
