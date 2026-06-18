@@ -124,9 +124,10 @@ async def doctor_chat(req: ChatRequest):
     try:
         # Echo the user's message to the Band Platform Room
         from src.band_config import MOCK_ROOMS
-        doc_room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
+        doc_room = next((r for name, r in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
+        doc_room_id = doc_room.id if doc_room else None
         if doc_room_id:
-            await send_platform_message(doc_room_id, f"**USER:** {req.message}")
+            await send_platform_message(doc_room_id, f"**DOCTOR:** {req.message}")
             
         # Clear actions before query (handled in process_doctor_query as well)
         agent.pending_actions = []
@@ -194,7 +195,8 @@ async def patient_chat(req: ChatRequest):
     from src.band_config import send_platform_message
     try:
         from src.band_config import MOCK_ROOMS
-        room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
+        room = next((r for name, r in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
+        room_id = room.id if room else None
         if room_id:
             await send_platform_message(room_id, f"**PATIENT:** {req.message}")
 
