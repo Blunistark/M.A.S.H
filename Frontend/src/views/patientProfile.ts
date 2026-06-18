@@ -19,12 +19,36 @@ function getInitials(name: string): string {
 
 export class PatientProfileView implements View {
   public async render(params?: { patientId: string }): Promise<string> {
-    const patientId = params?.patientId || 'john-doe';
+    let allProfiles: Profile[] = [];
+    try {
+      allProfiles = await fetchProfiles();
+    } catch (err) {
+      console.error('Failed to fetch profiles:', err);
+    }
+    const patients = allProfiles.filter(p => p.role === 'patient');
+
+    if (patients.length === 0) {
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">no patients</h3>
+        </div>
+      `;
+    }
+
+    let patientId = params?.patientId || '550e8400-e29b-41d4-a716-446655440000';
+    if (!patients.some(p => p.id === patientId)) {
+      patientId = patients[0].id;
+    }
+
     let patient: Profile;
     try {
       patient = await fetchProfileById(patientId);
     } catch (err) {
-      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">Patient not found.</h3>
+        </div>
+      `;
     }
 
     const initials = getInitials(patient.full_name);
@@ -34,7 +58,6 @@ export class PatientProfileView implements View {
     const allPrescriptions = await fetchPrescriptions();
     const allPrescriptionItems = await fetchPrescriptionItems();
     const allInventory = await fetchMedicineInventory();
-    const allProfiles = await fetchProfiles();
     const allDoctorDetails = await fetchDoctorDetails();
     const allAppointments = await fetchAppointments();
 

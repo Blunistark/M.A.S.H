@@ -1,6 +1,7 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { 
+  fetchProfiles,
   fetchProfileById,
   fetchMedicalRecords,
   fetchPrescriptions,
@@ -85,11 +86,30 @@ function calculateDurationFromQuantity(frequency: string, quantity: number): num
 }
 
 export class PrescriptionsView implements View {
-  private currentPatientId: string = 'john-doe';
+  private currentPatientId: string = '550e8400-e29b-41d4-a716-446655440000';
   private inventory: any[] = [];
 
   public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
-    const patientId = params?.patientId || this.currentPatientId;
+    let allProfiles: Profile[] = [];
+    try {
+      allProfiles = await fetchProfiles();
+    } catch (err) {
+      console.error('Failed to fetch profiles:', err);
+    }
+    const patients = allProfiles.filter(p => p.role === 'patient');
+
+    if (patients.length === 0) {
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">no patients</h3>
+        </div>
+      `;
+    }
+
+    let patientId = params?.patientId || this.currentPatientId;
+    if (!patients.some(p => p.id === patientId)) {
+      patientId = patients[0].id;
+    }
     this.currentPatientId = patientId;
 
     if (params?.forceReload) {
@@ -100,7 +120,11 @@ export class PrescriptionsView implements View {
     try {
       patient = await fetchProfileById(patientId);
     } catch (err) {
-      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">Patient not found.</h3>
+        </div>
+      `;
     }
 
     const allRecords = await fetchMedicalRecords();

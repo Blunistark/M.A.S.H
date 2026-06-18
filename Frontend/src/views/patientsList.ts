@@ -165,21 +165,20 @@ export class PatientsListView implements View {
       </header>
 
       <!-- Patient Grid Content -->
-      <div class="page-content">
+      <div class="page-content" style="display: flex; flex-direction: column; flex-grow: 1;">
         ${
           filteredPatients.length > 0 
             ? `<div class="patients-grid-layout">${patientCards}</div>`
             : patients.length === 0
               ? `
-                <div style="text-align: center; padding: 60px; color: #64748b;">
-                  <h3>No patients assigned</h3>
-                  <p style="margin-top: 8px;">There are no patients currently assigned to your account.</p>
+                <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+                  <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">no patients</h3>
                 </div>
               `
               : `
-                <div style="text-align: center; padding: 60px; color: #64748b;">
-                  <h3>No patients found</h3>
-                  <p style="margin-top: 8px;">Try searching for a different name or condition.</p>
+                <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+                  <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">No patients found</h3>
+                  <p style="margin: 0; font-size: 14px; color: #64748b;">Try searching for a different name or condition.</p>
                 </div>
               `
         }
