@@ -16,14 +16,27 @@ def get_headers() -> Dict[str, str]:
         "Authorization": f"Bearer {SUPABASE_ANON_KEY}" if SUPABASE_ANON_KEY else ""
     }
 
-async def fetch_doctors_from_supabase() -> List[Dict[str, Any]]:
+async def fetch_doctors_from_supabase(date_str: str = None) -> List[Dict[str, Any]]:
     """Fetch active doctors and their details from Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return []
     
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    if date_str:
+        date_str = str(date_str).strip().lower()
+        if date_str in ("today", "today's", "now", "current"):
+            target_date = datetime.utcnow().strftime("%Y-%m-%d")
+        else:
+            import re
+            match = re.search(r'\d{4}-\d{2}-\d{2}', date_str)
+            if match:
+                target_date = match.group(0)
+            else:
+                target_date = datetime.utcnow().strftime("%Y-%m-%d")
+    else:
+        target_date = datetime.utcnow().strftime("%Y-%m-%d")
+        
     url = f"{SUPABASE_URL}/rest/v1/doctor_details?select=doctor_id,specialty,room_number,is_available,profiles(full_name)"
-    appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)&scheduled_time=gte.{today_str}T00:00:00Z&scheduled_time=lte.{today_str}T23:59:59Z"
+    appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)&scheduled_time=gte.{target_date}T00:00:00Z&scheduled_time=lte.{target_date}T23:59:59Z"
     
     try:
         async with httpx.AsyncClient() as client:
@@ -259,7 +272,9 @@ async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: s
 @tool
 async def get_doctors() -> list:
     """Fetch a list of available doctors and their schedules."""
-    return await fetch_doctors_from_supabase()
+    db_docs = await fetch_doctors_from_supabase(date_str=None)
+    docs = db_docs if db_docs else []
+    return docs
 
 @tool
 async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
@@ -298,9 +313,13 @@ def resolve_doctor_id(doctor_id_or_name: str) -> str:
     except ValueError:
         pass
         
-    # If it's a name or "me"/"my", map it to Dr. Smith's ID
+    # If it's a name, map it to the respective doctor's ID
     if "smith" in val or "anita" in val or "desai" in val or "me" in val or "my" in val:
         return "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
+    elif "mithun" in val or "nair" in val:
+        return "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"
+    elif "kirran" in val or "kumar" in val:
+        return "f85362c8-5935-4b2e-bff1-e2779d9d78ae"
         
     return doctor_id_or_name
 

@@ -13,11 +13,15 @@ from typing import Optional
 from src.summary_agent import SummaryAgent
 from src.doctor_agent import DoctorAssistantAgent
 from src.pharmacist_agent import PharmacistAssistantAgent
+from src.patient_agent import PatientManagementAgent
+from src.registration_agent import RegistrationAgent
 from src.stock_agent import StockManagementAgent
 
 summary_agent = None
 doctor_agents = {}
 pharmacist_agent = None
+patient_agent = None
+registration_agent = None
 stock_agent = None
 
 async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
@@ -36,6 +40,7 @@ async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global summary_agent, pharmacist_agent, patient_agent, registration_agent
     global summary_agent, pharmacist_agent, stock_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
@@ -49,6 +54,9 @@ async def lifespan(app: FastAPI):
         # Pre-initialize Dr. Smith agent
         await get_or_create_doctor_agent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
         pharmacist_agent = PharmacistAssistantAgent()
+        patient_agent = PatientManagementAgent()
+        registration_agent = RegistrationAgent()
+        print("Agents initialized successfully (Doctor + Pharmacist + Patient + Registration).")
         stock_agent = StockManagementAgent()
         print("Agents initialized successfully (Doctor + Pharmacist + Stock).")
     except Exception as e:
@@ -169,6 +177,30 @@ async def pharmacist_chat(req: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/patient-chat")
+async def patient_chat(req: ChatRequest):
+    print(f"[DEBUG] Incoming patient-chat message: '{req.message}'")
+    if not patient_agent:
+        raise HTTPException(status_code=503, detail="Patient Agent is not initialized yet.")
+    
+    # Map input history to LangGraph format
+    langgraph_messages = []
+    for h in req.history:
+        role = "user" if h.role == "user" else "assistant"
+        langgraph_messages.append({"role": role, "content": h.text})
+    
+    langgraph_messages.append({"role": "user", "content": req.message})
+    
+    try:
+        updated_messages = await patient_agent.process_patient_query(langgraph_messages)
+        last_msg = updated_messages[-1]
+        reply = extract_text(last_msg.content)
+        
+        return {"reply": reply}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 @app.post("/api/prescription-event")
 async def prescription_event(req: dict = Body(...)):
     """Called by the backend when a prescription is sent to pharmacy.
