@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import cmLogo from '../assets/cm-logo-white.png'
+import { Activity } from 'lucide-react'
 import './LoadingScreen.css'
 
 export default function LoadingScreen() {
@@ -22,8 +22,9 @@ export default function LoadingScreen() {
                     damping: 24,
                     mass: 1.2
                 }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             >
-                <img src={cmLogo} alt="CM" className="loading-logo-img" />
+                <img src="/mash-logo.png" alt="M.A.S.H Logo" style={{ height: '96px', width: 'auto' }} />
             </motion.div>
         </div>
     )

@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .gallery {
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
 }
 
 .gallery-header {
@@ -100,7 +100,85 @@
     background: var(--bg-surface);
 }
 
+/* ─── Dashboard Panel ─────────────────────────────────────────── */
+.dashboard-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    min-height: 400px;
+}
+
+.dashboard-info-side {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.dashboard-console {
+    background: #04070D;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-family: monospace;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.console-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.console-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+}
+
+.console-logs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.console-log-line {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #A5F3FC;
+}
+
+.console-footer {
+    font-size: 10px;
+    color: var(--text-muted);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 8px;
+    text-align: right;
+    margin-top: 12px;
+}
+
 /* ─── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 992px) {
+    .dashboard-panel {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+}
+
 @media (max-width: 768px) {
     .gallery-masonry {
         grid-template-columns: repeat(2, 1fr);

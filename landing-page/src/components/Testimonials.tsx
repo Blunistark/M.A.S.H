@@ -4,51 +4,51 @@ import './Testimonials.css'
 
 const reviews = [
     {
-        quote: `The services provided here are very good and the ambiance is beautiful. It felt like I was visiting a salon in Delhi, Bangalore, or Hyderabad. It's amazing that they've brought such a high-standard salon experience to our city.`,
-        name: 'Salon Visitor',
-        initials: 'SV',
-        source: 'Google Review',
+        quote: `M.A.S.H has transformed our consult workflow. Pre-triage summaries are compiled before the patient sits down, cutting check-in overhead in half.`,
+        name: 'Dr. Elizabeth Vance',
+        initials: 'EV',
+        source: 'Lead Clinician, City General Clinic',
         stars: 5,
     },
     {
-        quote: `Amazing experience! The staff is incredibly professional and the ambiance is very relaxing. Highly recommend.`,
-        name: 'Google Reviewer',
-        initials: 'G',
-        source: 'https://share.google/qBtiPkFra9fbdQ6we',
+        quote: `The virtual room security isolation is top-notch. Our patient event logs are cryptographically signed and archived on-demand, ensuring absolute HIPAA compliance.`,
+        name: 'Dr. Marcus Thorne',
+        initials: 'MT',
+        source: 'Chief Medical Officer, Metropolitan Medical',
         stars: 5,
     },
     {
-        quote: `Absolutely love the Korean Head Spa experience at Christalin Mirrors. My hair has never felt this good.`,
-        name: 'Google Reviewer',
-        initials: 'G',
-        source: 'https://share.google/5FoII0d2OJRlrKHti',
+        quote: `The Stock Management Agent's demand warnings have been a lifesaver. It accurately flagged upcoming shortages of key therapeutics by correlating consult room diagnostics.`,
+        name: 'Sarah Jenkins',
+        initials: 'SJ',
+        source: 'Head Pharmacist, Metropolitan Pharmacy',
         stars: 5,
     },
     {
-        quote: `From the moment you walk in, the ambiance sets the tone. The stylists truly listen and deliver exactly what you envision.`,
-        name: 'Google Reviewer',
-        initials: 'G',
-        source: 'https://share.google/0lyXmG8WAqYcYGfot',
+        quote: `We were able to deploy M.A.S.H locally in under 24 hours. The P2P agent model runs completely decoupled from our core server databases, eliminating sync lag.`,
+        name: 'David Reynolds',
+        initials: 'DR',
+        source: 'Clinic Administrator, City General Clinic',
         stars: 5,
     },
     {
-        quote: `A premium experience that's worth every visit. Will definitely be coming back for more services.`,
-        name: 'Google Reviewer',
-        initials: 'G',
-        source: 'https://share.google/VFJyHaP1Dn91cImJn',
+        quote: `Checking in and answering symptom questions from my phone was effortless. I was directed straight to the treatment room without waiting in lines.`,
+        name: 'Patient #1024',
+        initials: 'P',
+        source: 'Mobile App User Feedback',
         stars: 5,
     },
 ]
 
 const marqueeItems = [
-    { text: 'KOREAN HEAD SPA', type: 'large' as const },
-    { text: 'unisex salon', type: 'accent' as const },
-    { text: 'BRIDAL MAKEOVER', type: 'outline' as const },
-    { text: 'glass skin facial', type: 'accent' as const },
-    { text: 'BALAYAGE & COLOR', type: 'large' as const },
-    { text: 'premium grooming', type: 'accent' as const },
-    { text: 'KERATIN TREATMENT', type: 'outline' as const },
-    { text: 'nail art & extensions', type: 'accent' as const },
+    { text: 'DECENTRALIZED ORCHESTRATION', type: 'large' as const },
+    { text: 'BandSDK event mesh', type: 'accent' as const },
+    { text: 'SECURE VIRTUAL ROOMS', type: 'outline' as const },
+    { text: 'hipaa & soc2 compliance', type: 'accent' as const },
+    { text: 'P2P AGENT ROUTING', type: 'large' as const },
+    { text: 'automated clinic summaries', type: 'accent' as const },
+    { text: 'PREDICTIVE STOCK INVENTORY', type: 'outline' as const },
+    { text: 'real-time patient navigation', type: 'accent' as const },
 ]
 
 export default function Testimonials() {
@@ -69,8 +69,8 @@ export default function Testimonials() {
             {/* ─── Reviews ─── */}
             <div className="testimonials-content container">
                 <div className="testimonials-header">
-                    <h2 className="testimonials-heading">What Our Clients Say</h2>
-                    <p className="testimonials-sub">Honest words from the people who matter most</p>
+                    <h2 className="testimonials-heading">What Clinicians Say</h2>
+                    <p className="testimonials-sub">Honest words from medical staff and clinic administrators running M.A.S.H</p>
                 </div>
 
                 <StaggerContainer className="testimonials-grid">

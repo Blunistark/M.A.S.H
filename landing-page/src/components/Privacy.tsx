@@ -47,7 +47,7 @@ export default function Privacy() {
 
                             <section>
                                 <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>4. Contact Us</h2>
-                                <p>If you have any questions about this Privacy Policy, please contact us at Support@christalinmirrors.com.</p>
+                                <p>If you have any questions about this Privacy Policy, please contact us at support@mash-platform.org.</p>
                             </section>
                         </div>
                     </motion.div>

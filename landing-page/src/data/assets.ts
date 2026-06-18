@@ -1,10 +1,10 @@
-export const HERO_IMAGE = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593533/WhatsApp_Image_2026-06-04_at_10.29.31_PM_ztqv5g.jpg";
+export const HERO_IMAGE = "/mash_hero_ui.png";
 
-export const ABOUT_IMAGE = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593843/WhatsApp_Image_2026-06-04_at_2.56.38_PM_dx57l1.jpg";
+export const ABOUT_IMAGE = "/mash_about_graphic.png";
 
-export const FOUNDER_IMAGE = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780594351/WhatsApp_Image_2026-06-04_at_11.01.40_PM_fnnqdx.jpg";
+export const FOUNDER_IMAGE = "/mash_philosophy_graphic.png";
 
-export const CONTACT_IMAGE = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593534/WhatsApp_Image_2026-06-04_at_2.56.45_PM_1_tf1mih.jpg";
+export const CONTACT_IMAGE = "/mash_about_graphic.png";
 
 export const SERVICE_IMAGES = [
     "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593335/WhatsApp_Image_2026-06-04_at_2.56.18_PM_ylvmyb.jpg",

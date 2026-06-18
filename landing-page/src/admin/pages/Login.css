@@ -27,7 +27,7 @@
 .login-logo h2 {
     font-size: 24px;
     font-weight: 600;
-    color: #d4a847;
+    color: #10B981;
     margin: 0 0 8px 0;
     letter-spacing: -0.5px;
 }
@@ -70,13 +70,13 @@
 }
 
 .login-group input:focus {
-    border-color: #d4a847;
-    box-shadow: 0 0 0 1px #d4a847;
+    border-color: #10B981;
+    box-shadow: 0 0 0 1px #10B981;
 }
 
 .login-submit {
-    background: #d4a847;
-    color: #111;
+    background: #10B981;
+    color: #fff;
     border: none;
     border-radius: 8px;
     padding: 12px;
@@ -88,6 +88,6 @@
 }
 
 .login-submit:hover {
-    background: #c49332;
+    background: #059669;
     transform: translateY(-1px);
 }

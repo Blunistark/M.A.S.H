@@ -1,35 +1,29 @@
-import { MapPin, Clock, Phone, ExternalLink, Navigation, Globe } from 'lucide-react'
+import { MapPin, Clock, ShieldCheck, ExternalLink, Activity, Globe } from 'lucide-react'
 import { StaggerContainer, StaggerItem } from './Animations'
-const branchBengaluru = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593536/WhatsApp_Image_2026-03-26_at_9.24.34_PM_w3eof8.jpg"
-const branchKalaburagi = "https://res.cloudinary.com/djrtoihj8/image/upload/v1780593844/WhatsApp_Image_2026-06-04_at_2.56.43_PM_1_xatxwk.jpg"
 import './Branches.css'
 
 const branches = [
     {
-        name: 'CM — Bengaluru',
-        city: 'Bengaluru, Karnataka',
-        address: 'Century Ethos Club House, Bellary Rd, Bengaluru 560092',
-        hours: 'Everyday: 10:00 AM – 9:00 PM',
-        phone: '+91 7204236981',
-        mapUrl: 'https://maps.google.com/?q=Century+Ethos+Club+House+Bellary+Road+Bengaluru',
-        image: branchBengaluru,
+        name: 'City General Clinic Network',
+        city: 'Downtown Hub (Active)',
+        address: '500 Medical Center Plaza, Suite 10, Metro City',
+        rooms: 'Active Rooms: Reception Room, Clinical Consult Room',
+        status: 'Telemetry Status: OPERATIONAL',
     },
     {
-        name: 'CM — Kalaburagi',
-        city: 'Kalaburagi, Karnataka',
-        address: 'Orchid Mall, Mahaveer Nagar, Khuba Plot, Brahmpur, Kalaburagi 585105',
-        hours: 'Everyday: 10:00 AM – 9:00 PM',
-        phone: '+91 918715909',
-        mapUrl: 'https://maps.google.com/?q=Orchid+Mall+Kalaburagi',
-        image: branchKalaburagi,
+        name: 'Metropolitan Medical Center',
+        city: 'Metropolis Hub (Active)',
+        address: '88 Healthcare Blvd, Tower B, West End',
+        rooms: 'Active Rooms: Reception, Consult, Pharmacy, Audit Rooms',
+        status: 'Telemetry Status: OPERATIONAL',
     },
 ]
 
 const comingSoonBranches = [
-    { name: 'CM — Hassan', city: 'Hassan, Karnataka' },
-    { name: 'CM — Hubballi', city: 'Hubballi, Karnataka' },
-    { name: 'CM — Belagavi', city: 'Belagavi, Karnataka' },
-    { name: 'CM — Dubai', city: 'Dubai, UAE' },
+    { name: 'Valley Children\'s Hospital', city: 'California Hub' },
+    { name: 'St. Jude Specialist Clinic', city: 'London Hub' },
+    { name: 'Apex General Medical', city: 'Singapore Hub' },
+    { name: 'Al-Jalila Pediatrics', city: 'Dubai Hub' },
 ]
 
 export default function Branches() {
@@ -38,24 +32,20 @@ export default function Branches() {
             <div className="container">
                 <StaggerContainer className="branches-header">
                     <StaggerItem>
-                        <p className="section-label">Find Us</p>
+                        <p className="section-label">Deployments</p>
                     </StaggerItem>
                     <StaggerItem>
-                        <h2 className="branches-heading">Our Locations</h2>
+                        <h2 className="branches-heading">Clinic Networks</h2>
                     </StaggerItem>
                     <StaggerItem>
-                        <p className="branches-sub">Visit us at our studios across India</p>
+                        <p className="branches-sub">M.A.S.H orchestrators deployed and running in production clinic networks</p>
                     </StaggerItem>
                 </StaggerContainer>
 
                 <StaggerContainer className="branches-grid">
                     {branches.map((branch) => (
                         <div key={branch.name} className="branch-card-wrapper">
-                            <div className="branch-card branch-card-with-image">
-                                <div className="branch-image-wrapper">
-                                    <img src={branch.image} alt={branch.name} className="branch-image" loading="lazy" />
-                                    <div className="branch-image-overlay" />
-                                </div>
+                            <div className="branch-card">
                                 <div className="branch-card-body">
                                     <div className="branch-name">{branch.name}</div>
                                     <div className="branch-city">{branch.city}</div>
@@ -66,30 +56,17 @@ export default function Branches() {
                                     </div>
                                     <div className="branch-detail">
                                         <Clock size={16} className="branch-detail-icon" />
-                                        <span>{branch.hours}</span>
+                                        <span>{branch.rooms}</span>
                                     </div>
                                     <div className="branch-detail">
-                                        <Phone size={16} className="branch-detail-icon" />
-                                        <span>{branch.phone}</span>
+                                        <ShieldCheck size={16} className="branch-detail-icon" style={{ color: '#22C55E' }} />
+                                        <span style={{ color: '#22C55E' }}>{branch.status}</span>
                                     </div>
 
                                     <div className="branch-actions">
-                                        <a
-                                            href={branch.mapUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="branch-link"
-                                        >
-                                            <Navigation size={14} />
-                                            Directions
-                                        </a>
-                                        <a href={`tel:${branch.phone.replace(/\s/g, '')}`} className="branch-link">
-                                            <Phone size={14} />
-                                            Call
-                                        </a>
                                         <a href="#contact" className="branch-link" onClick={(e) => { e.preventDefault(); document.querySelector('#contact')?.scrollIntoView({ behavior: 'smooth' }) }}>
                                             <ExternalLink size={14} />
-                                            Book
+                                            Request Integration
                                         </a>
                                     </div>
                                 </div>
@@ -105,7 +82,7 @@ export default function Branches() {
                                     <div style={{ marginBottom: '24px' }}>
                                         <div className="coming-soon-badge">
                                             <span className="coming-soon-pulse" />
-                                            Opening Soon
+                                            Integration Pending
                                         </div>
                                     </div>
                                     <div className="branch-name">{branch.name}</div>
@@ -113,15 +90,15 @@ export default function Branches() {
 
                                     <div className="branch-detail">
                                         <Globe size={16} className="branch-detail-icon" />
-                                        <span>Location to be announced</span>
+                                        <span>Configuration validation stage</span>
                                     </div>
                                     <div className="branch-detail">
-                                        <Clock size={16} className="branch-detail-icon" />
-                                        <span>Coming Soon</span>
+                                        <Activity size={16} className="branch-detail-icon" />
+                                        <span>Scheduled: Q4 2026</span>
                                     </div>
 
                                     <div className="coming-soon-text">
-                                        We're bringing the Christalin Mirrors experience to {branch.city.split(',')[0]}. Stay tuned for updates.
+                                        Currently validating security sandbox models and patient records mapping schemas for local deployment.
                                     </div>
                                 </div>
                             </div>

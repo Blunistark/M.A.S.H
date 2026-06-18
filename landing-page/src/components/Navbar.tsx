@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sun, Moon, Menu, X } from 'lucide-react'
-import cmLogo from '../assets/cm-logo-white.png'
+import { Sun, Moon, Menu, X, Activity } from 'lucide-react'
 import './Navbar.css'
 
 interface NavbarProps {
@@ -24,10 +23,9 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
     }, [])
 
     const navLinks = [
-        { label: 'About Us', href: '#about' },
-        { label: 'Services', href: '#services' },
-        { label: 'Gallery', href: '#gallery' },
-        { label: 'Contacts', href: '#contact' },
+        { label: 'Core Concept', href: '#about' },
+        { label: 'Agent Ecosystem', href: '#services' },
+        { label: 'Virtual Rooms', href: '#gallery' },
     ]
 
     const scrollTo = (href: string) => {
@@ -85,10 +83,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                     }
                                 }}
                             >
-                                <motion.img 
-                                    src={cmLogo} 
-                                    alt="CM" 
-                                    className="navbar-logo-img" 
+                                <motion.div
                                     layoutId="main-logo"
                                     transition={{
                                         type: "spring",
@@ -96,7 +91,10 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                         damping: 24,
                                         mass: 1.2
                                     }}
-                                />
+                                    style={{ display: 'flex', alignItems: 'center' }}
+                                >
+                                    <img src="/mash-logo.png" alt="M.A.S.H" style={{ height: '32px', width: 'auto' }} />
+                                </motion.div>
                             </a>
                         )}
                     </div>
@@ -126,17 +124,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                             animate={{ opacity: isAppLoading ? 0 : 1 }}
                             transition={{ delay: 1, duration: 0.5 }}
                         >
-                            <button
-                                className="theme-toggle"
-                                onClick={toggleTheme}
-                                aria-label="Toggle theme"
-                            >
-                                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                            </button>
 
-                            <a href="#contact" className="navbar-cta desktop-only" onClick={(e) => { e.preventDefault(); scrollTo('#contact') }}>
-                                Book Appointment
-                            </a>
 
                             <button
                                 className="navbar-menu-btn"
@@ -175,16 +163,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                 {link.label}
                             </motion.a>
                         ))}
-                        <motion.a
-                            href="#contact"
-                            className="navbar-cta"
-                            onClick={(e) => { e.preventDefault(); scrollTo('#contact') }}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4, duration: 0.4 }}
-                        >
-                            Book Appointment
-                        </motion.a>
+
                     </motion.div>
                 )}
             </AnimatePresence>

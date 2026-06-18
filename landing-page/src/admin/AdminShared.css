@@ -17,10 +17,10 @@
   --input-bg: #0B0B0F;
   --sidebar-bg: #101014;
   --topbar-bg: #0B0B0F;
-  --accent: #C17F59;
-  --accent-hover: #a96d4d;
-  --accent-alt: #d4a847;
-  --accent-alt-hover: #c19535;
+  --accent: #10B981;
+  --accent-hover: #059669;
+  --accent-alt: #059669;
+  --accent-alt-hover: #047857;
   --success: #10b981;
   --success-light: #4ADE80;
   --danger: #E85D5D;
@@ -36,8 +36,8 @@
   --alert-danger-bg: rgba(239, 68, 68, 0.08);
   --calendar-today-bg: rgba(255, 255, 255, 0.04);
   --calendar-today-border: rgba(255, 255, 255, 0.1);
-  --calendar-selected-bg: rgba(193, 127, 89, 0.12);
-  --calendar-selected-border: rgba(193, 127, 89, 0.3);
+  --calendar-selected-bg: rgba(16, 185, 129, 0.12);
+  --calendar-selected-border: rgba(16, 185, 129, 0.3);
   --calendar-confirmed-bg: rgba(74, 222, 128, 0.15);
   --calendar-pending-bg: rgba(251, 191, 36, 0.15);
   --calendar-apt-bg: rgba(255, 255, 255, 0.03);
@@ -64,10 +64,10 @@
   --input-bg: #fdfdfc;
   --sidebar-bg: #101014; 
   --topbar-bg: #0B0B0F;  
-  --accent: #C17F59;
-  --accent-hover: #a96d4d;
-  --accent-alt: #d4a847;
-  --accent-alt-hover: #c19535;
+  --accent: #10B981;
+  --accent-hover: #059669;
+  --accent-alt: #059669;
+  --accent-alt-hover: #047857;
   --success: #059669;
   --success-light: #10b981;
   --danger: #dc2626;
@@ -83,8 +83,8 @@
   --alert-danger-bg: rgba(239, 68, 68, 0.10);
   --calendar-today-bg: rgba(0, 0, 0, 0.04);
   --calendar-today-border: rgba(0, 0, 0, 0.1);
-  --calendar-selected-bg: rgba(193, 127, 89, 0.12);
-  --calendar-selected-border: rgba(193, 127, 89, 0.3);
+  --calendar-selected-bg: rgba(16, 185, 129, 0.12);
+  --calendar-selected-border: rgba(16, 185, 129, 0.3);
   --calendar-confirmed-bg: rgba(16, 185, 129, 0.12);
   --calendar-pending-bg: rgba(245, 158, 11, 0.12);
   --calendar-apt-bg: rgba(0, 0, 0, 0.03);
@@ -133,7 +133,7 @@
 }
 
 .admin-stat-card:hover {
-    border-color: rgba(193, 127, 89, 0.3);
+    border-color: rgba(16, 185, 129, 0.3);
 }
 
 .admin-stat-card .stat-label {
@@ -314,7 +314,7 @@
     color: var(--text-muted);
 }
 
-.category-badge.hair { background: rgba(193, 127, 89, 0.15); color: var(--accent); }
+.category-badge.hair { background: rgba(16, 185, 129, 0.15); color: var(--accent); }
 .category-badge.skin { background: rgba(167, 139, 250, 0.15); color: var(--purple); }
 .category-badge.korean { background: rgba(248, 113, 113, 0.15); color: var(--red-light); }
 .category-badge.womens { background: rgba(244, 114, 182, 0.15); color: var(--pink); }
@@ -331,7 +331,7 @@
     border-radius: 4px;
 }
 
-.role-badge.stylist { background: rgba(193, 127, 89, 0.15); color: var(--accent); }
+.role-badge.stylist { background: rgba(16, 185, 129, 0.15); color: var(--accent); }
 .role-badge.therapist { background: rgba(167, 139, 250, 0.15); color: var(--purple); }
 .role-badge.manager { background: rgba(74, 222, 128, 0.15); color: var(--success-light); }
 .role-badge.receptionist { background: rgba(96, 165, 250, 0.15); color: var(--info); }
@@ -436,7 +436,7 @@
 }
 
 .admin-search:focus {
-    border-color: rgba(193, 127, 89, 0.5);
+    border-color: rgba(16, 185, 129, 0.5);
 }
 
 .admin-filter-select {
@@ -454,7 +454,7 @@
 }
 
 .admin-filter-select:focus {
-    border-color: rgba(193, 127, 89, 0.5);
+    border-color: rgba(16, 185, 129, 0.5);
 }
 
 /* ─── Forms (Modal-like inline) ───────────────────────────────── */
@@ -514,7 +514,7 @@
 .admin-form-input:focus,
 .admin-form-select:focus,
 .admin-form-textarea:focus {
-    border-color: rgba(193, 127, 89, 0.5);
+    border-color: rgba(16, 185, 129, 0.5);
 }
 
 .admin-form-textarea {
@@ -563,7 +563,7 @@
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 4px;
-    background: rgba(193, 127, 89, 0.12);
+    background: rgba(16, 185, 129, 0.12);
     color: var(--accent);
     margin-right: 4px;
 }

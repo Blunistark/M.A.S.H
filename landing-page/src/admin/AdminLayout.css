@@ -96,7 +96,7 @@
 
 .admin-nav-link.active {
     color: var(--accent);
-    background: rgba(193, 127, 89, 0.1);
+    background: rgba(16, 185, 129, 0.1);
     font-weight: 500;
 }
 
@@ -176,7 +176,7 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), #a0694a);
+    background: linear-gradient(135deg, var(--accent), #059669);
     display: flex;
     align-items: center;
     justify-content: center;

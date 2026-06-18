@@ -1,230 +1,361 @@
-import { useState, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { StaggerContainer, StaggerItem } from './Animations'
-import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react'
-import { SERVICE_IMAGES } from '../data/assets'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import './Services.css'
 
-type Category = 'all' | 'hair' | 'skin' | 'korean' | 'womens' | 'mens'
+const showcaseAgents = [
+    { name: "Doctor Assistant", image: "/doctor-assisatant-agent.png", desc: "Real-time transcription summarization and automated diagnostic code recommendation.", paradigm: "Ambient Transcription & Diagnostic Recommendation", isLeft: false },
+    { name: "Patient Management", image: "/Patient-managment-agent.png", desc: "Asynchronous conversational front-end intake, symptom extraction, and pre-triage collection.", paradigm: "Intake Conversational Modeling & Pre-Triage", isLeft: true },
+    { name: "Medicine & Rx", image: "/Medicine-prescripition-agent.png", desc: "Automated safety check cross-referencing patient allergies against prescribed drugs.", paradigm: "Allergy Cross-Referencing & Safety Compliance", isLeft: false },
+    { name: "Patient Navigation", image: "/paptient-navigation-agent.png", desc: "Real-time wayfinding guidance, tracking physical patient arrival and directing to consultation rooms.", paradigm: "Wayfinding Navigation & Spatial Tracking", isLeft: true },
+    { name: "Stock Management", image: "/stock-managment-agent.png", desc: "Tracks medication inventory, flags supply levels, and forecasts stock demand based on consult trends.", paradigm: "Inventory Tracking & Surges Forecasting", isLeft: false },
+    { name: "Patient Summary", image: "/patient-summary-agent.png", desc: "EHR records aggregator, generating pre-consultation reports and clinical synthesis for doctors.", paradigm: "Clinical Records Aggregation & Synthesis", isLeft: true },
+    { name: "Telemetry & Audit", image: "/telemetry-agent.png", desc: "Cryptographically registers room events, verifying protocol compliance and HIPAA compliance logs.", paradigm: "HIPAA Event Cryptographic Ledger Logging", isLeft: false }
+];
 
-interface ServiceItem {
-    name: string
-    tag: string
-    category: Category
-    isKorean?: boolean
+const workflows = [
+    {
+        title: "Patient Intake & Registration",
+        video: "/patient workflow.mp4",
+        desc: "Watch the Patient Management and Registration agents ingest patient symptoms, run prioritizing triage, and dynamically allocate consult rooms."
+    },
+    {
+        title: "Clinical Consultation",
+        video: "/doctor-workflow.mp4",
+        desc: "Observe the Doctor Assistant and Patient Summary agents compile EHR summaries, transcribe ambient consultation audio, and recommend diagnostic codes."
+    },
+    {
+        title: "Pharmacy & Stock Logistics",
+        video: "/Medice-workflow.mp4",
+        desc: "See the Medicine and Stock agents validate drug interaction safety, check allergy files, and automatically forecast and request medication restocks."
+    }
+];
+
+function AgentShowcaseItem({ 
+    agent, 
+    activeAgent
+}: { 
+    agent: typeof showcaseAgents[0]; 
+    activeAgent: string | null; 
+}) {
+    const placeholderRef = useRef<HTMLDivElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+
+    useEffect(() => {
+        let animationFrameId: number;
+
+        const updateImagePosition = () => {
+            if (!placeholderRef.current || !imageRef.current) return;
+
+            const rect = placeholderRef.current.getBoundingClientRect();
+            const X_layout = rect.left + rect.width / 2;
+            const Y_layout = rect.top + rect.height / 2;
+
+            const viewportHeight = window.innerHeight;
+            const centerY = viewportHeight / 2;
+            const dist = Math.abs(Y_layout - centerY);
+            const maxDist = centerY * 0.7; // Transition starts when within middle 70% of screen
+
+            let t = 0;
+            if (dist < maxDist) {
+                t = 1 - dist / maxDist;
+                // Cubic easing
+                t = t * t * (3 - 2 * t);
+            }
+
+            const slug = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const sidebarEl = document.querySelector(`.target-${slug}-desktop`) || document.querySelector(`.target-${slug}-mobile`);
+
+            if (sidebarEl && t > 0) {
+                const sidebarRect = sidebarEl.getBoundingClientRect();
+                const X_sidebar = sidebarRect.left + sidebarRect.width / 2;
+                const Y_sidebar = sidebarRect.top + sidebarRect.height / 2;
+
+                const deltaX = X_sidebar - X_layout;
+                const deltaY = Y_sidebar - Y_layout;
+
+                const currentTranslateX = deltaX * (1 - t);
+                const currentTranslateY = deltaY * (1 - t);
+
+                const isMobile = window.innerWidth < 1200;
+                const sidebarImgHeight = isMobile ? 104 : 180;
+                const targetImgHeight = rect.height || 380;
+                const startScale = sidebarImgHeight / targetImgHeight;
+                const currentScale = startScale + (1 - startScale) * t;
+
+                imageRef.current.style.transform = `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0) scale(${currentScale})`;
+                imageRef.current.style.opacity = `${t}`;
+                imageRef.current.style.display = 'block';
+            } else {
+                imageRef.current.style.transform = '';
+                imageRef.current.style.opacity = '0';
+                imageRef.current.style.display = 'none';
+            }
+        };
+
+        if (activeAgent === agent.name) {
+            updateImagePosition();
+            const tick = () => {
+                updateImagePosition();
+                animationFrameId = requestAnimationFrame(tick);
+            };
+            animationFrameId = requestAnimationFrame(tick);
+        } else {
+            if (imageRef.current) {
+                imageRef.current.style.transform = '';
+                imageRef.current.style.opacity = '0';
+                imageRef.current.style.display = 'none';
+            }
+        }
+
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+        };
+    }, [activeAgent, agent.name]);
+
+    const slug = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+    return (
+        <div className={`services-showcase-layout ${agent.isLeft ? 'layout-left' : 'layout-right'} target-showcase-${slug}`}>
+            {agent.isLeft ? (
+                <>
+                    {/* Left Column: Image */}
+                    <div className="services-agent-image-col">
+                        <div ref={placeholderRef} className="services-agent-image-placeholder" />
+                        <img 
+                            ref={imageRef}
+                            src={agent.image} 
+                            alt={agent.name} 
+                            className="services-agent-zoom-img" 
+                            style={{ position: 'absolute', opacity: 0, display: 'none' }}
+                        />
+                    </div>
+                    {/* Right Column: Text */}
+                    <div className="services-text-col">
+                        <StaggerContainer>
+                            <StaggerItem>
+                                <p className="section-label showcase-label">Agent Ecosystem</p>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <h2 className="services-showcase-heading">{agent.name} Agent</h2>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <p className="services-showcase-text">{agent.desc}</p>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <div className="services-paradigm-note">
+                                    <p className="founder-label">Operational Paradigm</p>
+                                    <p className="founder-name">{agent.paradigm}</p>
+                                </div>
+                            </StaggerItem>
+                        </StaggerContainer>
+                    </div>
+                </>
+            ) : (
+                <>
+                    {/* Left Column: Text */}
+                    <div className="services-text-col">
+                        <StaggerContainer>
+                            <StaggerItem>
+                                <p className="section-label showcase-label">Agent Ecosystem</p>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <h2 className="services-showcase-heading">{agent.name} Agent</h2>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <p className="services-showcase-text">{agent.desc}</p>
+                            </StaggerItem>
+                            <StaggerItem>
+                                <div className="services-paradigm-note">
+                                    <p className="founder-label">Operational Paradigm</p>
+                                    <p className="founder-name">{agent.paradigm}</p>
+                                </div>
+                            </StaggerItem>
+                        </StaggerContainer>
+                    </div>
+                    {/* Right Column: Image */}
+                    <div className="services-agent-image-col">
+                        <div ref={placeholderRef} className="services-agent-image-placeholder" />
+                        <img 
+                            ref={imageRef}
+                            src={agent.image} 
+                            alt={agent.name} 
+                            className="services-agent-zoom-img" 
+                            style={{ position: 'absolute', opacity: 0, display: 'none' }}
+                        />
+                    </div>
+                </>
+            )}
+        </div>
+    );
 }
 
-const services: ServiceItem[] = [
-    // Hair (Unisex)
-    { name: 'Precision Haircut', tag: 'U/V layer cut, advance creative cuts & kids styling', category: 'hair' },
-    { name: 'Wash & Styling', tag: 'Wash, blast dry, conditioning & ironing', category: 'hair' },
-    { name: 'Hair Color Studio', tag: 'Root touch up, global color, fashion shades & highlights', category: 'hair' },
-    { name: 'Balayage', tag: 'Hand-painted natural gradients with premium colors', category: 'hair' },
-    { name: 'Keratin & Smoothing', tag: 'Frizz-free finish with keratin, botox & nano plastia', category: 'hair' },
-    { name: 'Nourishing Hair Spa', tag: 'Deep repair with Ola Plex, 3tenx & scalp therapy', category: 'hair' },
-    // Skin & Beauty (Unisex)
-    { name: 'Glass Skin Facials', tag: 'Hydra aloe, K elite glow & Korean glass skin hydra facial', category: 'skin', isKorean: true },
-    { name: 'Skin Therapy', tag: 'Classic glow, anti-aging, acne defense & bridal radiance facials', category: 'skin' },
-    { name: 'Essential Skin Cleanup', tag: 'Deep pore detox, radiant white & hydra cleanup', category: 'skin' },
-    { name: 'Even Tone Therapy', tag: 'DTAN & lighting (bleach) for full body, face & arms', category: 'skin' },
-    { name: 'Wellness Massage', tag: 'Body massage, foot/back/hand, body scrub & body polish', category: 'skin' },
-    // Korean Rituals (Unisex)
-    { name: 'Deep Cleanse Revive', tag: 'Purifying scalp detox with K-beauty ingredients', category: 'korean', isKorean: true },
-    { name: 'Hydra Calm Restore', tag: 'Deep hydration ritual for stressed, dry scalps', category: 'korean', isKorean: true },
-    { name: 'Scalp Renewal Detox', tag: 'Advanced detoxification for scalp rejuvenation', category: 'korean', isKorean: true },
-    { name: 'Ultimate K-Glow Ritual', tag: 'The pinnacle of Korean scalp and hair therapy', category: 'korean', isKorean: true },
-    { name: 'K Elite Glow Facial', tag: 'Premium Korean routine for long-lasting brightness', category: 'korean', isKorean: true },
-    { name: 'Korean Glass Skin Facial', tag: 'Where Korean skin science meets restorative hydration', category: 'korean', isKorean: true },
-    // Women's
-    { name: 'Engagement Look', tag: 'Pre-wedding styling with premium makeup', category: 'womens' },
-    { name: 'Luxury Bridal Makeover', tag: 'MAC, Laura Mercier, Huda Beauty & Fenty options', category: 'womens' },
-    { name: 'HD & Airbrush Makeup', tag: 'High definition camera-ready bridal perfection', category: 'womens' },
-    { name: 'Saree Draping & Hair', tag: 'Professional draping with bespoke hair styling', category: 'womens' },
-    { name: 'Party Makeup', tag: 'Basic party, pro, MAC & HD makeup for any occasion', category: 'womens' },
-    { name: 'Signature Threading', tag: 'Full face, eyebrows, upper lip & forehead', category: 'womens' },
-    { name: 'Body Waxing', tag: 'Half/full arms, legs, back, brazilian & full body wax', category: 'womens' },
-    { name: 'Manicure & Pedicure', tag: 'Classic, bomb, spa & herbal botanical treatments', category: 'womens' },
-    { name: 'Nail Art & Extensions', tag: 'Gel polish, acrylic & gel extensions, custom nail art', category: 'womens' },
-    // Men's
-    { name: 'Classic & Creative Cuts', tag: 'Wash & blast dry, head shave, and creative haircuts', category: 'mens' },
-    { name: 'Beard Grooming', tag: 'Beard trim, shave, beard colour & moustache colour', category: 'mens' },
-    { name: "Men's Hair Treatments", tag: 'Keratin, smoothening & botox for men', category: 'mens' },
-    { name: "Men's Hair Colouring", tag: 'Streaks, side locks color & global ammonia-free color', category: 'mens' },
-]
+export default function Services({ 
+    activeAgent, 
+    setActiveAgent 
+}: { 
+    activeAgent: string | null; 
+    setActiveAgent: (val: string | null) => void 
+}) {
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
-const tabs: { label: string; value: Category; highlight?: boolean }[] = [
-    { label: 'Hair', value: 'hair' },
-    { label: 'Skin & Beauty', value: 'skin' },
-    { label: 'Korean Rituals', value: 'korean', highlight: true },
-    { label: "Women's", value: 'womens' },
-    { label: "Men's", value: 'mens' },
-]
+    // Scroll listener to update activeAgent dynamically based on the showcase item closest to center
+    useEffect(() => {
+        const handleScroll = () => {
+            const centerY = window.innerHeight / 2;
+            let closestAgent: string | null = null;
+            let minDistance = Infinity;
 
-// Featured services for the horizontal scroll cards
-const featuredServices = [
-    {
-        name: 'Korean Head Spa Rituals',
-        badge: 'Signature Experience',
-        desc: 'Immerse yourself in our signature K-beauty head spa experience — a luxurious journey combining deep cleansing, hydra restoration, scalp renewal, and the ultimate K-Glow ritual. Designed to rejuvenate both scalp and soul.',
-        tags: ['K-Beauty', 'Head Spa', 'Premium'],
-        isKorean: true,
-        image: SERVICE_IMAGES[0]
-    },
-    {
-        name: 'Luxury Bridal Makeover',
-        badge: 'Bridal Exclusive',
-        desc: 'Complete bridal transformation combining high-definition HD or Airbrush makeup, professional hair styling, intricate saree draping, and essential skincare prep tailored for your perfect day.',
-        tags: ['Bridal', 'Makeup', 'Styling'],
-        isKorean: false,
-        image: SERVICE_IMAGES[1]
-    },
-    {
-        name: 'Balayage & Color Mastery',
-        badge: 'Trending',
-        desc: 'Expert hand-painted natural gradients and sun-kissed looks created with premium ammonia-free colors. Express your unique style with fashion shades and meticulously crafted creative highlights.',
-        tags: ['Color', 'Balayage', 'Creative'],
-        isKorean: false,
-        image: SERVICE_IMAGES[2]
-    },
-    {
-        name: 'Glass Skin Facial',
-        badge: 'K-Beauty Ritual',
-        desc: 'Achieve the coveted flawless glass skin glow with our signature Korean hydra facial protocol. Utilizing premium imported serums and advanced restorative hydration techniques to deeply nourish your skin.',
-        tags: ['Korean', 'Facial', 'Glow'],
-        isKorean: true,
-        image: SERVICE_IMAGES[3]
-    },
-    {
-        name: "Men's Premium Grooming Suite",
-        badge: 'For Him',
-        desc: 'The complete elevated men\'s experience. Precision creative cuts, master beard sculpting, smoothing keratin treatments, and premium hair coloring, all delivered in a refined environment.',
-        tags: ['Grooming', 'Cuts', 'Beard'],
-        isKorean: false,
-        image: SERVICE_IMAGES[10]
-    },
-]
+            showcaseAgents.forEach(agent => {
+                const slug = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const el = document.querySelector(`.target-showcase-${slug}`);
+                if (el) {
+                    const rect = el.getBoundingClientRect();
+                    const elCenterY = rect.top + rect.height / 2;
+                    const dist = Math.abs(elCenterY - centerY);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestAgent = agent.name;
+                    }
+                }
+            });
 
-export default function Services() {
-    const [active, setActive] = useState<Category>('korean')
-    const [showAllServices, setShowAllServices] = useState(false)
-    const scrollRef = useRef<HTMLDivElement>(null)
+            // Active threshold: must be within middle 70% of viewport (35% half-height)
+            if (minDistance < window.innerHeight * 0.35) {
+                if (closestAgent !== activeAgent) {
+                    setActiveAgent(closestAgent);
+                }
+            } else {
+                // Out of range, clear activeAgent if it is currently one of ours
+                if (activeAgent && showcaseAgents.some(sa => sa.name === activeAgent)) {
+                    setActiveAgent(null);
+                }
+            }
+        };
 
-    const filtered = active === 'all' ? services : services.filter(s => s.category === active)
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        window.addEventListener('resize', handleScroll);
+        handleScroll();
 
-    const scroll = (dir: 'left' | 'right') => {
-        if (scrollRef.current) {
-            // Scroll by exactly one visible card width, accounting for the gap
-            const cardWidth = scrollRef.current.clientWidth
-            const gap = 18 // CSS gap value
-            const amount = cardWidth + gap
-            scrollRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' })
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('resize', handleScroll);
+        };
+    }, [activeAgent, setActiveAgent]);
+
+    // Handle auto-playing active video slide
+    useEffect(() => {
+        videoRefs.current.forEach((video, index) => {
+            if (video) {
+                if (index === currentSlide) {
+                    video.play().catch(() => {});
+                } else {
+                    video.pause();
+                    video.currentTime = 0;
+                }
+            }
+        });
+    }, [currentSlide]);
+
+    const prevSlide = () => {
+        if (currentSlide > 0) {
+            setCurrentSlide(currentSlide - 1);
         }
-    }
+    };
+
+    const nextSlide = () => {
+        if (currentSlide < workflows.length - 1) {
+            setCurrentSlide(currentSlide + 1);
+        }
+    };
 
     return (
         <section className="services section" id="services">
             <div className="container">
-                <StaggerContainer className="services-header">
-                    <StaggerItem>
-                        <p className="section-label">What We Offer</p>
-                    </StaggerItem>
-                    <StaggerItem>
-                        <h2 className="services-heading">Our Services</h2>
-                    </StaggerItem>
-                    <StaggerItem>
-                        <p className="services-subtitle">
-                            From classic grooming to advanced Korean beauty rituals — curated services for women and men.
-                        </p>
-                    </StaggerItem>
-                </StaggerContainer>
-
-                {/* Featured Services — Horizontal Scroll Cards */}
-                <StaggerItem className="featured-scroll-wrapper">
-                    <div className="featured-scroll-header">
-                        <span className="featured-scroll-label">✦ Featured</span>
-                    </div>
-                    <div className="featured-carousel-container">
-                        <button className="carousel-arrow arrow-left" onClick={() => scroll('left')} aria-label="Scroll left"><ChevronLeft size={24} /></button>
-                        <button className="carousel-arrow arrow-right" onClick={() => scroll('right')} aria-label="Scroll right"><ChevronRight size={24} /></button>
-                    <div className="featured-scroll-track" ref={scrollRef}>
-                        {featuredServices.map((svc) => (
-                            <div key={svc.name} className={`featured-scroll-card ${svc.isKorean ? 'korean-card' : ''}`}>
-                                <div className="featured-scroll-image">
-                                    <img src={svc.image} alt={svc.name} loading="lazy" />
-                                </div>
-                                <div className="featured-scroll-content">
-                                    <span className="featured-card-badge">
-                                        {svc.isKorean && <Sparkles size={11} style={{ marginRight: 4 }} />}
-                                        {svc.badge}
-                                    </span>
-                                    <h3 className="featured-card-name">{svc.name}</h3>
-                                    <p className="featured-card-desc">{svc.desc}</p>
-                                    <div className="featured-card-tags">
-                                        {svc.tags.map(t => <span key={t} className="featured-card-tag">{t}</span>)}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    </div>
-                </StaggerItem>
-
-                <div className="services-tabs">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.value}
-                            className={`services-tab ${active === tab.value ? 'active' : ''} ${tab.highlight ? 'korean-tab' : ''}`}
-                            onClick={() => {
-                                setActive(tab.value)
-                                setShowAllServices(false)
-                            }}
-                        >
-                            {tab.highlight && <Sparkles size={12} />}
-                            {tab.label}
-                        </button>
+                {/* Dynamic Showcase for all 7 agents */}
+                <div className="services-showcase-list" style={{ display: 'flex', flexDirection: 'column', gap: '96px', marginBottom: '96px' }}>
+                    {showcaseAgents.map((agent) => (
+                        <AgentShowcaseItem 
+                            key={agent.name} 
+                            agent={agent} 
+                            activeAgent={activeAgent} 
+                        />
                     ))}
                 </div>
 
-                {/* Services Grid */}
-                <div className={`services-list-container ${showAllServices ? 'expanded' : ''}`}>
-                    <motion.div
-                        key={active}
-                        className="services-grid"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4 }}
-                    >
-                        {filtered.map((service, i) => (
-                            <motion.div
-                                key={service.name}
-                                className={`service-item ${service.isKorean ? 'korean-item' : ''}`}
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.05, duration: 0.4 }}
-                            >
-                                <div className="service-info">
-                                    <div className="service-name">
-                                        {service.isKorean && <Sparkles size={14} className="korean-icon" />}
-                                        {service.name}
-                                    </div>
-                                    <div className="service-tag">{service.tag}</div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </div>
+                {/* Operational Workflows Video Showcase */}
+                <div className="services-workflows-section">
+                    <StaggerContainer className="services-header">
+                        <StaggerItem>
+                            <p className="section-label">Real-time Operations</p>
+                        </StaggerItem>
+                        <StaggerItem>
+                            <h2 className="services-heading">Operational Workflows</h2>
+                        </StaggerItem>
+                        <StaggerItem>
+                            <p className="services-subtitle">
+                                Watch M.A.S.H agents orchestrate live clinical events across the hospital mesh.
+                            </p>
+                        </StaggerItem>
+                    </StaggerContainer>
 
-                {filtered.length > 5 && (
-                    <div className="services-show-more-mobile">
+                    <div className="workflows-carousel-container">
                         <button 
-                            className="services-show-more-btn" 
-                            onClick={() => setShowAllServices(!showAllServices)}
+                            className={`carousel-arrow arrow-left ${currentSlide === 0 ? 'disabled' : ''}`} 
+                            onClick={prevSlide}
+                            aria-label="Previous slide"
                         >
-                            {showAllServices ? 'Show Less' : `Show All ${filtered.length} Services`}
+                            <ChevronLeft size={24} />
                         </button>
+                        <button 
+                            className={`carousel-arrow arrow-right ${currentSlide === workflows.length - 1 ? 'disabled' : ''}`} 
+                            onClick={nextSlide}
+                            aria-label="Next slide"
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+
+                        <div className="workflows-carousel-outer">
+                            <div 
+                                className="workflows-carousel-track" 
+                                style={{ transform: `translate3d(-${currentSlide * 100}%, 0, 0)` }}
+                            >
+                                {workflows.map((wf, idx) => (
+                                    <div key={wf.title} className="workflows-carousel-slide">
+                                        <div className="workflow-video-container">
+                                            <video 
+                                                ref={el => { videoRefs.current[idx] = el }}
+                                                src={wf.video} 
+                                                controls 
+                                                muted 
+                                                loop 
+                                                playsInline 
+                                                className="workflow-video" 
+                                            />
+                                        </div>
+                                        <div className="workflow-info">
+                                            <h3 className="workflow-title">{wf.title}</h3>
+                                            <p className="workflow-desc">{wf.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="carousel-dots">
+                            {workflows.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    className={`carousel-dot ${idx === currentSlide ? 'active' : ''}`}
+                                    onClick={() => setCurrentSlide(idx)}
+                                    aria-label={`Go to slide ${idx + 1}`}
+                                />
+                            ))}
+                        </div>
                     </div>
-                )}
+                </div>
             </div>
         </section>
-    )
+    );
 }

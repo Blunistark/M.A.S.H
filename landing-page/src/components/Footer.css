@@ -166,6 +166,16 @@
 }
 
 /* ─── Responsive ──────────────────────────────────────────────── */
+
+/* Sidebar clearance: fixed agent sidebars are 160px + 24px offset  */
+/* Pad footer container so content is never hidden behind sidebars. */
+@media (min-width: 1200px) {
+    .footer .container {
+        padding-left: 200px;
+        padding-right: 200px;
+    }
+}
+
 @media (max-width: 768px) {
     .footer-inner {
         grid-template-columns: 1fr 1fr;

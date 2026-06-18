@@ -36,18 +36,18 @@ export default function Terms() {
                             </section>
 
                             <section>
-                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>2. Appointments & Cancellations</h2>
-                                <p>We require at least 24 hours notice for all cancellations. Late cancellations or no-shows may be subject to a fee. Please arrive 10 minutes prior to your scheduled appointment time to ensure you receive your full service.</p>
+                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>2. License &amp; Sandbox Use</h2>
+                                <p>M.A.S.H permits healthcare organizations to deploy agent orchestration modules within local network sandboxes. All configured Peer-to-Peer room workspaces must adhere to local healthcare privacy laws.</p>
                             </section>
 
                             <section>
-                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>3. Service Guarantee</h2>
-                                <p>We want you to be 100% satisfied with your service. If you are not completely satisfied, please let us know within 48 hours and we will do our best to correct it.</p>
+                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>3. Clinical Validation Waiver</h2>
+                                <p>AI agent outputs, including pre-triage summaries and diagnostic code recommendations, serve as helper tools only. Licensed clinical practitioners must independently verify all logs and records before approving active patient prescriptions.</p>
                             </section>
 
                             <section>
-                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>4. Health & Safety</h2>
-                                <p>Please inform your stylist of any allergies, medical conditions, or concerns prior to your service. We reserve the right to refuse service if we believe a treatment may be harmful to your health or safety.</p>
+                                <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)', fontSize: 'var(--text-2xl)', marginBottom: '16px' }}>4. Telemetry &amp; Audits</h2>
+                                <p>Active node connections to the virtual event bus emit secure logs. Compliance audits are compiled locally; M.A.S.H does not store patient-identifying data on shared cloud infrastructure without explicit authorization.</p>
                             </section>
                         </div>
                     </motion.div>

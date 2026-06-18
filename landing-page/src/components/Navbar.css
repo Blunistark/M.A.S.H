@@ -35,12 +35,23 @@
 }
 
 .navbar-inner {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
+    position: relative;
     max-width: var(--container-max);
     margin: 0 auto;
     padding: 0 var(--container-padding);
+}
+
+/* ─── Sidebar clearance on desktop ───────────────────────────── */
+/* The fixed agent sidebars are 160px wide + 24px from the edge.  */
+/* Add padding so navbar content is never hidden behind them.     */
+@media (min-width: 1200px) {
+    .navbar-inner {
+        padding-left: 200px;
+        padding-right: 200px;
+    }
 }
 
 .navbar.loading::before {
@@ -49,6 +60,9 @@
 
 /* ─── Logo ────────────────────────────────────────────────────── */
 .navbar-logo-container {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -66,14 +80,8 @@
 
 .navbar-logo-img {
     height: 40px;
-    /* Increased from 32px for a better 'zoom' experience */
     width: auto;
-    filter: brightness(0) invert(1);
     transition: opacity var(--transition-fast);
-}
-
-[data-theme="light"] .navbar-logo-img {
-    filter: brightness(0);
 }
 
 .navbar-logo:hover {

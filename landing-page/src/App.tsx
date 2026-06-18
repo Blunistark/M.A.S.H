@@ -5,14 +5,11 @@ import { useTheme } from './hooks/useTheme'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
-import FoundersNote from './components/FoundersNote'
 import Services from './components/Services'
-import Testimonials from './components/Testimonials'
 import Gallery from './components/Gallery'
-import Branches from './components/Branches'
-import Contact from './components/Contact'
 import Footer from './components/Footer'
 import LoadingScreen from './components/LoadingScreen'
+import AgentBanner from './components/AgentBanner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Admin
@@ -49,6 +46,7 @@ const queryClient = new QueryClient({
 function LandingPage() {
     const { theme, toggleTheme } = useTheme()
     const [isLoading, setIsLoading] = useState(true)
+    const [activeAgent, setActiveAgent] = useState<string | null>(null)
     const location = useLocation()
 
     useEffect(() => {
@@ -76,15 +74,12 @@ function LandingPage() {
             <Navbar theme={theme} toggleTheme={toggleTheme} isAppLoading={isLoading} />
             <main>
                 <Hero isAppLoading={isLoading} />
-                <About />
-                <FoundersNote />
-                <Services />
+                <About activeAgent={activeAgent} setActiveAgent={setActiveAgent} />
+                <Services activeAgent={activeAgent} setActiveAgent={setActiveAgent} />
                 <Gallery />
-                <Testimonials />
-                <Branches />
-                <Contact />
             </main>
             <Footer />
+            <AgentBanner activeAgent={activeAgent} />
         </>
     )
 }

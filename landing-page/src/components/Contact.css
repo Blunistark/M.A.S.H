@@ -3,51 +3,21 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .contact {
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
 }
 
 .contact-split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    min-height: 700px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-width: 680px;
+    margin: 0 auto;
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
-/* ─── Image Side ──────────────────────────────────────────────── */
-.contact-image-side {
-    position: relative;
-    overflow: hidden;
-}
 
-.contact-image-side img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform var(--transition-dramatic);
-}
-
-.contact-image-side:hover img {
-    transform: scale(1.03);
-}
-
-.contact-image-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(10, 10, 10, 0.6) 0%, transparent 50%);
-    display: flex;
-    align-items: flex-end;
-    padding: 40px;
-}
-
-.contact-image-text {
-    font-family: var(--font-heading);
-    font-size: var(--text-2xl);
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #FAFAFA;
-    line-height: 1.1;
-}
 
 /* ─── Form Side ───────────────────────────────────────────────── */
 .contact-form-side {
@@ -244,16 +214,6 @@
 
 /* ─── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .contact-split {
-        grid-template-columns: 1fr;
-        min-height: auto;
-    }
-
-    .contact-image-side {
-        aspect-ratio: 4/3;
-        height: auto;
-    }
-
     .contact-form-side {
         padding: 48px 24px;
     }

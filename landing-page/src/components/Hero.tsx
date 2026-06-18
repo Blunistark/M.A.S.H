@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, Activity } from 'lucide-react'
 import { HERO_IMAGE } from '../data/assets'
-import cmLogo from '../assets/cm-logo-white.png'
 import './Hero.css'
 
 export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
@@ -17,17 +16,6 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
 
     return (
         <section className="hero" id="hero">
-            <div className="hero-image-wrapper">
-                <motion.img
-                    src={HERO_IMAGE}
-                    alt="Christalin Mirrors — Refined Unisex Salon"
-                    className="hero-image"
-                    initial={{ scale: 1.15 }}
-                    animate={{ scale: 1 }}
-                    transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1] }}
-                />
-                <div className="hero-overlay" />
-            </div>
 
             <motion.div
                 className="hero-content"
@@ -36,36 +24,30 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
                 transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
                 {!scrolled && !isAppLoading ? (
-                    <motion.img 
+                    <motion.div
                         layoutId="main-logo"
-                        src={cmLogo} 
-                        alt="CM" 
-                        className="hero-monogram-img" 
+                        className="hero-monogram-container"
                         transition={{ type: "spring", stiffness: 70, damping: 24, mass: 1.2 }}
-                    />
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '36px' }}
+                    >
+                        <img src="/mash-logo.png" alt="M.A.S.H Logo" style={{ height: 'clamp(100px, 12vw, 140px)', width: 'auto' }} />
+                    </motion.div>
                 ) : (
-                    <div className="hero-monogram-img" style={{ visibility: 'hidden' }} />
+                    <div className="hero-monogram-img" style={{ visibility: 'hidden', height: 'clamp(100px, 12vw, 140px)', marginBottom: '36px' }} />
                 )}
-                <span className="hero-unisex-badge">Unisex Salon</span>
-                <h1 className="hero-brand-name">Christalin Mirrors</h1>
-                <p className="hero-tagline">
-                    Refine &bull; Reflect &bull; Radiate
-                </p>
-                <div className="hero-cta-row">
-                    <a href="#contact" className="btn btn-primary" onClick={(e) => { e.preventDefault(); document.querySelector('#contact')?.scrollIntoView({ behavior: 'smooth' }) }}>
-                        Book Appointment
-                    </a>
-                    <a href="#services" className="btn btn-outline" style={{ borderColor: 'rgba(250,250,250,0.3)', color: '#FAFAFA' }} onClick={(e) => { e.preventDefault(); document.querySelector('#services')?.scrollIntoView({ behavior: 'smooth' }) }}>
-                        Explore Services
-                    </a>
+                <span className="hero-unisex-badge" style={{ marginBottom: '28px' }}>Decentralized AI Orchestration</span>
+                <h1 className="hero-brand-name" style={{ fontSize: 'clamp(2.2rem, 3.8vw, 3.4rem)', lineHeight: 1.25, letterSpacing: '0.12em', maxWidth: '820px', margin: '0 auto 24px' }}>Multi Agent System for Hospitals</h1>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '48px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '2.5px', fontWeight: '600' }}>
+                        Powered By
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <img src="/band-logo.png" alt="Band of Agents Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
+                        <img src="/fearthersless-logo .png" alt="Feathersless Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
+                    </div>
                 </div>
             </motion.div>
 
-            <div className="hero-scroll-indicator">
-                <span>Scroll</span>
-                <div className="scroll-line" />
-                <ArrowDown size={14} />
-            </div>
         </section>
     )
 }

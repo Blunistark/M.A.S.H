@@ -23,6 +23,102 @@
     font-weight: 300;
 }
 
+/* ─── Services Showcase Layout (Doctor Assistant) ─────────────── */
+.services-showcase-layout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px;
+    max-width: var(--container-max);
+    margin: 0 auto 64px;
+    padding: 0 var(--container-padding);
+}
+
+.services-text-col {
+    flex: 1;
+    max-width: 680px;
+}
+
+.showcase-label {
+    margin-bottom: 20px;
+}
+
+.services-showcase-heading {
+    font-size: var(--text-3xl);
+    color: var(--text-primary);
+    margin-bottom: 24px;
+    line-height: 1.15;
+}
+
+.services-showcase-text {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    font-weight: 300;
+    line-height: 1.95;
+    margin-bottom: 16px;
+}
+
+.services-paradigm-note {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.services-agent-image-col {
+    flex: 0 0 420px;
+    height: 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.services-agent-zoom-img {
+    width: 380px;
+    height: 380px;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 30px rgba(16, 185, 129, 0.16)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.06));
+    z-index: 5;
+}
+
+.services-agent-image-placeholder {
+    width: 380px;
+    height: 380px;
+    background: transparent;
+}
+
+/* ─── Medicine & Rx — oversized image override ────────────────── */
+/* The Medicine & Prescription agent art is compositionally bigger  */
+/* so we give it a dedicated size boost without affecting others.   */
+.target-showcase-medicine---rx .services-agent-image-col {
+    flex: 0 0 500px;
+    height: 500px;
+}
+
+.target-showcase-medicine---rx .services-agent-zoom-img {
+    width: 460px;
+    height: 460px;
+    filter: drop-shadow(0 16px 40px rgba(16, 185, 129, 0.20)) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.07));
+}
+
+.target-showcase-medicine---rx .services-agent-image-placeholder {
+    width: 460px;
+    height: 460px;
+}
+
+@media (max-width: 768px) {
+    .target-showcase-medicine---rx .services-agent-image-col {
+        flex: 0 0 300px;
+        height: 300px;
+    }
+
+    .target-showcase-medicine---rx .services-agent-zoom-img,
+    .target-showcase-medicine---rx .services-agent-image-placeholder {
+        width: 280px;
+        height: 280px;
+    }
+}
+
 /* ─── Tabs ────────────────────────────────────────────────────── */
 .services-tabs {
     display: flex;
@@ -58,29 +154,6 @@
 .services-tab.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #FAFAFA;
-}
-
-/* Korean Ritual Tab — Special Glow */
-.services-tab.korean-tab {
-    border-color: var(--accent);
-    color: var(--accent);
-    position: relative;
-}
-
-.services-tab.korean-tab::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: var(--radius-pill);
-    background: linear-gradient(135deg, var(--accent), #D4A574, var(--accent));
-    z-index: -1;
-    opacity: 0.15;
-}
-
-.services-tab.korean-tab.active {
-    background: linear-gradient(135deg, var(--accent), #D4A574);
-    border-color: transparent;
     color: #FAFAFA;
 }
 
@@ -155,52 +228,28 @@
 
 .featured-scroll-card {
     flex: 0 0 100%;
-    max-width: 1000px;
+    max-width: 800px;
+    margin: 0 auto;
     scroll-snap-align: center;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 480px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 280px;
+    height: auto;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     position: relative;
     overflow: hidden;
 }
 
-.featured-scroll-image {
-    position: relative;
-    height: 100%;
-    min-height: 480px;
-    overflow: hidden;
-}
-
-.featured-scroll-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background-color: var(--bg-primary);
-    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.featured-scroll-card:hover .featured-scroll-image img {
-    transform: scale(1.05);
-}
-
-.featured-scroll-image::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, transparent 80%, var(--bg-secondary) 100%);
-    pointer-events: none;
-}
-
 .featured-scroll-content {
-    padding: 64px 48px;
+    padding: 40px 36px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
 }
 
 .featured-scroll-card::before {
@@ -225,13 +274,7 @@
     background: var(--accent);
 }
 
-.featured-scroll-card.korean-card {
-    border-color: var(--accent-muted);
-}
 
-.featured-scroll-card.korean-card::before {
-    background: linear-gradient(90deg, var(--accent), #D4A574);
-}
 
 .featured-card-badge {
     font-family: var(--font-heading);
@@ -273,15 +316,15 @@
     font-weight: 500;
     letter-spacing: 1px;
     color: var(--accent);
-    background: rgba(193, 127, 89, 0.1);
-    border: 1px solid rgba(193, 127, 89, 0.2);
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.15);
     padding: 6px 16px;
     border-radius: var(--radius-pill);
     transition: all 0.3s ease;
 }
 
 .featured-card-tag:hover {
-    background: rgba(193, 127, 89, 0.2);
+    background: rgba(16, 185, 129, 0.15);
 }
 
 /* ─── Service Grid ────────────────────────────────────────────── */
@@ -309,21 +352,7 @@
     background: var(--bg-accent);
 }
 
-/* Korean Service Item — Subtle Glow */
-.service-item.korean-item {
-    position: relative;
-}
 
-.service-item.korean-item::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    background: linear-gradient(to bottom, var(--accent), #D4A574);
-    opacity: 0.8;
-}
 
 .service-info {
     flex: 1;
@@ -341,10 +370,7 @@
     gap: 8px;
 }
 
-.korean-icon {
-    color: var(--accent);
-    flex-shrink: 0;
-}
+
 
 .service-tag {
     font-size: var(--text-sm);
@@ -360,17 +386,46 @@
 }
 
 @media (max-width: 768px) {
-    .featured-scroll-card {
-        grid-template-columns: 1fr;
+    .services-showcase-layout {
+        gap: 32px;
+        text-align: center;
+        margin-bottom: 48px;
+        padding-top: 20px;
+        display: flex;
     }
 
-    .featured-scroll-image {
-        min-height: auto;
-        height: 320px;
+    .services-showcase-layout.layout-left {
+        flex-direction: column; /* Image first in DOM -> stacked on top */
     }
 
-    .featured-scroll-image::after {
-        background: linear-gradient(to bottom, transparent 60%, var(--bg-secondary) 100%);
+    .services-showcase-layout.layout-right {
+        flex-direction: column-reverse; /* Image second in DOM -> reversed to top */
+    }
+
+    .services-text-col {
+        width: 100%;
+    }
+
+    .services-agent-image-col {
+        flex: 0 0 280px;
+        height: 280px;
+        margin: 0 auto;
+    }
+
+    .services-agent-zoom-img {
+        width: 260px;
+        height: 260px;
+    }
+
+    .services-agent-image-placeholder {
+        width: 260px;
+        height: 260px;
+    }
+
+    .services-paradigm-note {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
     .featured-scroll-content {
@@ -452,12 +507,181 @@
     color: var(--bg-primary);
 }
 
-@media (max-width: 480px) {
-    .featured-scroll-image {
-        height: 280px;
+/* ─── Operational Workflows Carousel ─────────────────────────── */
+.services-workflows-section {
+    margin-top: 120px;
+    position: relative;
+}
+
+.workflows-carousel-container {
+    position: relative;
+    max-width: 800px;
+    margin: 48px auto 0;
+    padding: 0 60px; /* Leave space for navigation arrows on desktop */
+}
+
+.workflows-carousel-outer {
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    position: relative;
+    transition: box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.workflows-carousel-outer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--border);
+    transition: background 0.3s ease;
+    z-index: 5;
+}
+
+.workflows-carousel-outer:hover {
+    border-color: var(--accent-muted);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.workflows-carousel-outer:hover::before {
+    background: var(--accent);
+}
+
+.workflows-carousel-track {
+    display: flex;
+    width: 100%;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.workflows-carousel-slide {
+    flex: 0 0 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.workflow-video-container {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+.workflow-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.workflow-info {
+    padding: 32px;
+}
+
+.workflow-title {
+    font-family: var(--font-heading);
+    font-size: var(--text-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.workflow-desc {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    line-height: 1.7;
+    font-weight: 300;
+}
+
+/* Dots Navigation */
+.carousel-dots {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.carousel-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: all var(--transition-base);
+}
+
+.carousel-dot.active {
+    background: var(--accent);
+    transform: scale(1.2);
+}
+
+.carousel-dot:hover:not(.active) {
+    background: var(--text-secondary);
+}
+
+/* Arrows Position overrides for Workflows Section */
+.workflows-carousel-container .carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 10, 10, 0.4);
+    color: #FAFAFA;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    z-index: 10;
+    backdrop-filter: blur(8px);
+}
+
+.workflows-carousel-container .carousel-arrow.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.workflows-carousel-container .carousel-arrow:hover:not(.disabled) {
+    background: var(--accent);
+    transform: translateY(-50%) scale(1.05);
+    border-color: var(--accent);
+}
+
+.workflows-carousel-container .carousel-arrow.arrow-left {
+    left: 0px;
+}
+
+.workflows-carousel-container .carousel-arrow.arrow-right {
+    right: 0px;
+}
+
+@media (max-width: 640px) {
+    .workflows-carousel-container {
+        padding: 0;
     }
     
-    .carousel-arrow {
-        top: 140px;
+    .workflows-carousel-container .carousel-arrow {
+        display: none; /* Hide arrows on mobile and rely on dots/swipe */
+    }
+    
+    .workflow-info {
+        padding: 24px 20px;
+    }
+    
+    .workflow-title {
+        font-size: var(--text-lg);
+    }
+    
+    .workflow-desc {
+        font-size: var(--text-sm);
     }
 }
