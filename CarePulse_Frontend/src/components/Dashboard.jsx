@@ -151,9 +151,6 @@ const Dashboard = () => {
             }
           }} />
         ) : messages.length === 0 ? (
-          <>
-            {/* Greeting Section */}
-        {messages.length === 0 ? (
           /* ── IDLE: Greeting + Centre Orb ── */
           <div className="idle-view">
             <section className="greeting-section">
