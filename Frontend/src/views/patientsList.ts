@@ -118,7 +118,7 @@ export class PatientsListView implements View {
             </button>
             <div class="user-quick-profile">
               <span class="user-name">${userName}</span>
-              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="${userName}" class="user-avatar" />
+              <img src="/src/assets/dr-profile.jpg" alt="${userName}" class="user-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'" />
             </div>
           </div>
         </div>

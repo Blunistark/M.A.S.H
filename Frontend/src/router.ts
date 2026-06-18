@@ -99,22 +99,32 @@ export class Router {
       `;
 
       const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
-      viewport.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #64748b; font-family: var(--font-sans);">
-          <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
-          <span>Loading authentication...</span>
-        </div>
-        <style>
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      `;
+      this.showPreloader(viewport);
 
       try {
         const htmlContent = await view.render(this.currentParams);
-        viewport.innerHTML = htmlContent;
+        const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
+        const children = Array.from(viewport.childNodes);
+        children.forEach(child => {
+          if (child !== preloader) {
+            viewport.removeChild(child);
+          }
+        });
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        while (tempDiv.firstChild) {
+          viewport.appendChild(tempDiv.firstChild);
+        }
+
+        if (preloader) {
+          viewport.appendChild(preloader);
+        }
+
+        if (view.onMount) {
+          view.onMount(viewport, this);
+        }
+        this.hidePreloader(viewport);
       } catch (err) {
         console.error('Render error:', err);
         viewport.innerHTML = `
@@ -123,6 +133,7 @@ export class Router {
             <h3 style="margin-bottom: 8px;">Failed to load authentication page</h3>
           </div>
         `;
+        this.hidePreloader(viewport);
       }
 
       if (view.onMount) {
@@ -140,24 +151,32 @@ export class Router {
       `;
 
       const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
-      
-      // Loading state
-      viewport.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #64748b; font-family: var(--font-sans);">
-          <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
-          <span>Loading pharmacy portal data...</span>
-        </div>
-        <style>
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      `;
+      this.showPreloader(viewport);
 
       try {
         const htmlContent = await view.render(this.currentParams);
-        viewport.innerHTML = htmlContent;
+        const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
+        const children = Array.from(viewport.childNodes);
+        children.forEach(child => {
+          if (child !== preloader) {
+            viewport.removeChild(child);
+          }
+        });
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        while (tempDiv.firstChild) {
+          viewport.appendChild(tempDiv.firstChild);
+        }
+
+        if (preloader) {
+          viewport.appendChild(preloader);
+        }
+
+        if (view.onMount) {
+          view.onMount(viewport, this);
+        }
+        this.hidePreloader(viewport);
       } catch (err) {
         console.error('Render error:', err);
         viewport.innerHTML = `
@@ -167,6 +186,7 @@ export class Router {
             <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
           </div>
         `;
+        this.hidePreloader(viewport);
       }
 
       if (view.onMount) {
@@ -177,9 +197,7 @@ export class Router {
     }
 
     // Sidebar theme selection
-    // In dr dashboard.png, sidebar is dark.
-    // In patient profile.png, sidebar is light.
-    const isDarkSidebar = this.currentRoute === 'dashboard';
+    const isDarkSidebar = ['dashboard', 'patients', 'prescriptions', 'schedule'].includes(this.currentRoute);
     const sidebarThemeClass = isDarkSidebar ? 'theme-dark' : 'theme-light';
 
     let userName = 'Dr. Smith';
@@ -198,6 +216,72 @@ export class Router {
         userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
         userSubText = 'Mock Clinician';
       }
+    }
+
+    const existingSidebar = this.appContainer.querySelector('.sidebar');
+    const existingViewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
+
+    if (existingSidebar && existingViewport && this.currentRoute !== 'auth' && this.currentRoute !== 'pharmacy') {
+      // 1. Sidebar already exists, just update the active states and classes
+      existingSidebar.className = `sidebar ${sidebarThemeClass}`;
+
+      const navItems = existingSidebar.querySelectorAll('.nav-item');
+      navItems.forEach(item => {
+        const route = item.getAttribute('data-route');
+        if (route === this.currentRoute || (this.currentRoute === 'patient-profile' && route === 'patients')) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+
+      if (this.currentRoute === 'patient-profile') {
+        existingViewport.className = 'main-viewport profile-main-viewport';
+      } else {
+        existingViewport.className = 'main-viewport';
+      }
+
+      this.showPreloader(existingViewport);
+
+      try {
+        const htmlContent = await view.render(this.currentParams);
+        const preloader = existingViewport.querySelector('.mash-page-preloader') as HTMLElement;
+        const children = Array.from(existingViewport.childNodes);
+        children.forEach(child => {
+          if (child !== preloader) {
+            existingViewport.removeChild(child);
+          }
+        });
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        while (tempDiv.firstChild) {
+          existingViewport.appendChild(tempDiv.firstChild);
+        }
+
+        if (preloader) {
+          existingViewport.appendChild(preloader);
+        }
+
+        if (view.onMount) {
+          view.onMount(existingViewport, this);
+        }
+        this.hidePreloader(existingViewport);
+      } catch (err) {
+        console.error('Render error:', err);
+        existingViewport.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: #ef4444; font-family: var(--font-sans); text-align: center; padding: 20px;">
+            <span style="font-size: 40px; margin-bottom: 16px;">⚠️</span>
+            <h3 style="margin-bottom: 8px;">Failed to load data</h3>
+            <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
+          </div>
+        `;
+        this.hidePreloader(existingViewport);
+      }
+
+      this.bindLayoutEvents();
+      window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
+      return;
     }
 
     // Set wrapper container layout
@@ -263,23 +347,32 @@ export class Router {
       viewport.className = 'main-viewport';
     }
 
-    // Render the active view and mount with loading indicator
-    viewport.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: #64748b; font-family: var(--font-sans);">
-        <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
-        <span>Loading portal data...</span>
-      </div>
-      <style>
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      </style>
-    `;
+    this.showPreloader(viewport);
 
     try {
       const htmlContent = await view.render(this.currentParams);
-      viewport.innerHTML = htmlContent;
+      const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
+      const children = Array.from(viewport.childNodes);
+      children.forEach(child => {
+        if (child !== preloader) {
+          viewport.removeChild(child);
+        }
+      });
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      while (tempDiv.firstChild) {
+        viewport.appendChild(tempDiv.firstChild);
+      }
+
+      if (preloader) {
+        viewport.appendChild(preloader);
+      }
+
+      if (view.onMount) {
+        view.onMount(viewport, this);
+      }
+      this.hidePreloader(viewport);
     } catch (err) {
       console.error('Render error:', err);
       viewport.innerHTML = `
@@ -289,14 +382,47 @@ export class Router {
           <p style="color: #64748b; max-width: 400px; font-size: 14px;">Please check that your backend server is running and connected to Supabase.</p>
         </div>
       `;
+      this.hidePreloader(viewport);
     }
     
-    if (view.onMount) {
-      view.onMount(viewport, this);
-    }
-
     this.bindLayoutEvents();
     window.dispatchEvent(new CustomEvent('page-route-changed', { detail: { route: this.currentRoute, params: this.currentParams } }));
+  }
+
+  private showPreloader(viewport: HTMLElement) {
+    let preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
+    if (!preloader) {
+      preloader = document.createElement('div');
+      preloader.className = 'mash-page-preloader';
+      preloader.innerHTML = `
+        <div class="preloader-content">
+          <div class="preloader-spinner-container">
+            <div class="preloader-orbit-outer"></div>
+            <div class="preloader-orbit-middle"></div>
+            <div class="preloader-orbit-inner"></div>
+            <div class="preloader-glow-core"></div>
+          </div>
+          <span class="preloader-text">Syncing Clinical Data...</span>
+        </div>
+      `;
+      viewport.appendChild(preloader);
+    }
+    
+    // force reflow
+    preloader.offsetHeight;
+    preloader.classList.add('visible');
+  }
+
+  private hidePreloader(viewport: HTMLElement) {
+    const preloader = viewport.querySelector('.mash-page-preloader') as HTMLElement;
+    if (preloader) {
+      preloader.classList.remove('visible');
+      setTimeout(() => {
+        if (preloader.parentNode === viewport) {
+          viewport.removeChild(preloader);
+        }
+      }, 350);
+    }
   }
 
   private bindLayoutEvents() {

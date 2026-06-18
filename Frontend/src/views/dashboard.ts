@@ -11,6 +11,7 @@ import {
 } from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
+import { supabase } from '../supabase';
 
 // Internal state
 let queueAppointments: Appointment[] = [];
@@ -45,6 +46,21 @@ export class DashboardView implements View {
     queueAppointments = await fetchAppointments();
     profiles = await fetchProfiles();
     metrics = await fetchMetrics();
+
+    // Resolve logged-in user's name dynamically
+    let loggedInName = 'Doctor';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        loggedInName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Doctor';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+      }
+    } catch (e) {
+      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+      }
+    }
     const allPrescriptions = await fetchPrescriptions();
     const allPrescriptionItems = await fetchPrescriptionItems();
     const allInventory = await fetchMedicineInventory();
@@ -238,7 +254,7 @@ export class DashboardView implements View {
       <!-- Header -->
       <header class="main-header">
         <div class="header-title-section">
-          <h1 class="header-title">Good morning, Dr. Smith</h1>
+          <h1 class="header-title">Good morning, ${loggedInName}</h1>
           <span class="header-subtitle">${formattedHeaderDate}</span>
         </div>
         <div class="header-actions">
@@ -252,8 +268,8 @@ export class DashboardView implements View {
               <div class="badge-dot"></div>
             </button>
             <div class="user-quick-profile">
-              <span class="user-name">Dr. Smith</span>
-              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="Dr. Smith" class="user-avatar" />
+              <span class="user-name">${loggedInName}</span>
+              <img src="/src/assets/dr-profile.jpg" alt="${loggedInName}" class="user-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'" />
             </div>
           </div>
         </div>
