@@ -7,9 +7,25 @@ function App() {
     return localStorage.getItem('isAuthenticated') === 'true';
   });
 
-  const handleLogin = () => {
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('userProfile');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleLogin = (data) => {
     localStorage.setItem('isAuthenticated', 'true');
+    if (data && data.profile) {
+      localStorage.setItem('userProfile', JSON.stringify(data.profile));
+      setUserProfile(data.profile);
+    }
     setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userProfile');
+    setUserProfile(null);
+    setIsAuthenticated(false);
   };
 
   return (
@@ -17,7 +33,7 @@ function App() {
       {!isAuthenticated ? (
         <Login onLogin={handleLogin} />
       ) : (
-        <Dashboard />
+        <Dashboard userProfile={userProfile} onLogout={handleLogout} />
       )}
     </div>
   );

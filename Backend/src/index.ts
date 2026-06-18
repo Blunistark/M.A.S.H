@@ -1041,7 +1041,7 @@ Guidelines:
 // POST /api/patient-chat
 app.post('/api/patient-chat', async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, history, patientId, patientName } = req.body;
     if (!message) {
       return res.status(400).json({ message: 'Message is required' });
     }
@@ -1053,12 +1053,12 @@ app.post('/api/patient-chat', async (req, res) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message, history })
+        body: JSON.stringify({ message, history, patientId, patientName })
       });
       if (agentResponse.ok) {
-        const agentData = (await agentResponse.json()) as { reply: string };
+        const agentData = (await agentResponse.json()) as { reply: string; action?: any };
         console.log('Response from Python PatientAgent received successfully.');
-        return res.json({ reply: agentData.reply });
+        return res.json({ reply: agentData.reply, action: agentData.action });
       } else {
         console.warn('Python agent server (patient) returned non-ok status.');
         return res.status(500).json({ message: 'Error from patient agent server' });

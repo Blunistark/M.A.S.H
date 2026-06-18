@@ -16,6 +16,7 @@ from src.pharmacist_agent import PharmacistAssistantAgent
 from src.patient_agent import PatientManagementAgent
 from src.registration_agent import RegistrationAgent
 from src.stock_agent import StockManagementAgent
+from src.navigation_agent import PatientNavigationAgent
 
 summary_agent = None
 doctor_agents = {}
@@ -23,6 +24,7 @@ pharmacist_agent = None
 patient_agent = None
 registration_agent = None
 stock_agent = None
+navigation_agent = None
 
 async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
     if doctor_id not in doctor_agents:
@@ -40,8 +42,7 @@ async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global summary_agent, pharmacist_agent, patient_agent, registration_agent
-    global summary_agent, pharmacist_agent, stock_agent
+    global summary_agent, pharmacist_agent, patient_agent, registration_agent, stock_agent, navigation_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
         from src.band_config import BandSDK
@@ -56,7 +57,8 @@ async def lifespan(app: FastAPI):
         pharmacist_agent = PharmacistAssistantAgent()
         patient_agent = PatientManagementAgent()
         registration_agent = RegistrationAgent()
-        print("Agents initialized successfully (Doctor + Pharmacist + Patient + Registration).")
+        navigation_agent = PatientNavigationAgent()
+        print("Agents initialized successfully (Doctor + Pharmacist + Patient + Registration + Navigation).")
         stock_agent = StockManagementAgent()
         print("Agents initialized successfully (Doctor + Pharmacist + Stock).")
     except Exception as e:
@@ -89,6 +91,8 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage]
     doctorId: Optional[str] = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
     doctorName: Optional[str] = "Dr. Smith"
+    patientId: Optional[str] = None
+    patientName: Optional[str] = None
 
 def extract_text(content) -> str:
     """Robustly extract plain text from LangChain message content."""
@@ -180,7 +184,7 @@ async def pharmacist_chat(req: ChatRequest):
 
 @app.post("/api/patient-chat")
 async def patient_chat(req: ChatRequest):
-    print(f"[DEBUG] Incoming patient-chat message: '{req.message}'")
+    print(f"[DEBUG] Incoming patient-chat message: '{req.message}' patientId='{req.patientId}' patientName='{req.patientName}'")
     if not patient_agent:
         raise HTTPException(status_code=503, detail="Patient Agent is not initialized yet.")
     
@@ -200,14 +204,21 @@ async def patient_chat(req: ChatRequest):
         if room_id:
             await send_platform_message(room_id, f"**PATIENT:** {req.message}")
 
-        updated_messages = await patient_agent.process_patient_query(langgraph_messages)
+        updated_messages = await patient_agent.process_patient_query(
+            langgraph_messages,
+            patient_id=req.patientId,
+            patient_name=req.patientName
+        )
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
         
         if room_id:
             await send_platform_message(room_id, f"**CarePulse:** {reply}")
         
-        return {"reply": reply}
+        from src.patient_agent import PENDING_ACTIONS
+        action = PENDING_ACTIONS[0] if PENDING_ACTIONS else None
+        
+        return {"reply": reply, "action": action}
     except Exception as e:
         import traceback
         traceback.print_exc()

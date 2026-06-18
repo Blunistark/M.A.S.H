@@ -70,6 +70,74 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str, date: st
     except asyncio.TimeoutError:
         return "Failed to reschedule appointment: Registration Agent timed out."
 
+PENDING_ACTIONS = []
+
+@tool
+async def get_navigation_directions(destination: str) -> str:
+    """Fetch step-by-step navigation directions to a doctor, specialty, or department.
+    Use this when the patient asks 'where is Dr. X?', 'how do I get to X?', or requests directions.
+    destination must be one of: 'Dr. Smith', 'Dr. Kirran Kumar', 'Dr. Mithun Nair', 'Cardiology', 'General Medicine', 'ENT', 'Pharmacy', 'Reception'.
+    """
+    dest = destination.lower()
+    doctor_id = None
+    target_name = destination
+    if "smith" in dest or "cardio" in dest:
+        doctor_id = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
+        target_name = "Dr. Smith (Cardiology)"
+    elif "kirran" in dest or "kumar" in dest or "general" in dest:
+        doctor_id = "f85362c8-5935-4b2e-bff1-e2779d9d78ae"
+        target_name = "Dr. Kirran Kumar (General Medicine)"
+    elif "mithun" in dest or "nair" in dest or "ent" in dest:
+        doctor_id = "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"
+        target_name = "Dr. Mithun Nair (ENT)"
+    elif "pharmacy" in dest or "pharmacist" in dest or "med" in dest:
+        doctor_id = "pharmacy"
+        target_name = "Pharmacy"
+    elif "reception" in dest or "waiting" in dest:
+        doctor_id = "reception"
+        target_name = "Reception"
+        
+    if not doctor_id:
+        return f"I could not locate '{destination}' in our hospital directory. Please specify a doctor name (like Dr. Smith or Dr. Kirran) or department (like Pharmacy)."
+        
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    req_id = str(uuid.uuid4())
+    PENDING_REQUESTS[req_id] = future
+    
+    # Broadcast request to PatientManagementRoom where PatientNavigationAgent listens
+    PatientManagementRoom.broadcast("REQUEST_NAVIGATION", {
+        "requestId": req_id,
+        "patientId": "current-patient",
+        "doctorId": doctor_id,
+        "currentLocation": "Reception Desk"
+    })
+    
+    try:
+        # Wait up to 5 seconds for navigation agent to reply
+        result = await asyncio.wait_for(future, timeout=5.0)
+        directions = result.get("directions", "")
+    except asyncio.TimeoutError:
+        # Offline fallback if navigation agent is not responsive
+        if doctor_id == "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd":
+            directions = "From Reception Desk: Exit the waiting area, enter the corridor, and take the first right into Doctor Consultation Room 1."
+        elif doctor_id in ("f85362c8-5935-4b2e-bff1-e2779d9d78ae", "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"):
+            directions = "From Reception Desk: Exit the waiting area, enter the corridor, pass Doctor Consultation Room 1, and take the second right into Doctor Consultation Room 2."
+        elif doctor_id == "pharmacy":
+            directions = "From Reception Desk: The Pharmacy is located immediately to your right as you enter the building."
+        else:
+            directions = "From Reception Desk: Exit the waiting area and walk straight down the corridor."
+            
+    # Register pending action for the frontend
+    PENDING_ACTIONS.append({
+        "type": "navigate",
+        "route": "navigation",
+        "target": doctor_id,
+        "directions": directions
+    })
+    
+    return f"Here are the directions to {target_name}: {directions}"
+
 class PatientManagementState(TypedDict):
     event_name: str
     payload: Dict[str, Any]
@@ -86,23 +154,32 @@ class PatientManagementAgent:
         
         # LLM integration for interactive booking
         self.llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
-        self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment, reschedule_appointment])
+        self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment, reschedule_appointment, get_navigation_directions])
 
-    async def process_patient_query(self, messages: list) -> list:
-        """Process an interactive conversation to book an appointment.
+    async def process_patient_query(self, messages: list, patient_id: str = None, patient_name: str = None) -> list:
+        """Process an interactive conversation to book an appointment or get directions.
         Pass in the full message history. Returns the updated message history."""
+        global PENDING_ACTIONS
+        PENDING_ACTIONS.clear()
+        
         from datetime import datetime, timedelta
         # Local system timezone offset relative to user's local date
         now_local = datetime.utcnow() + timedelta(hours=5, minutes=30)
         local_date_str = now_local.strftime("%Y-%m-%d")
         local_day_of_week = now_local.strftime("%A")
         
+        patient_info = f"The logged-in patient is {patient_name} (ID: {patient_id})." if patient_name and patient_id else ""
+        
         system_msg = {
             "role": "system",
             "content": (
                 "You are the MASH Patient Management Assistant. "
-                "Your job is to understand patient symptoms, suggest an appropriate doctor by using the get_doctors tool. "
+                f"{patient_info} "
+                "Your job is to assist patients. You can book/reschedule appointments or provide hospital directions. "
+                "If the patient wants directions, or asks where a doctor, specialty room, or department (like Pharmacy) is located, "
+                "YOU MUST call the get_navigation_directions tool to retrieve and present the directions. "
                 f"Today's Date: {local_date_str} ({local_day_of_week}). "
+                "For appointments: "
                 "First, ask the patient which date they prefer for the appointment (e.g. Today, Tomorrow, or a specific date). "
                 "When asking for a date, YOU MUST append a few date options at the end of your message in the format [DATES: Today, Tomorrow, Day After Tomorrow]. "
                 "Once the patient chooses a date, call the get_doctors tool passing the selected date in YYYY-MM-DD format (or leave empty for today). "

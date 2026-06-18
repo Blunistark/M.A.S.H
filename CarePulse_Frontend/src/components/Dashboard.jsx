@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, MessageSquare, Compass, User as UserIcon } from 'lucide-react';
+import { Bell, MessageSquare, Compass, User as UserIcon, LogOut, Phone, Mail, Calendar, Activity, Info } from 'lucide-react';
 import VoiceOrb from './VoiceOrb';
-
-import Explore from './Explore';
+import Navigation from './Navigation';
 
 const TypewriterText = ({ text }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -27,10 +26,50 @@ const ThinkingDots = () => (
   </div>
 );
 
-const Dashboard = () => {
+const Dashboard = ({ userProfile, onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedDestination, setSelectedDestination] = useState(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const speakDirections = (text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleToggleSpeak = () => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      const paths = {
+        'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd': 'Exit the reception and waiting area, walk straight into the central corridor, and take the first right into Doctor Consultation Room 1.',
+        'f85362c8-5935-4b2e-bff1-e2779d9d78ae': 'Exit the reception and waiting area, walk straight into the central corridor, pass Doctor Consultation Room 1 on your right, and take the second right into Doctor Consultation Room 2.',
+        '13a4db1b-c1dd-43b2-b1c1-71aa36b5574f': 'Exit the reception and waiting area, walk straight into the central corridor, pass Doctor Consultation Room 1 on your right, and take the second right into Doctor Consultation Room 2.',
+        'pharmacy': 'The Pharmacy is located immediately to your right as you enter the main clinic lobby.',
+        'reception': 'You are currently at the reception and waiting desk.'
+      };
+      const text = paths[selectedDestination] || '';
+      if (text) {
+        speakDirections(text);
+      }
+    }
+  };
 
   const sendDirectMessage = async (textToSubmit) => {
     setMessages(prev => [...prev, { role: 'user', text: textToSubmit }]);
@@ -49,12 +88,28 @@ const Dashboard = () => {
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSubmit, history }),
+        body: JSON.stringify({ 
+          message: textToSubmit, 
+          history,
+          patientId: userProfile?.id,
+          patientName: userProfile?.full_name
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         setMessages(prev => [...prev, { role: 'assistant', text: data.reply }]);
+        
+        // Handle navigation action returned by the agent
+        if (data.action && data.action.type === 'navigate' && data.action.route === 'navigation') {
+          setActiveTab('navigation');
+          if (data.action.target) {
+            setSelectedDestination(data.action.target);
+            if (data.action.directions) {
+              speakDirections(data.action.directions);
+            }
+          }
+        }
       } else {
         setMessages(prev => [...prev, { role: 'assistant', text: "Sorry, I couldn't process your request right now." }]);
       }
@@ -94,7 +149,7 @@ const Dashboard = () => {
 
   const navItems = [
     { id: 'home', icon: <MessageSquare size={20} />, label: 'Home' },
-    { id: 'explore', icon: <Compass size={20} />, label: 'Explore' },
+    { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' },
     { id: 'profile', icon: <UserIcon size={20} />, label: 'Profile' }
   ];
 
@@ -142,33 +197,76 @@ const Dashboard = () => {
           </button>
         </header>
 
-        {activeTab === 'explore' ? (
-          <Explore onNavigateHome={(msg) => {
-            setActiveTab('home');
-            if (msg) {
-              // slight delay to allow tab switch to render
-              setTimeout(() => sendDirectMessage(msg), 100);
-            }
-          }} />
+        {activeTab === 'navigation' ? (
+          <Navigation 
+            selectedDestination={selectedDestination}
+            setSelectedDestination={setSelectedDestination}
+            isSpeaking={isSpeaking}
+            onToggleSpeak={handleToggleSpeak}
+          />
+        ) : activeTab === 'profile' ? (
+          <div className="profile-tab-container animate-in">
+            <h2 className="navigation-title">My Profile</h2>
+            <p className="navigation-subtitle">Manage your account information and preferences.</p>
+            
+            <div className="profile-card">
+              <div className="profile-avatar-large">
+                {userProfile?.full_name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'GP'}
+              </div>
+              <h3 className="profile-name">{userProfile?.full_name || 'Guest Patient'}</h3>
+              <span className="profile-role-badge">{userProfile?.role || 'patient'}</span>
+              
+              <div className="profile-details-list">
+                <div className="profile-detail-item">
+                  <Mail size={16} color="var(--accent-teal)" />
+                  <div className="detail-info">
+                    <span className="detail-label">Email Address</span>
+                    <span className="detail-val">{userProfile?.email || 'patient@carepulse.com'}</span>
+                  </div>
+                </div>
+                
+                <div className="profile-detail-item">
+                  <Phone size={16} color="var(--accent-teal)" />
+                  <div className="detail-info">
+                    <span className="detail-label">Phone Number</span>
+                    <span className="detail-val">{userProfile?.contact_number || '(555) 019-2834'}</span>
+                  </div>
+                </div>
+
+                <div className="profile-detail-item">
+                  <Activity size={16} color="var(--accent-teal)" />
+                  <div className="detail-info">
+                    <span className="detail-label">Blood Type</span>
+                    <span className="detail-val">O+</span>
+                  </div>
+                </div>
+              </div>
+              
+              <button className="logout-btn" onClick={onLogout}>
+                <LogOut size={18} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
         ) : messages.length === 0 ? (
           /* ── IDLE: Greeting + Centre Orb ── */
           <div className="idle-view">
             <section className="greeting-section">
               <h1 className="greeting-title">Hi, how can I help you<br />today?</h1>
               <p className="greeting-subtitle">
-                Your personal health assistant is ready to help with appointments or prescriptions.
+                Your personal health assistant is ready to help with appointments or directions.
               </p>
             </section>
-
+ 
             <div className="orb-container">
               <div className="orb-glow" />
               <div className="orb-glow" />
               <VoiceOrb onCommand={sendDirectMessage} className="orb" />
             </div>
-
+ 
             <div className="actions-section">
               <button className="action-btn" onClick={() => sendDirectMessage("I'd like to book an appointment")}>Book Appointment</button>
-              <button className="action-btn" onClick={() => sendDirectMessage("Help me find a doctor")}>Find My Doctor</button>
+              <button className="action-btn" onClick={() => sendDirectMessage("Where is Dr. Smith's room?")}>Navigate to Dr. Smith</button>
             </div>
           </div>
         ) : (
@@ -183,14 +281,14 @@ const Dashboard = () => {
                 </div>
               ) : null}
             </div>
-
+ 
             <div className="active-orb-wrap">
               <VoiceOrb onCommand={sendDirectMessage} className="active-orb" />
             </div>
           </div>
         )}
       </main>
-
+ 
       {/* Mobile Bottom Nav */}
       <nav className="bottom-nav">
         {navItems.map(item => (
@@ -207,5 +305,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
+ 
 export default Dashboard;

@@ -15,47 +15,57 @@ class PatientNavigationAgent:
         self.setup_listeners()
 
     def _get_directions(self, doctor_id: str, current_location: str) -> str:
-        loc = self.doctor_locations.get(doctor_id)
-        if loc:
-            return f"From {current_location}: Go to the elevator, go to the {loc['floor']}, and find {loc['room']}."
+        doc_clean = str(doctor_id).lower()
+        if "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd" in doc_clean or "smith" in doc_clean or "cardio" in doc_clean:
+            return f"From {current_location}: Exit the reception/waiting area, walk straight into the corridor, and take the first right into Doctor Consultation Room 1 (Dr. Smith)."
+        elif "f85362c8-5935-4b2e-bff1-e2779d9d78ae" in doc_clean or "kirran" in doc_clean or "general" in doc_clean:
+            return f"From {current_location}: Exit the reception/waiting area, walk straight into the corridor, pass Doctor Consultation Room 1, and take the second right into Doctor Consultation Room 2 (Dr. Kirran Kumar)."
+        elif "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f" in doc_clean or "mithun" in doc_clean or "ent" in doc_clean:
+            return f"From {current_location}: Exit the reception/waiting area, walk straight into the corridor, pass Doctor Consultation Room 1, and take the second right into Doctor Consultation Room 2 (Dr. Mithun Nair)."
+        elif "pharmacy" in doc_clean:
+            return f"From {current_location}: The Pharmacy is located immediately to your right as you enter the building."
         else:
-            return f"From {current_location}: Please head to the main information desk on the ground floor."
+            return f"From {current_location}: Exit the reception area and walk down the corridor to find your destination room."
 
     def setup_listeners(self):
         def on_request_navigation(payload: Dict[str, Any]):
-            patient_id = payload["patientId"]
-            doctor_id = payload["doctorId"]
-            current_location = payload["currentLocation"]
+            patient_id = payload.get("patientId")
+            doctor_id = payload.get("doctorId")
+            current_location = payload.get("currentLocation", "Reception Desk")
+            req_id = payload.get("requestId")
 
             Telemetry.track_event(self.agent.name, "GENERATING_NAVIGATION", payload)
 
             directions = self._get_directions(doctor_id, current_location)
 
             PatientManagementRoom.broadcast("NAVIGATION_DIRECTIONS", {
+                "requestId": req_id,
                 "patientId": patient_id,
                 "doctorId": doctor_id,
                 "directions": directions
             })
 
         def on_navigate_to_room(payload: Dict[str, Any]):
-            patient_id = payload["patientId"]
-            doctor_id = payload["doctorId"]
-            current_location = payload["currentLocation"]
+            patient_id = payload.get("patientId")
+            doctor_id = payload.get("doctorId")
+            current_location = payload.get("currentLocation", "Reception Desk")
+            req_id = payload.get("requestId")
 
             Telemetry.track_event(self.agent.name, "GENERATING_ROOM_NAVIGATION", payload)
 
             directions = self._get_directions(doctor_id, current_location)
 
             ReceptionNavigationRoom.broadcast("NAVIGATION_DIRECTIONS", {
+                "requestId": req_id,
                 "patientId": patient_id,
                 "doctorId": doctor_id,
                 "directions": directions
             })
 
         def on_doctor_room_change(payload: Dict[str, Any]):
-            doctor_id = payload["doctorId"]
-            room = payload["room"]
-            floor = payload["floor"]
+            doctor_id = payload.get("doctorId")
+            room = payload.get("room")
+            floor = payload.get("floor")
 
             self.doctor_locations[doctor_id] = {"room": room, "floor": floor}
 
