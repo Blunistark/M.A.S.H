@@ -258,6 +258,18 @@ class PharmacistAssistantAgent:
                 return f"Error requesting alternative: {e}"
 
         @tool
+        async def navigate_to_view(view_name: str) -> str:
+            """Navigate the pharmacist's dashboard to a specific view or page.
+            Supported view_names:
+            - 'inventory': Go to the main inventory/stock view.
+            - 'prescriptions': Go to the pending prescriptions queue.
+            
+            Use this whenever the pharmacist asks to 'go to', 'open', 'show', or 'navigate' to a page or view.
+            """
+            agent_self.pending_actions.append({"type": "navigate_to_view", "view_name": view_name.strip().lower()})
+            return f"Navigated to {view_name} view."
+
+        @tool
         async def get_waiting_patients_count(medicine_name: Optional[str] = None) -> str:
             """Get the number of patients waiting for medications in the pharmacy.
             If medicine_name is provided, returns the number of patients waiting for that specific medicine.
