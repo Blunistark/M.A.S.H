@@ -52,10 +52,17 @@ export class VoiceOrb {
       this.loadProfiles();
       this.hideBubbles();
       this.updateSuggestionChips(this.currentRoute);
+      
+      if (this.container) {
+        this.container.style.display = this.currentRoute === 'telemetry' ? 'none' : '';
+      }
     });
 
     // Initial suggestion chips render
     this.updateSuggestionChips(this.currentRoute);
+    if (this.container && this.currentRoute === 'telemetry') {
+      this.container.style.display = 'none';
+    }
   }
 
   private initElements() {
