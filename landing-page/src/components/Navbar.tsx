@@ -94,7 +94,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                     }}
                                     style={{ display: 'flex', alignItems: 'center' }}
                                 >
-                                    <img src="/mash-logo.png" alt="M.A.S.H" style={{ height: '32px', width: 'auto' }} />
+                                    <img src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.15_PM_1_rlv2mv.jpg" alt="M.A.S.H" style={{ height: '32px', width: 'auto' }} />
                                 </motion.div>
                             </a>
                         )}

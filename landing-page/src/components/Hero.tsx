@@ -30,7 +30,7 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
                         transition={{ type: "spring", stiffness: 70, damping: 24, mass: 1.2 }}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '36px' }}
                     >
-                        <img src="/mash-logo.png" alt="M.A.S.H Logo" style={{ height: 'clamp(100px, 12vw, 140px)', width: 'auto' }} />
+                        <img src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.15_PM_1_rlv2mv.jpg" alt="M.A.S.H Logo" style={{ height: 'clamp(100px, 12vw, 140px)', width: 'auto' }} />
                     </motion.div>
                 ) : (
                     <div className="hero-monogram-img" style={{ visibility: 'hidden', height: 'clamp(100px, 12vw, 140px)', marginBottom: '36px' }} />
@@ -78,8 +78,8 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
                         Powered By
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        <img src="/band-logo.png" alt="Band of Agents Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
-                        <img src="/fearthersless-logo .png" alt="Feathersless Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
+                        <img src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.07_PM_vkb7a1.jpg" alt="Band of Agents Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
+                        <img src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798360/WhatsApp_Image_2026-06-18_at_9.15.11_PM_bljvv0.jpg" alt="Feathersless Logo" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
                     </div>
                 </div>
             </motion.div>
