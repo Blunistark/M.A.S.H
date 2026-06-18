@@ -188,28 +188,34 @@ const Dashboard = () => {
             </div>
           </>
         ) : (
-          <div className="chat-container" style={{ flex: 1, overflowY: 'auto', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '100px' }}>
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`message-bubble ${msg.role}`} style={{ 
-                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', 
-                background: msg.role === 'user' ? 'var(--accent-teal)' : '#1E293B', 
-                color: msg.role === 'user' ? '#000' : '#fff', 
-                padding: '1rem 1.5rem', 
-                borderRadius: '20px',
-                borderBottomRightRadius: msg.role === 'user' ? '4px' : '20px',
-                borderBottomLeftRadius: msg.role === 'assistant' ? '4px' : '20px',
-                maxWidth: '80%',
-                lineHeight: '1.5'
-              }}>
-                {renderMessageWithSlots(msg.text, msg.role)}
+          <div className="voice-assistant-view" style={{ flex: 1, padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="assistant-response-container" style={{ 
+              marginTop: '4rem', 
+              fontSize: '1.5rem', 
+              color: '#fff', 
+              textAlign: 'center',
+              maxWidth: '800px',
+              fontWeight: '500',
+              lineHeight: '1.4'
+            }}>
+              {messages.filter(m => m.role === 'assistant').length > 0 ? 
+                renderMessageWithSlots(messages.filter(m => m.role === 'assistant').pop().text, 'assistant') 
+                : ''}
+              
+              {isLoading && (
+                <div style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '1rem' }}>
+                  Thinking...
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Centered Orb Container */}
+            <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>Say something...</span>
+              <div style={{ position: 'relative', width: '100px', height: '100px' }}>
+                <VoiceOrb onCommand={sendDirectMessage} className="orb" />
               </div>
-            ))}
-            {isLoading && (
-              <div className="message-bubble assistant" style={{ alignSelf: 'flex-start', background: '#1E293B', color: '#fff', padding: '1rem 1.5rem', borderRadius: '20px', borderBottomLeftRadius: '4px' }}>
-                Typing...
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+            </div>
           </div>
         )}
 
@@ -229,7 +235,6 @@ const Dashboard = () => {
           </button>
         ))}
       </nav>
-      {messages.length > 0 && <VoiceOrb onCommand={sendDirectMessage} />}
     </div>
   );
 };
