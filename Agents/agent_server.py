@@ -2,7 +2,7 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 from typing import List
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -15,12 +15,14 @@ from src.doctor_agent import DoctorAssistantAgent
 from src.pharmacist_agent import PharmacistAssistantAgent
 from src.patient_agent import PatientManagementAgent
 from src.registration_agent import RegistrationAgent
+from src.stock_agent import StockManagementAgent
 
 summary_agent = None
 doctor_agents = {}
 pharmacist_agent = None
 patient_agent = None
 registration_agent = None
+stock_agent = None
 
 async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
     if doctor_id not in doctor_agents:
@@ -39,6 +41,7 @@ async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global summary_agent, pharmacist_agent, patient_agent, registration_agent
+    global summary_agent, pharmacist_agent, stock_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
         from src.band_config import BandSDK
@@ -54,6 +57,8 @@ async def lifespan(app: FastAPI):
         patient_agent = PatientManagementAgent()
         registration_agent = RegistrationAgent()
         print("Agents initialized successfully (Doctor + Pharmacist + Patient + Registration).")
+        stock_agent = StockManagementAgent()
+        print("Agents initialized successfully (Doctor + Pharmacist + Stock).")
     except Exception as e:
         print(f"Failed to initialize agents: {e}")
         import traceback
@@ -115,7 +120,14 @@ async def doctor_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
+    from src.band_config import send_platform_message
     try:
+        # Echo the user's message to the Band Platform Room
+        from src.band_config import MOCK_ROOMS
+        doc_room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
+        if doc_room_id:
+            await send_platform_message(doc_room_id, f"**USER:** {req.message}")
+            
         # Clear actions before query (handled in process_doctor_query as well)
         agent.pending_actions = []
         
@@ -123,6 +135,10 @@ async def doctor_chat(req: ChatRequest):
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
         
+        # Echo the doctor's reply to the Band Platform Room
+        if doc_room_id:
+            await send_platform_message(doc_room_id, f"**Doctor:** {reply}")
+            
         # Get the first pending action if any was triggered by a tool
         action = agent.pending_actions[0] if agent.pending_actions else None
         
@@ -175,16 +191,48 @@ async def patient_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
+    from src.band_config import send_platform_message
     try:
+        from src.band_config import MOCK_ROOMS
+        room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
+        if room_id:
+            await send_platform_message(room_id, f"**PATIENT:** {req.message}")
+
         updated_messages = await patient_agent.process_patient_query(langgraph_messages)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
+        
+        if room_id:
+            await send_platform_message(room_id, f"**CarePulse:** {reply}")
         
         return {"reply": reply}
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/prescription-event")
+async def prescription_event(req: dict = Body(...)):
+    """Called by the backend when a prescription is sent to pharmacy.
+    Triggers the StockManagementAgent to deduct Supabase stock and raise demand alerts."""
+    if not stock_agent:
+        return {"status": "agent_not_ready"}
+    
+    patient_id = req.get("patient_id", "unknown")
+    items = req.get("items", [])
+    
+    # Fire ROUTE_TO_PHARMACY for each prescription item so the stock agent tracks usage
+    from src.band_config import PharmacyInventoryRoom
+    for item in items:
+        medicine_name = item.get("name", item.get("medicine_name", ""))
+        if medicine_name:
+            payload = {
+                "patientId": patient_id,
+                "prescription": {"medicine": medicine_name},
+            }
+            PharmacyInventoryRoom.broadcast_local("ROUTE_TO_PHARMACY", payload)
+    
+    return {"status": "ok", "items_triggered": len(items)}
+
 
 @app.get("/api/telemetry/state")
 async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Optional[str] = None):

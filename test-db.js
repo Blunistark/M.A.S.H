@@ -10,16 +10,22 @@ const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function check() {
-  const { data: prescriptions } = await supabase.from('prescriptions').select('*');
-  const { data: items } = await supabase.from('prescription_items').select('*');
-  const { data: inventory } = await supabase.from('medicine_inventory').select('*');
+  const { data: profiles } = await supabase.from('profiles').select('*');
+  const shivas = profiles.filter(p => p.full_name.toLowerCase().includes('shiva'));
+  const kirrans = profiles.filter(p => p.full_name.toLowerCase().includes('kirran'));
   
-  console.log('--- PRESCRIPTIONS ---');
-  console.log(JSON.stringify(prescriptions, null, 2));
-  console.log('--- PRESCRIPTION ITEMS ---');
-  console.log(JSON.stringify(items, null, 2));
-  console.log('--- INVENTORY ---');
-  console.log(JSON.stringify(inventory, null, 2));
+  console.log('Shivas:', shivas);
+  console.log('Kirrans:', kirrans);
+
+  const shivaIds = shivas.map(s => s.id);
+  const kirranIds = kirrans.map(k => k.id);
+
+  const { data: appointments } = await supabase
+    .from('appointments')
+    .select('*')
+    .or(`patient_id.in.(${shivaIds.join(',')}),doctor_id.in.(${kirranIds.join(',')})`);
+  
+  console.log('Appointments:', appointments);
 }
 
 check();

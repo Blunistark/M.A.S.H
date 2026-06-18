@@ -1,13 +1,20 @@
 import asyncio
 import json
+import os
 from typing import Dict, Any, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from src.band_config import PharmacistDashboardRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import SUPABASE_URL, get_headers
+
+# Backend URL — overrideable via env (needed when running inside Docker)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:3000")
 
 
 class PharmacistAssistantAgent:
@@ -82,8 +89,8 @@ class PharmacistAssistantAgent:
             Use this when the pharmacist asks about incoming orders, pending prescriptions, or what needs to be prepared."""
             import httpx
             try:
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code == 200:
                         data = res.json()
@@ -115,8 +122,8 @@ class PharmacistAssistantAgent:
             import httpx
             try:
                 # First get pharmacy data to find the prescription ID
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code != 200:
                         return "Could not fetch pharmacy data."
@@ -152,7 +159,7 @@ class PharmacistAssistantAgent:
                         return f"Cannot fulfill prescription for {match['patient_name']} — some items are out of stock. Consider restocking first or requesting an alternative."
 
                     rx_id = match["id"]
-                    fulfill_url = f"http://127.0.0.1:3000/api/prescriptions/{rx_id}/fulfill"
+                    fulfill_url = f"{BACKEND_URL}/api/prescriptions/{rx_id}/fulfill"
                     fulfill_res = await client.patch(fulfill_url, headers={"Content-Type": "application/json"})
 
                     if fulfill_res.status_code == 200:
@@ -173,7 +180,7 @@ class PharmacistAssistantAgent:
                 # Find the medicine ID
                 search_term = medicine_name.split()[0] if medicine_name else ""
                 url = f"{SUPABASE_URL}/rest/v1/medicine_inventory?medicine_name=ilike.*{search_term}*"
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(url, headers=get_headers())
                     if res.status_code != 200 or not res.json():
                         return f"Could not find medicine matching '{medicine_name}' in inventory."
@@ -182,7 +189,7 @@ class PharmacistAssistantAgent:
                     med_id = med["id"]
                     med_full_name = med["medicine_name"]
 
-                    restock_url = f"http://127.0.0.1:3000/api/medicine_inventory/{med_id}/restock"
+                    restock_url = f"{BACKEND_URL}/api/medicine_inventory/{med_id}/restock"
                     restock_res = await client.patch(
                         restock_url,
                         headers={"Content-Type": "application/json"},
@@ -204,8 +211,8 @@ class PharmacistAssistantAgent:
             Use this when the pharmacist needs to ask the doctor for an alternative due to stock issues."""
             import httpx
             try:
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code != 200:
                         return "Could not fetch pharmacy data."
@@ -236,7 +243,7 @@ class PharmacistAssistantAgent:
                         return f"No active prescription found for '{patient_name}' to request alternative."
 
                     rx_id = match["id"]
-                    alt_url = f"http://127.0.0.1:3000/api/prescriptions/{rx_id}/alternative"
+                    alt_url = f"{BACKEND_URL}/api/prescriptions/{rx_id}/alternative"
                     alt_res = await client.patch(
                         alt_url,
                         headers={"Content-Type": "application/json"},
@@ -251,27 +258,39 @@ class PharmacistAssistantAgent:
                 return f"Error requesting alternative: {e}"
 
         @tool
-        async def navigate_to_view(view_name: str) -> str:
-            """Navigate the pharmacy dashboard to a different view.
-            Supported view_names:
-            - 'dashboard': Switch to the doctor's main dashboard.
-            - 'pharmacy': Refresh the pharmacy panel.
-            - 'prescriptions': Go to the prescription writer.
-            - 'patients': Go to the patients list.
-            - 'schedule': Go to the appointment schedule.
-
-            Use this when the pharmacist asks to 'go to', 'switch to', or 'open' a page."""
-            view_name = view_name.strip().lower()
-
-            action = {"type": "navigate", "route": view_name}
-            agent_self.pending_actions.append(action)
-
-            if view_name == "dashboard":
-                return "Switching to the Doctor Portal dashboard."
-            elif view_name == "pharmacy":
-                return "Refreshing the Pharmacy Panel."
-            else:
-                return f"Navigating to the {view_name} page."
+        async def get_waiting_patients_count(medicine_name: Optional[str] = None) -> str:
+            """Get the number of patients waiting for medications in the pharmacy.
+            If medicine_name is provided, returns the number of patients waiting for that specific medicine.
+            If medicine_name is not provided, returns the total number of unique patients waiting for any medicine.
+            Use this when the pharmacist asks 'how many patients are waiting' or 'how many patients are waiting for [medicine]'."""
+            import httpx
+            try:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    res = await client.get(backend_url)
+                    if res.status_code == 200:
+                        data = res.json()
+                        prescriptions = data.get("prescriptions", [])
+                        pending_rx = [rx for rx in prescriptions if rx.get("status") != "fulfilled"]
+                        
+                        if medicine_name:
+                            med_search = medicine_name.strip().lower()
+                            matching_patients = set()
+                            for rx in pending_rx:
+                                items = rx.get("items", [])
+                                for item in items:
+                                    if med_search in item.get("medicine_name", "").lower():
+                                        matching_patients.add(rx.get("patient_name", "Unknown"))
+                                        break
+                            count = len(matching_patients)
+                            return f"There are {count} patient(s) waiting for '{medicine_name}'."
+                        else:
+                            unique_patients = {rx.get("patient_name", "Unknown") for rx in pending_rx}
+                            count = len(unique_patients)
+                            return f"There are a total of {count} unique patient(s) waiting for medications."
+                    return "Could not fetch pharmacy data from backend."
+            except Exception as e:
+                return f"Error counting waiting patients: {e}"
 
         self.react_agent = create_react_agent(
             self.llm,
@@ -282,6 +301,7 @@ class PharmacistAssistantAgent:
                 restock_medicine,
                 request_alternative_medicine,
                 navigate_to_view,
+                get_waiting_patients_count,
             ]
         )
 
@@ -326,6 +346,7 @@ class PharmacistAssistantAgent:
             "When they want to restock a medicine, use restock_medicine with the medicine name. "
             "When they want to request an alternative from the doctor, use request_alternative_medicine. "
             "When they ask to navigate or switch pages, use navigate_to_view. "
+            "When they ask how many patients are waiting in total or for a specific medicine, use get_waiting_patients_count. "
             "Always be concise and conversational. No markdown dumps or long lists unless asked."
         )
 
