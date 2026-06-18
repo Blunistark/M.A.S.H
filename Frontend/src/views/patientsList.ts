@@ -11,10 +11,6 @@ function getInitials(name: string): string {
 
 export class PatientsListView implements View {
   public async render(): Promise<string> {
-    const allProfiles = await fetchProfiles();
-    const allRecords = await fetchMedicalRecords();
-    const allAppointments = await fetchAppointments();
-
     // Determine active doctor ID
     let activeDoctorId = 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd'; // fallback
     let userName = 'Dr. Smith';
@@ -25,12 +21,20 @@ export class PatientsListView implements View {
         userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Dr. Smith';
       } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        const cachedId = localStorage.getItem('medconnect_doctor_id');
+        if (cachedId) activeDoctorId = cachedId;
       }
     } catch (e) {
       if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         userName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        const cachedId = localStorage.getItem('medconnect_doctor_id');
+        if (cachedId) activeDoctorId = cachedId;
       }
     }
+
+    const allProfiles = await fetchProfiles();
+    const allRecords = await fetchMedicalRecords();
+    const allAppointments = await fetchAppointments({ doctor_id: activeDoctorId });
 
     // Collect all unique patient IDs assigned to this doctor
     const assignedPatientIds = new Set<string>();

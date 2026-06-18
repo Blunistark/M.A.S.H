@@ -397,7 +397,7 @@ async def get_doctor_schedule(doctor_id: str, date: str = None) -> str:
         return f"No appointments found for {target_date}."
     return json.dumps(schedule, indent=2)
 
-async def create_prescription_in_supabase(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None) -> bool:
+async def create_prescription_in_supabase(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None, doctor_id: str = None) -> bool:
     """Helper to create prescription by calling the backend api."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         print("[Prescription] ERROR: SUPABASE_URL or SUPABASE_ANON_KEY not set")
@@ -433,11 +433,11 @@ async def create_prescription_in_supabase(patient_name: str, items: List[Dict[st
     if not patient_id:
         print(f"[Prescription] FAILED: Could not resolve patient_id for '{patient_name}'")
         return False
-
+ 
     backend_url = "http://127.0.0.1:3000/api/prescriptions/send-to-pharmacy"
     payload = {
         "patient_id": patient_id,
-        "doctor_id": "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd",
+        "doctor_id": doctor_id or "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd",
         "items": items,
         "doctor_comments": doctor_comments
     }
