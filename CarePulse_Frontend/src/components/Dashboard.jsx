@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Paperclip, Mic, Send, MessageSquare, Compass, User as UserIcon } from 'lucide-react';
 import VoiceOrb from './VoiceOrb';
 
+import Explore from './Explore';
+
 const TypewriterText = ({ text }) => {
   const [displayedText, setDisplayedText] = useState('');
 
@@ -182,7 +184,15 @@ const Dashboard = () => {
           </button>
         </header>
 
-        {messages.length === 0 ? (
+        {activeTab === 'explore' ? (
+          <Explore onNavigateHome={(msg) => {
+            setActiveTab('home');
+            if (msg) {
+              // slight delay to allow tab switch to render
+              setTimeout(() => sendDirectMessage(msg), 100);
+            }
+          }} />
+        ) : messages.length === 0 ? (
           <>
             {/* Greeting Section */}
             <section className="greeting-section">
