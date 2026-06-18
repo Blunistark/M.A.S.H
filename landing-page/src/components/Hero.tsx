@@ -14,6 +14,7 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
 
+    return (
         <section className="hero" id="hero">
 
             <motion.div
