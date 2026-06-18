@@ -22,8 +22,6 @@ export class VoiceOrb {
   private recognition: any = null;
   private isListening = false;
   private isProcessing = false;
-  private isBackgroundListening = false;
-  private wakeWord = 'hey mash';
   private currentRoute = 'dashboard';
   private profilesCache: Profile[] = [];
   private ttsEnabled = true;
@@ -93,7 +91,6 @@ export class VoiceOrb {
     this.destroyed = true;
     this.isListening = false;
     this.isProcessing = false;
-    this.isBackgroundListening = false;
     this.clearSilenceTimeout();
     if (this.recognition) {
       try {
@@ -139,7 +136,6 @@ export class VoiceOrb {
     if (shouldHide) {
       // Stop any active or background listening when transitioning to a hidden route
       this.isListening = false;
-      this.isBackgroundListening = false;
       this.clearSilenceTimeout();
       if (this.recognition) {
         try {
@@ -298,7 +294,6 @@ export class VoiceOrb {
     this.resetSilenceTimeout();
 
     // 1. Temporarily stop background listening (turn off wake word detection)
-    this.isBackgroundListening = false;
     if (this.recognition) {
       try {
         // Fix 4 — Replace stop() with abort() in startActiveListening
