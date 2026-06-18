@@ -82,7 +82,8 @@ class RegistrationAgent:
 
         async def check_availability_node(state: RegistrationState) -> RegistrationState:
             payload = state["payload"]
-            doctor_id = payload["doctorId"]
+            from src.supabase_tools import resolve_doctor_id
+            doctor_id = resolve_doctor_id(payload["doctorId"])
             slot = payload["slot"]
 
             db_docs = await fetch_doctors_from_supabase()
