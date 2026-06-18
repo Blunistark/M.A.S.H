@@ -8,6 +8,7 @@ export interface View {
 
 export class Router {
   public currentRoute: string = 'dashboard';
+  public isSidebarCollapsed: boolean = localStorage.getItem('medconnect_sidebar_collapsed') === 'true';
   private currentParams: any = {};
   private views: Record<string, View> = {};
   private appContainer: HTMLElement;
@@ -126,7 +127,7 @@ export class Router {
     if (this.currentRoute === 'pharmacy') {
       this.appContainer.className = 'app-container pharmacy-portal-container';
       this.appContainer.innerHTML = `
-        <main class="pharmacy-viewport" id="viewport-container" style="width: 100%; min-height: 100vh; background-color: #f8fafc;"></main>
+        <main class="pharmacy-viewport" id="viewport-container" style="width: 100%; min-height: 100vh; background: #f8fafc;"></main>
       `;
 
       const viewport = this.appContainer.querySelector('#viewport-container') as HTMLElement;
@@ -225,14 +226,19 @@ export class Router {
     }
 
     // Set wrapper container layout
-    this.appContainer.className = 'app-container';
+    this.appContainer.className = this.isSidebarCollapsed ? 'app-container sidebar-collapsed' : 'app-container';
     this.appContainer.innerHTML = `
       <!-- Sidebar Navigation -->
       <aside class="sidebar ${sidebarThemeClass}">
         <div class="sidebar-top">
-          <div class="sidebar-logo">
-            ${getIcon('activity', 'nav-icon')}
-            <span>MedConnect<span class="logo-highlight"> Pro</span></span>
+          <div class="sidebar-header-row">
+            <div class="sidebar-logo">
+              ${getIcon('activity', 'nav-icon')}
+              <span>MASH</span>
+            </div>
+            <button class="sidebar-toggle-btn" id="sidebar-toggle-trigger" title="Toggle Sidebar">
+              ${getIcon(this.isSidebarCollapsed ? 'chevron-right' : 'menu', 'toggle-icon')}
+            </button>
           </div>
 
           <!-- Doctor profile info card -->
@@ -510,6 +516,22 @@ export class Router {
         localStorage.removeItem('medconnect_mock_auth');
         localStorage.removeItem('medconnect_mock_user');
         this.navigate('auth');
+      });
+    }
+
+    // Sidebar toggle button binding
+    const toggleBtn = this.appContainer.querySelector('#sidebar-toggle-trigger');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        this.isSidebarCollapsed = !this.isSidebarCollapsed;
+        localStorage.setItem('medconnect_sidebar_collapsed', String(this.isSidebarCollapsed));
+        if (this.isSidebarCollapsed) {
+          this.appContainer.classList.add('sidebar-collapsed');
+          toggleBtn.innerHTML = getIcon('chevron-right', 'toggle-icon');
+        } else {
+          this.appContainer.classList.remove('sidebar-collapsed');
+          toggleBtn.innerHTML = getIcon('menu', 'toggle-icon');
+        }
       });
     }
   }
