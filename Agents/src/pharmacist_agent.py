@@ -258,27 +258,39 @@ class PharmacistAssistantAgent:
                 return f"Error requesting alternative: {e}"
 
         @tool
-        async def navigate_to_view(view_name: str) -> str:
-            """Navigate the pharmacy dashboard to a different view.
-            Supported view_names:
-            - 'dashboard': Switch to the doctor's main dashboard.
-            - 'pharmacy': Refresh the pharmacy panel.
-            - 'prescriptions': Go to the prescription writer.
-            - 'patients': Go to the patients list.
-            - 'schedule': Go to the appointment schedule.
-
-            Use this when the pharmacist asks to 'go to', 'switch to', or 'open' a page."""
-            view_name = view_name.strip().lower()
-
-            action = {"type": "navigate", "route": view_name}
-            agent_self.pending_actions.append(action)
-
-            if view_name == "dashboard":
-                return "Switching to the Doctor Portal dashboard."
-            elif view_name == "pharmacy":
-                return "Refreshing the Pharmacy Panel."
-            else:
-                return f"Navigating to the {view_name} page."
+        async def get_waiting_patients_count(medicine_name: Optional[str] = None) -> str:
+            """Get the number of patients waiting for medications in the pharmacy.
+            If medicine_name is provided, returns the number of patients waiting for that specific medicine.
+            If medicine_name is not provided, returns the total number of unique patients waiting for any medicine.
+            Use this when the pharmacist asks 'how many patients are waiting' or 'how many patients are waiting for [medicine]'."""
+            import httpx
+            try:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    res = await client.get(backend_url)
+                    if res.status_code == 200:
+                        data = res.json()
+                        prescriptions = data.get("prescriptions", [])
+                        pending_rx = [rx for rx in prescriptions if rx.get("status") != "fulfilled"]
+                        
+                        if medicine_name:
+                            med_search = medicine_name.strip().lower()
+                            matching_patients = set()
+                            for rx in pending_rx:
+                                items = rx.get("items", [])
+                                for item in items:
+                                    if med_search in item.get("medicine_name", "").lower():
+                                        matching_patients.add(rx.get("patient_name", "Unknown"))
+                                        break
+                            count = len(matching_patients)
+                            return f"There are {count} patient(s) waiting for '{medicine_name}'."
+                        else:
+                            unique_patients = {rx.get("patient_name", "Unknown") for rx in pending_rx}
+                            count = len(unique_patients)
+                            return f"There are a total of {count} unique patient(s) waiting for medications."
+                    return "Could not fetch pharmacy data from backend."
+            except Exception as e:
+                return f"Error counting waiting patients: {e}"
 
         self.react_agent = create_react_agent(
             self.llm,
@@ -289,6 +301,7 @@ class PharmacistAssistantAgent:
                 restock_medicine,
                 request_alternative_medicine,
                 navigate_to_view,
+                get_waiting_patients_count,
             ]
         )
 
@@ -333,6 +346,7 @@ class PharmacistAssistantAgent:
             "When they want to restock a medicine, use restock_medicine with the medicine name. "
             "When they want to request an alternative from the doctor, use request_alternative_medicine. "
             "When they ask to navigate or switch pages, use navigate_to_view. "
+            "When they ask how many patients are waiting in total or for a specific medicine, use get_waiting_patients_count. "
             "Always be concise and conversational. No markdown dumps or long lists unless asked."
         )
 

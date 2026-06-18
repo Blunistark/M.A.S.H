@@ -35,6 +35,9 @@ export class Router {
     } else if (hash.startsWith('patient-profile/')) {
       const patientId = hash.split('/')[1];
       this.navigate('patient-profile', { patientId });
+    } else if (hash.startsWith('prescriptions/')) {
+      const patientId = hash.split('/')[1];
+      this.navigate('prescriptions', { patientId });
     } else if (hash === 'patients') {
       this.navigate('patients');
     } else if (hash === 'prescriptions') {
@@ -78,6 +81,8 @@ export class Router {
     let targetHash = routeName;
     if (routeName === 'patient-profile' && params.patientId) {
       targetHash = `patient-profile/${params.patientId}`;
+    } else if (routeName === 'prescriptions' && params.patientId) {
+      targetHash = `prescriptions/${params.patientId}`;
     }
     
     if (window.location.hash.replace('#', '') !== targetHash) {
@@ -88,6 +93,11 @@ export class Router {
   }
 
   private async renderCurrentView() {
+    const existingLowStockOverlay = document.getElementById('low-stock-warning-overlay');
+    if (existingLowStockOverlay) {
+      existingLowStockOverlay.remove();
+    }
+
     const view = this.views[this.currentRoute];
     if (!view) {
       console.error(`View ${this.currentRoute} not registered`);

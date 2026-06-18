@@ -14,26 +14,32 @@ export class ScheduleView implements View {
   private hasAnyAppointments = false;
 
   public async render(): Promise<string> {
-    // 1. Fetch data
+    // 1. Fetch doctor session
     try {
-      this.appointments = await fetchAppointments();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        this.activeDoctorId = user.id;
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        const cachedId = localStorage.getItem('medconnect_doctor_id');
+        if (cachedId) this.activeDoctorId = cachedId;
+      }
+    } catch (e) {
+      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        const cachedId = localStorage.getItem('medconnect_doctor_id');
+        if (cachedId) this.activeDoctorId = cachedId;
+      }
+    }
+
+    // 2. Fetch data filtered by doctor_id
+    try {
+      this.appointments = await fetchAppointments({ doctor_id: this.activeDoctorId });
       this.profiles = await fetchProfiles();
     } catch (err) {
       console.error('Failed to fetch schedule data:', err);
     }
 
-    // 2. Fetch doctor session
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        this.activeDoctorId = user.id;
-      }
-    } catch (e) {
-      console.warn('Using seeded doctor profile fallback.');
-    }
-
-    // 3. Filter appointments for this doctor
-    const doctorAppointments = this.appointments.filter(a => a.doctor_id === this.activeDoctorId);
+    // 3. Keep appointments for this doctor
+    const doctorAppointments = this.appointments;
     this.hasAnyAppointments = doctorAppointments.length > 0;
 
     // Sort by scheduled time ascending

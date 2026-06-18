@@ -576,7 +576,9 @@ export class VoiceOrb {
               actionExecuted = true;
             }
           } else {
-            this.router.navigate(action.route);
+            const params: any = {};
+            if (action.patientId) params.patientId = action.patientId;
+            this.router.navigate(action.route, params);
             actionExecuted = true;
           }
         } else if (action.type === 'resolve_shortage' && action.patientId) {
@@ -637,10 +639,22 @@ export class VoiceOrb {
         confirmMessage = 'Navigating to Dashboard';
         this.router.navigate('dashboard');
         actionExecuted = true;
-      } else if (cleanCmd.includes('prescriptions') || cleanCmd.includes('prescription writer') || cleanCmd.includes('medication')) {
-        confirmMessage = 'Navigating to Prescription Writer';
-        this.router.navigate('prescriptions');
-        actionExecuted = true;
+      } else if (cleanCmd.includes('prescription') || cleanCmd.includes('medication')) {
+        const patientName = this.extractPatientName(cleanCmd);
+        if (patientName) {
+          const patient = this.findCachedPatientByName(patientName);
+          if (patient) {
+            confirmMessage = `Opening prescription writer for ${patient.full_name}`;
+            this.router.navigate('prescriptions', { patientId: patient.id });
+            actionExecuted = true;
+          } else {
+            confirmMessage = `I couldn't find a patient named ${patientName}`;
+          }
+        } else {
+          confirmMessage = 'Navigating to Prescription Writer';
+          this.router.navigate('prescriptions');
+          actionExecuted = true;
+        }
       } else if (cleanCmd.includes('schedule') || cleanCmd.includes('calendar') || cleanCmd.includes('appointments')) {
         confirmMessage = 'Navigating to Schedule';
         this.router.navigate('schedule');
@@ -792,6 +806,9 @@ export class VoiceOrb {
       /^(?:go\s+to\s+)?(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?/i,
       /^(?:open|show|view|navigate\s+to)\s+(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?/i,
       /^(?:provide\s+alternative\s+for|resolve\s+shortage\s+for)\s+/i,
+      /^(?:write|create|send)\s+(?:a\s+)?prescription\s+(?:to|for)\s+(?:my\s+)?(?:patient\s+)?/i,
+      /^prescribe\s+(?:.+?)\s+(?:to|for)\s+(?:my\s+)?(?:patient\s+)?/i,
+      /^prescription\s+(?:to|for)\s+(?:my\s+)?(?:patient\s+)?/i,
     ];
     const suffixes = [
       /(?:'s)?\s*profile$/i,

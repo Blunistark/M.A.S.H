@@ -21,8 +21,9 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function fetchMetrics(): Promise<DashboardMetrics> {
-  return fetchJson<DashboardMetrics>(`${API_BASE}/metrics`);
+export async function fetchMetrics(doctorId?: string): Promise<DashboardMetrics> {
+  const url = doctorId ? `${API_BASE}/metrics?doctor_id=${doctorId}` : `${API_BASE}/metrics`;
+  return fetchJson<DashboardMetrics>(url);
 }
 
 export async function fetchProfiles(): Promise<Profile[]> {
@@ -47,8 +48,17 @@ export async function fetchDoctorDetails(): Promise<DoctorDetails[]> {
   return fetchJson<DoctorDetails[]>(`${API_BASE}/doctor_details`);
 }
 
-export async function fetchAppointments(): Promise<Appointment[]> {
-  return fetchJson<Appointment[]>(`${API_BASE}/appointments`);
+export async function fetchAppointments(filters?: { doctor_id?: string; patient_id?: string }): Promise<Appointment[]> {
+  const params = new URLSearchParams();
+  if (filters?.doctor_id) {
+    params.append('doctor_id', filters.doctor_id);
+  }
+  if (filters?.patient_id) {
+    params.append('patient_id', filters.patient_id);
+  }
+  const queryString = params.toString();
+  const url = queryString ? `${API_BASE}/appointments?${queryString}` : `${API_BASE}/appointments`;
+  return fetchJson<Appointment[]>(url);
 }
 
 export async function createAppointment(appt: {
