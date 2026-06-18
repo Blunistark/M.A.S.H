@@ -238,7 +238,7 @@ export class Router {
           <!-- Doctor profile info card -->
           <div class="doctor-profile-badge">
             <div class="doctor-avatar-container">
-              <img src="/src/assets/dr-profile.jpg" alt="${userName}" class="doctor-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'"/>
+              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="${userName}" class="doctor-avatar" />
             </div>
             <div class="doctor-info-text">
               <span class="doctor-name">${userName}</span>
