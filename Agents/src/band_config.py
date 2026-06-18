@@ -287,7 +287,7 @@ class BandSDK:
         global ROOM_ID_TO_NAME, ROOM_NAME_TO_ID
         from band import Agent
         from band.config import load_agent_config
-        from band.client.rest import AsyncRestClient, ChatRoomRequest
+        from band.client.rest import AsyncRestClient, ChatRoomRequest, ChatEventRequest, DEFAULT_REQUEST_OPTIONS
         from thenvoi_rest.types.participant_request import ParticipantRequest
         import yaml
 
@@ -365,10 +365,24 @@ class BandSDK:
                 for name, rid in ROOM_NAME_TO_ID.items():
                     f.write(f"{name}={rid}\n")
 
-        # 3. Update mock room IDs with real room IDs
+        # 3. Update mock room IDs with real room IDs and announce room names to help user identify them
         for name, rid in ROOM_NAME_TO_ID.items():
             if name in MOCK_ROOMS:
                 MOCK_ROOMS[name].id = rid
+            
+            # Announce the room name in the chat so the user can tell the 7 "New Sessions" apart!
+            try:
+                await client.agent_api_events.create_agent_chat_event(
+                    chat_id=rid,
+                    event=ChatEventRequest(
+                        content=f"**[SYSTEM]** You are viewing the **{name}** session.",
+                        message_type="text",
+                        metadata={}
+                    ),
+                    request_options=DEFAULT_REQUEST_OPTIONS
+                )
+            except Exception:
+                pass
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
