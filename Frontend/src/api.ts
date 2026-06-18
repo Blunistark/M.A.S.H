@@ -168,3 +168,29 @@ export async function askDoctorAssistant(message: string, history: { role: 'user
     body: JSON.stringify({ message, history })
   });
 }
+
+export async function askPharmacistAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<DoctorAssistantResponse> {
+  return fetchJson<DoctorAssistantResponse>(`${API_BASE}/pharmacist-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message, history })
+  });
+}
+
+export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
+  const response = await fetch(`${API_BASE}/tts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ text })
+  });
+
+  if (!response.ok) {
+    throw new Error(`TTS HTTP error! status: ${response.status}`);
+  }
+
+  return response.arrayBuffer();
+}

@@ -23,8 +23,8 @@ let metrics: DashboardMetrics = {
   stockAlertsCount: 0
 };
 
-let selectedDate: Date = new Date('2026-06-17');
-let displayDate: Date = new Date('2026-06-17');
+let selectedDate: Date = new Date();
+let displayDate: Date = new Date();
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
@@ -92,10 +92,11 @@ export class DashboardView implements View {
       `;
     }
 
-    // Filter queue by selected date (UTC comparison)
-    const selectedDateString = selectedDate.toISOString().split('T')[0];
+    // Filter queue by selected date (local date comparison)
+    const selectedDateString = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}`;
     const filteredAppts = queueAppointments.filter(appt => {
-      const apptDateString = new Date(appt.scheduled_time).toISOString().split('T')[0];
+      const apptDate = new Date(appt.scheduled_time);
+      const apptDateString = `${apptDate.getFullYear()}-${(apptDate.getMonth() + 1).toString().padStart(2, '0')}-${apptDate.getDate().toString().padStart(2, '0')}`;
       return apptDateString === selectedDateString;
     });
 
@@ -178,7 +179,7 @@ export class DashboardView implements View {
     // Current month days (timezone-safe date strings)
     for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
       const cellDateStr = `${displayYear}-${(displayMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
-      const isSelected = selectedDate.getUTCDate() === dayNum && selectedDate.getUTCMonth() === displayMonth && selectedDate.getUTCFullYear() === displayYear;
+      const isSelected = selectedDate.getDate() === dayNum && selectedDate.getMonth() === displayMonth && selectedDate.getFullYear() === displayYear;
       const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
       calendarCells.push(`
         <div class="calendar-day current-month ${isSelected ? 'active' : ''} ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
