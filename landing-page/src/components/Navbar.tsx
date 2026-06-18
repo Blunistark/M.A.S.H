@@ -26,6 +26,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
         { label: 'Core Concept', href: '#about' },
         { label: 'Agent Ecosystem', href: '#services' },
         { label: 'Virtual Rooms', href: '#gallery' },
+        { label: 'Live Telemetry', href: 'https://m-a-s-h-frontend.onrender.com/#telemetry', isExternal: true },
     ]
 
     const scrollTo = (href: string) => {
@@ -111,7 +112,9 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                     <a
                                         href={link.href}
                                         className="navbar-link"
-                                        onClick={(e) => { e.preventDefault(); scrollTo(link.href) }}
+                                        target={(link as any).isExternal ? "_blank" : undefined}
+                                        rel={(link as any).isExternal ? "noopener noreferrer" : undefined}
+                                        onClick={(link as any).isExternal ? undefined : (e) => { e.preventDefault(); scrollTo(link.href) }}
                                     >
                                         {link.label}
                                     </a>
@@ -155,7 +158,9 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                 key={link.href}
                                 href={link.href}
                                 className="navbar-link"
-                                onClick={(e) => { e.preventDefault(); scrollTo(link.href) }}
+                                target={(link as any).isExternal ? "_blank" : undefined}
+                                rel={(link as any).isExternal ? "noopener noreferrer" : undefined}
+                                onClick={(link as any).isExternal ? undefined : (e) => { e.preventDefault(); scrollTo(link.href) }}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1, duration: 0.4 }}

@@ -40,6 +40,8 @@ export class Router {
       this.navigate('prescriptions');
     } else if (hash === 'schedule') {
       this.navigate('schedule');
+    } else if (hash === 'telemetry') {
+      this.navigate('telemetry');
     } else {
       this.navigate('dashboard');
     }
@@ -155,7 +157,7 @@ export class Router {
     }
 
     // Sidebar theme selection
-    const isDarkSidebar = ['dashboard', 'patients', 'prescriptions', 'schedule'].includes(this.currentRoute);
+    const isDarkSidebar = ['dashboard', 'patients', 'prescriptions', 'schedule', 'telemetry'].includes(this.currentRoute);
     const sidebarThemeClass = isDarkSidebar ? 'theme-dark' : 'theme-light';
 
     let userName = 'Dr. Smith';
@@ -263,6 +265,10 @@ export class Router {
             <a href="#" class="nav-item ${this.currentRoute === 'schedule' ? 'active' : ''}" data-route="schedule">
               ${getIcon('calendar', 'nav-icon')}
               <span>Schedule</span>
+            </a>
+            <a href="#" class="nav-item ${this.currentRoute === 'telemetry' ? 'active' : ''}" data-route="telemetry">
+              ${getIcon('activity', 'nav-icon')}
+              <span>Telemetry</span>
             </a>
           </nav>
         </div>
