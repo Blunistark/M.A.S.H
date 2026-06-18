@@ -112,7 +112,14 @@ async def doctor_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
+    from src.band_config import send_platform_message
     try:
+        # Echo the user's message to the Band Platform Room
+        from src.band_config import MOCK_ROOMS
+        doc_room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
+        if doc_room_id:
+            await send_platform_message(doc_room_id, f"**USER:** {req.message}")
+            
         # Clear actions before query (handled in process_doctor_query as well)
         agent.pending_actions = []
         
@@ -120,6 +127,10 @@ async def doctor_chat(req: ChatRequest):
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
         
+        # Echo the doctor's reply to the Band Platform Room
+        if doc_room_id:
+            await send_platform_message(doc_room_id, f"**Doctor:** {reply}")
+            
         # Get the first pending action if any was triggered by a tool
         action = agent.pending_actions[0] if agent.pending_actions else None
         

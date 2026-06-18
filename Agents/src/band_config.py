@@ -192,6 +192,26 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
         import logging
         logging.getLogger("band_config").exception(f"Failed to send event {event} to room {room_id}: {e}")
 
+async def send_platform_message(room_id: str, message: str, agent_id: str = None):
+    if not BandSDK.rest_client:
+        return
+    from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
+    try:
+        # Note: If agent_id is provided we might want to specify from_agent, but the SDK
+        # ChatMessageRequest usually takes role and content. Let's inspect signature later if needed.
+        # But generally, we can just send it as text content.
+        await BandSDK.rest_client.agent_api_messages.create_agent_chat_message(
+            chat_id=room_id,
+            message=ChatMessageRequest(
+                content=message,
+                metadata={}
+            ),
+            request_options=DEFAULT_REQUEST_OPTIONS
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("band_config").exception(f"Failed to send message to room {room_id}: {e}")
+
 try:
     from band.core.simple_adapter import SimpleAdapter
     from band.core.types import PlatformMessage
@@ -381,8 +401,9 @@ class BandSDK:
                     ),
                     request_options=DEFAULT_REQUEST_OPTIONS
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("band_config").exception(f"Failed to send SYSTEM message to room {name}: {e}")
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
