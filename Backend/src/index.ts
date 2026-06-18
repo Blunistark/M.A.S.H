@@ -2,12 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
 import { supabase } from './config/supabase';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const AGENTS_URL = process.env.AGENTS_URL || (process.env.RENDER === 'true' ? 'https://m-a-s-h-agents.onrender.com' : 'http://127.0.0.1:8000');
 
 app.use(cors());
 app.use(express.json());
@@ -739,19 +741,19 @@ app.get('/api/medicine_inventory', async (req, res) => {
 // POST /api/doctor-chat
 app.post('/api/doctor-chat', async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, history, doctorId, doctorName } = req.body;
     if (!message) {
       return res.status(400).json({ message: 'Message is required' });
     }
 
     // Try delegating to the python agent_server on port 8000
     try {
-      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/doctor-chat', {
+      const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/doctor-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message, history })
+        body: JSON.stringify({ message, history, doctorId, doctorName })
       });
       if (agentResponse.ok) {
         const agentData = (await agentResponse.json()) as { reply: string; action?: any };
@@ -986,7 +988,7 @@ app.post('/api/pharmacist-chat', async (req, res) => {
 
     // Try delegating to the python agent_server on port 8000
     try {
-      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/pharmacist-chat', {
+      const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/pharmacist-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1173,7 +1175,77 @@ app.post('/api/tts', async (req, res) => {
   }
 });
 
+// GET /api/telemetry/state
+app.get('/api/telemetry/state', async (req, res) => {
+  try {
+    const { doctorId, doctorName } = req.query;
+    const urlParams = doctorId && doctorName
+      ? `?doctorId=${encodeURIComponent(doctorId as string)}&doctorName=${encodeURIComponent(doctorName as string)}`
+      : '';
+    const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/telemetry/state${urlParams}`);
+    if (agentResponse.ok) {
+      const data = await agentResponse.json();
+      return res.json(data);
+    } else {
+      return res.status(agentResponse.status).json({ message: 'Error from agents server' });
+    }
+  } catch (err: any) {
+    console.error('Error fetching telemetry state from python server:', err);
+    return res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+});
+
+const wss = new WebSocketServer({ noServer: true });
+
+wss.on('connection', (clientWs, req) => {
+  const targetBaseUrl = AGENTS_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  const targetWs = new WSWebSocket(`${targetBaseUrl}/api/telemetry-stream`);
+
+  targetWs.on('open', () => {
+    clientWs.on('message', (message, isBinary) => {
+      if (targetWs.readyState === WSWebSocket.OPEN) {
+        targetWs.send(message, { binary: isBinary });
+      }
+    });
+
+    targetWs.on('message', (message, isBinary) => {
+      if (clientWs.readyState === WSWebSocket.OPEN) {
+        clientWs.send(message, { binary: isBinary });
+      }
+    });
+  });
+
+  clientWs.on('close', () => {
+    targetWs.close();
+  });
+
+  targetWs.on('close', () => {
+    clientWs.close();
+  });
+
+  clientWs.on('error', (err) => {
+    console.error('Client WS error:', err);
+    targetWs.close();
+  });
+
+  targetWs.on('error', (err) => {
+    console.error('Target WS error:', err);
+    clientWs.close();
+  });
+});
+
+// Proxy websocket connections to Python agents server
+server.on('upgrade', (req, socket, head) => {
+  if (req.url && req.url.startsWith('/api/telemetry-stream')) {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  } else {
+    socket.destroy();
+  }
 });

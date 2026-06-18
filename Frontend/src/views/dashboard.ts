@@ -273,7 +273,7 @@ export class DashboardView implements View {
             </button>
             <div class="user-quick-profile">
               <span class="user-name">${loggedInName}</span>
-              <img src="/src/assets/dr-profile.jpg" alt="${loggedInName}" class="user-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'" />
+              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="${loggedInName}" class="user-avatar" />
             </div>
           </div>
         </div>

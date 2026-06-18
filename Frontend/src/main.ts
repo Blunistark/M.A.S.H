@@ -6,6 +6,7 @@ import { PatientProfileView } from './views/patientProfile';
 import { PrescriptionsView } from './views/prescriptions';
 import { ScheduleView } from './views/schedule';
 import { PharmacyView } from './views/pharmacy';
+import { TelemetryView } from './views/telemetry';
 import { AuthView } from './views/auth';
 import { VoiceOrb } from './voiceOrb';
 
@@ -20,6 +21,7 @@ router.registerView('patient-profile', new PatientProfileView());
 router.registerView('prescriptions', new PrescriptionsView());
 router.registerView('schedule', new ScheduleView());
 router.registerView('pharmacy', new PharmacyView());
+router.registerView('telemetry', new TelemetryView());
 
 // Initialize MASH Voice Orb
 new VoiceOrb(router);

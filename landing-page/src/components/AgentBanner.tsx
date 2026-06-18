@@ -3,16 +3,16 @@ import { motion } from 'framer-motion';
 import './AgentBanner.css';
 
 const leftAgents = [
-    { name: "Patient Management", image: "/Patient-managment-agent.png" },
-    { name: "Registration", image: "/registration-agent.png" },
-    { name: "Patient Navigation", image: "/paptient-navigation-agent.png" },
-    { name: "Patient Summary", image: "/patient-summary-agent.png" }
+    { name: "Patient Management", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798362/WhatsApp_Image_2026-06-18_at_9.15.17_PM_1_ques1v.jpg" },
+    { name: "Registration", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798362/WhatsApp_Image_2026-06-18_at_9.15.17_PM_swpbum.jpg" },
+    { name: "Patient Navigation", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.16_PM_zylo91.jpg" },
+    { name: "Patient Summary", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798362/WhatsApp_Image_2026-06-18_at_9.15.17_PM_2_cvpfhf.jpg" }
 ];
 
 const rightAgents = [
-    { name: "Doctor Assistant", image: "/doctor-assisatant-agent.png" },
-    { name: "Medicine & Rx", image: "/Medicine-prescripition-agent.png" },
-    { name: "Stock Management", image: "/stock-managment-agent.png" },
+    { name: "Doctor Assistant", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.09_PM_hjxemc.jpg" },
+    { name: "Medicine & Rx", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.15_PM_uwy2c8.jpg" },
+    { name: "Stock Management", image: "https://res.cloudinary.com/dx08fagcf/image/upload/v1781798362/WhatsApp_Image_2026-06-18_at_9.15.18_PM_zkjszj.jpg" },
     { name: "Telemetry & Audit", image: "/telemetry-agent.png" }
 ];
 

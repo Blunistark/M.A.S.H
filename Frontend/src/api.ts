@@ -1,15 +1,17 @@
-import type { 
-  Profile, 
-  DoctorDetails, 
-  Appointment, 
-  MedicalRecord, 
-  MedicineInventory, 
-  Prescription, 
+import type {
+  Profile,
+  DoctorDetails,
+  Appointment,
+  MedicalRecord,
+  MedicineInventory,
+  Prescription,
   PrescriptionItem,
   DashboardMetrics
 } from './types';
 
-const API_BASE = 'http://localhost:3000/api';
+import { supabase } from './supabase';
+
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -49,11 +51,11 @@ export async function fetchAppointments(): Promise<Appointment[]> {
   return fetchJson<Appointment[]>(`${API_BASE}/appointments`);
 }
 
-export async function createAppointment(appt: { 
-  patient_id: string; 
-  doctor_id: string; 
-  scheduled_time: string; 
-  status: string; 
+export async function createAppointment(appt: {
+  patient_id: string;
+  doctor_id: string;
+  scheduled_time: string;
+  status: string;
 }): Promise<Appointment> {
   return fetchJson<Appointment>(`${API_BASE}/appointments`, {
     method: 'POST',
@@ -160,12 +162,28 @@ export interface DoctorAssistantResponse {
 }
 
 export async function askDoctorAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<DoctorAssistantResponse> {
+  let doctorId = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd";
+  let doctorName = "Dr. Smith";
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      doctorId = user.id;
+      doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Dr. Smith';
+    } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+      doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+      doctorId = 'mock-doctor-uuid-alex-smith';
+    }
+  } catch (e) {
+    console.warn("Failed to resolve logged-in doctor, using defaults:", e);
+  }
+
   return fetchJson<DoctorAssistantResponse>(`${API_BASE}/doctor-chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ message, history })
+    body: JSON.stringify({ message, history, doctorId, doctorName })
   });
 }
 
@@ -197,7 +215,7 @@ export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
 
 export function getPatientPhotoUrl(fullName: string, gender?: string): string {
   const name = fullName.toLowerCase();
-  
+
   // Custom stock photo mappings for specific patients in the database
   if (name.includes('bob smith')) {
     return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150';
@@ -235,7 +253,7 @@ export function getPatientPhotoUrl(fullName: string, gender?: string): string {
 
   // Fallback by gender or name heuristics
   const isFemale = (gender && gender.toLowerCase() === 'female') ||
-                   /\b(sarah|elena|alice|lisa|remy|mary|jane|linda|patricia|elizabeth|susan|jessica|sarah|karen|nancy|lisa|betty|margaret|sandra|ashley|dorothy|kimberly|emily|donna|michelle|carol|amanda|melissa|deborah|stephanie|rebecca|sharon|laura|cynthia|kathleen|amy|shirley|angela|helen|anna|brenda|pamela|nicole|samantha|katherine|emma|ruth|christine|debra|rachel|carolyn|janet|catherine|heather)\b/i.test(fullName);
+    /\b(sarah|elena|alice|lisa|remy|mary|jane|linda|patricia|elizabeth|susan|jessica|sarah|karen|nancy|lisa|betty|margaret|sandra|ashley|dorothy|kimberly|emily|donna|michelle|carol|amanda|melissa|deborah|stephanie|rebecca|sharon|laura|cynthia|kathleen|amy|shirley|angela|helen|anna|brenda|pamela|nicole|samantha|katherine|emma|ruth|christine|debra|rachel|carolyn|janet|catherine|heather)\b/i.test(fullName);
 
   if (isFemale) {
     return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150';

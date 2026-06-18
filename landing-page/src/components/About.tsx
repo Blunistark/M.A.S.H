@@ -121,7 +121,7 @@ export default function About({ activeAgent, setActiveAgent }: { activeAgent: st
                     <div ref={placeholderRef} className="about-agent-image-placeholder" />
                     <img 
                         ref={imageRef}
-                        src="/registration-agent.png"
+                        src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798362/WhatsApp_Image_2026-06-18_at_9.15.17_PM_swpbum.jpg"
                         alt="Registration Agent"
                         className="about-agent-zoom-img"
                         style={{ position: 'absolute', opacity: 0, display: 'none' }}

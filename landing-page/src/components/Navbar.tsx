@@ -26,6 +26,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
         { label: 'Core Concept', href: '#about' },
         { label: 'Agent Ecosystem', href: '#services' },
         { label: 'Virtual Rooms', href: '#gallery' },
+        { label: 'Live Telemetry', href: 'https://m-a-s-h-frontend.onrender.com/#telemetry', isExternal: true },
     ]
 
     const scrollTo = (href: string) => {
@@ -93,7 +94,7 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                     }}
                                     style={{ display: 'flex', alignItems: 'center' }}
                                 >
-                                    <img src="/mash-logo.png" alt="M.A.S.H" style={{ height: '32px', width: 'auto' }} />
+                                    <img src="https://res.cloudinary.com/dx08fagcf/image/upload/v1781798361/WhatsApp_Image_2026-06-18_at_9.15.15_PM_1_rlv2mv.jpg" alt="M.A.S.H" style={{ height: '32px', width: 'auto' }} />
                                 </motion.div>
                             </a>
                         )}
@@ -111,7 +112,9 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                     <a
                                         href={link.href}
                                         className="navbar-link"
-                                        onClick={(e) => { e.preventDefault(); scrollTo(link.href) }}
+                                        target={(link as any).isExternal ? "_blank" : undefined}
+                                        rel={(link as any).isExternal ? "noopener noreferrer" : undefined}
+                                        onClick={(link as any).isExternal ? undefined : (e) => { e.preventDefault(); scrollTo(link.href) }}
                                     >
                                         {link.label}
                                     </a>
@@ -155,7 +158,9 @@ export default function Navbar({ theme, toggleTheme, isAppLoading }: NavbarProps
                                 key={link.href}
                                 href={link.href}
                                 className="navbar-link"
-                                onClick={(e) => { e.preventDefault(); scrollTo(link.href) }}
+                                target={(link as any).isExternal ? "_blank" : undefined}
+                                rel={(link as any).isExternal ? "noopener noreferrer" : undefined}
+                                onClick={(link as any).isExternal ? undefined : (e) => { e.preventDefault(); scrollTo(link.href) }}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1, duration: 0.4 }}

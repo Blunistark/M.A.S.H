@@ -85,33 +85,10 @@
   --navbar-bg: rgba(255, 255, 255, 0.8);
   --input-bg: #FFFFFF;
   --cream: #ffffff;
-  color-scheme: light;
+  color-scheme: only light;
 }
 
-/* ─── Dark Theme (Default) ──────────────────────────────────── */
-[data-theme="dark"] {
-  --bg-primary: #FFFFFF;
-  --bg-secondary: #FFFFFF;
-  --bg-accent: #FFFFFF;
-  --bg-elevated: #FFFFFF;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --accent: #10B981;
-  --accent-hover: #059669;
-  --accent-muted: rgba(16, 185, 129, 0.12);
-  --accent-subtle: rgba(16, 185, 129, 0.06);
-  --border: rgba(0, 0, 0, 0.06);
-  --border-strong: rgba(0, 0, 0, 0.12);
-  --overlay: rgba(255, 255, 255, 0.85);
-  --overlay-heavy: rgba(255, 255, 255, 0.92);
-  --shadow-card: 0 4px 24px rgba(16, 185, 129, 0.05);
-  --shadow-hover: 0 12px 40px rgba(16, 185, 129, 0.1);
-  --navbar-bg: rgba(255, 255, 255, 0.8);
-  --input-bg: #FFFFFF;
-  --cream: #0F172A;
-  color-scheme: light;
-}
+
 
 /* ─── Light Theme ───────────────────────────────────────────── */
 [data-theme="light"] {
@@ -135,7 +112,7 @@
   --navbar-bg: rgba(255, 255, 255, 0.8);
   --input-bg: #FFFFFF;
   --cream: #0F172A;
-  color-scheme: light;
+  color-scheme: only light;
 }
 
 /* ─── Base ──────────────────────────────────────────────────── */

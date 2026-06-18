@@ -2,7 +2,7 @@ from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, START, END
 from src.band_config import PatientManagementRoom, DoctorDashboardRoom, ReceptionNavigationRoom, BandSDK
 from src.telemetry import Telemetry
-from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase, reschedule_appointment_in_supabase
+from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase, reschedule_appointment_in_supabase, PatientNotFoundError
 
 class RegistrationState(TypedDict):
     event_name: str
@@ -42,26 +42,34 @@ class RegistrationAgent:
             slot_time = payload.get("slotTime")
             reason = payload.get("reason", "")
             
-            success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
-            
-            if success:
-                msg = f"Successfully booked appointment for {patient_name} at {slot_time}."
-                PatientManagementRoom.broadcast("BOOKING_CONFIRMED", {
+            try:
+                success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+                if success:
+                    msg = f"Successfully booked appointment for {patient_name} at {slot_time}."
+                    PatientManagementRoom.broadcast("BOOKING_CONFIRMED", {
+                        "requestId": req_id, 
+                        "message": msg,
+                        "doctorId": doctor_id,
+                        "patientName": patient_name,
+                        "slotTime": slot_time
+                    })
+                    # Relay to Doctor Dashboard so the DoctorAgent gets notified
+                    DoctorDashboardRoom.broadcast("BOOKING_CONFIRMED", {
+                        "doctorId": doctor_id,
+                        "patientName": patient_name,
+                        "slotTime": slot_time
+                    })
+                else:
+                    msg = "Failed to book appointment. Please try again."
+                    PatientManagementRoom.broadcast("BOOKING_FAILED", {"requestId": req_id, "message": msg, "doctorId": doctor_id})
+            except PatientNotFoundError:
+                msg = f"Patient {patient_name} is not in the database."
+                PatientManagementRoom.broadcast("BOOKING_FAILED", {
                     "requestId": req_id, 
-                    "message": msg,
+                    "message": msg, 
                     "doctorId": doctor_id,
-                    "patientName": patient_name,
-                    "slotTime": slot_time
+                    "error": "patient_not_found"
                 })
-                # Relay to Doctor Dashboard so the DoctorAgent gets notified
-                DoctorDashboardRoom.broadcast("BOOKING_CONFIRMED", {
-                    "doctorId": doctor_id,
-                    "patientName": patient_name,
-                    "slotTime": slot_time
-                })
-            else:
-                msg = "Failed to book appointment. Please try again."
-                PatientManagementRoom.broadcast("BOOKING_FAILED", {"requestId": req_id, "message": msg, "doctorId": doctor_id})
             return state
 
         async def reschedule_appointment_node(state: RegistrationState) -> RegistrationState:
@@ -70,14 +78,21 @@ class RegistrationAgent:
             patient_name = payload.get("patientName")
             new_slot_time = payload.get("newSlotTime")
             
-            success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
-            
-            if success:
-                msg = f"Successfully rescheduled appointment for {patient_name} to {new_slot_time}."
-                PatientManagementRoom.broadcast("RESCHEDULE_CONFIRMED", {"requestId": req_id, "message": msg})
-            else:
-                msg = "Failed to reschedule appointment. Please try again."
-                PatientManagementRoom.broadcast("RESCHEDULE_FAILED", {"requestId": req_id, "message": msg})
+            try:
+                success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
+                if success:
+                    msg = f"Successfully rescheduled appointment for {patient_name} to {new_slot_time}."
+                    PatientManagementRoom.broadcast("RESCHEDULE_CONFIRMED", {"requestId": req_id, "message": msg})
+                else:
+                    msg = "Failed to reschedule appointment. Please try again."
+                    PatientManagementRoom.broadcast("RESCHEDULE_FAILED", {"requestId": req_id, "message": msg})
+            except PatientNotFoundError:
+                msg = f"Patient {patient_name} is not in the database."
+                PatientManagementRoom.broadcast("RESCHEDULE_FAILED", {
+                    "requestId": req_id, 
+                    "message": msg,
+                    "error": "patient_not_found"
+                })
             return state
 
         async def check_availability_node(state: RegistrationState) -> RegistrationState:
