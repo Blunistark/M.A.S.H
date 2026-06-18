@@ -168,10 +168,19 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
         return
     from band.client.rest import ChatEventRequest, DEFAULT_REQUEST_OPTIONS
     try:
+        # Make the payload visible in the UI for non-join events
+        if event != "AGENT_JOINED" and event != "STATE_UPDATED":
+            try:
+                display_content = f"[{event}]\n```json\n{json.dumps(payload, indent=2)}\n```"
+            except Exception:
+                display_content = f"[{event}]\n{str(payload)}"
+        else:
+            display_content = event
+
         await BandSDK.rest_client.agent_api_events.create_agent_chat_event(
             chat_id=room_id,
             event=ChatEventRequest(
-                content=event,
+                content=display_content,
                 message_type="task",
                 metadata=payload
             ),
