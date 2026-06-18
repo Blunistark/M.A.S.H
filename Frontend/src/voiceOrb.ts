@@ -2,6 +2,12 @@ import { Router } from './router';
 import { fetchProfiles, askDoctorAssistant, askPharmacistAssistant } from './api';
 import type { Profile } from './types';
 
+declare global {
+  interface Window {
+    __voiceOrbInstance?: VoiceOrb;
+  }
+}
+
 export class VoiceOrb {
   private container: HTMLElement | null = null;
   private transcriptBubble: HTMLElement | null = null;
@@ -22,6 +28,7 @@ export class VoiceOrb {
   private profilesCache: Profile[] = [];
   private ttsEnabled = true;
   private chatHistory: { role: 'user' | 'model'; text: string }[] = [];
+  private destroyed = false;
 
   // WebGL Shader variables
   private canvas: HTMLCanvasElement | null = null;
@@ -37,7 +44,31 @@ export class VoiceOrb {
   private silenceTimeoutId: any = null;
 
   constructor(router: Router) {
+    // Fix 1 — Singleton guard at module level
+    if (window.__voiceOrbInstance) {
+      try {
+        window.__voiceOrbInstance.destroy();
+      } catch (e) {
+        console.error('Error destroying previous VoiceOrb instance:', e);
+      }
+    }
+    window.__voiceOrbInstance = this;
+
     this.router = router;
+    this.currentRoute = router.currentRoute;
+
+    // Fix 3 — Bind all event handlers in constructor
+    this.handleRouteChange = this.handleRouteChange.bind(this);
+    this.handleOrbClick = this.handleOrbClick.bind(this);
+    this.handleOrbKeyDown = this.handleOrbKeyDown.bind(this);
+    this.handleOrbMouseEnter = this.handleOrbMouseEnter.bind(this);
+    this.handleOrbMouseLeave = this.handleOrbMouseLeave.bind(this);
+    this.handleTextSubmitClick = this.handleTextSubmitClick.bind(this);
+    this.handleTextInputKeyDown = this.handleTextInputKeyDown.bind(this);
+    this.handleDocumentClick = this.handleDocumentClick.bind(this);
+    this.handleContainerClick = this.handleContainerClick.bind(this);
+    this.handleGlobalKeyDown = this.handleGlobalKeyDown.bind(this);
+
     this.initElements();
     if (!this.container) return;
 
@@ -47,21 +78,160 @@ export class VoiceOrb {
     this.initWebGL();
 
     // Listen to route changes
-    window.addEventListener('page-route-changed', (e: any) => {
-      this.currentRoute = e.detail.route;
-      this.loadProfiles();
-      this.hideBubbles();
-      this.updateSuggestionChips(this.currentRoute);
-      
-      if (this.container) {
-        this.container.style.display = this.currentRoute === 'telemetry' ? 'none' : '';
-      }
-    });
+    window.addEventListener('page-route-changed', this.handleRouteChange);
 
     // Initial suggestion chips render
     this.updateSuggestionChips(this.currentRoute);
-    if (this.container && this.currentRoute === 'telemetry') {
+    const shouldHide = this.currentRoute === 'telemetry' || this.currentRoute === 'auth';
+    if (this.container && shouldHide) {
       this.container.style.display = 'none';
+    }
+  }
+
+  // Fix 2 — Add a destroy() method
+  public destroy() {
+    this.destroyed = true;
+    this.isListening = false;
+    this.isProcessing = false;
+    this.isBackgroundListening = false;
+    this.clearSilenceTimeout();
+    if (this.recognition) {
+      try {
+        this.recognition.abort();
+      } catch (e) { }
+      this.recognition = null;
+    }
+
+    window.removeEventListener('page-route-changed', this.handleRouteChange);
+    window.removeEventListener('keydown', this.handleGlobalKeyDown);
+    document.removeEventListener('click', this.handleDocumentClick);
+
+    if (this.orb) {
+      this.orb.removeEventListener('click', this.handleOrbClick);
+      this.orb.removeEventListener('keydown', this.handleOrbKeyDown);
+      this.orb.removeEventListener('mouseenter', this.handleOrbMouseEnter);
+      this.orb.removeEventListener('mouseleave', this.handleOrbMouseLeave);
+    }
+
+    if (this.textSubmit) {
+      this.textSubmit.removeEventListener('click', this.handleTextSubmitClick);
+    }
+    if (this.textInput) {
+      this.textInput.removeEventListener('keydown', this.handleTextInputKeyDown);
+    }
+
+    if (this.container) {
+      this.container.removeEventListener('click', this.handleContainerClick);
+    }
+  }
+
+  private handleRouteChange(e: any) {
+    this.currentRoute = e.detail.route;
+    this.loadProfiles();
+    this.hideBubbles();
+    this.updateSuggestionChips(this.currentRoute);
+    
+    const shouldHide = this.currentRoute === 'telemetry' || this.currentRoute === 'auth';
+    if (this.container) {
+      this.container.style.display = shouldHide ? 'none' : '';
+    }
+
+    if (shouldHide) {
+      // Stop any active or background listening when transitioning to a hidden route
+      this.isListening = false;
+      this.isBackgroundListening = false;
+      this.clearSilenceTimeout();
+      if (this.recognition) {
+        try {
+          this.recognition.abort();
+        } catch (e) { }
+        this.recognition = null;
+      }
+    } else {
+      // Restart background listening if transitioning back to a visible route
+      if (!this.isListening && !this.isProcessing) {
+        this.startBackgroundListening();
+      }
+    }
+  }
+
+  private handleOrbClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (this.isListening) {
+      this.stopActiveListening();
+    } else {
+      this.startActiveListening();
+    }
+  }
+
+  private handleOrbKeyDown(e: KeyboardEvent) {
+    if (e.repeat) return; // Prevent autorepeat toggling
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.isListening) {
+        this.stopActiveListening();
+      } else {
+        this.startActiveListening();
+      }
+    }
+  }
+
+  private handleOrbMouseEnter() {
+    this.targetHover = 1.0;
+  }
+
+  private handleOrbMouseLeave() {
+    this.targetHover = 0.0;
+  }
+
+  private handleTextSubmitClick() {
+    const cmd = this.textInput?.value.trim();
+    if (cmd) {
+      this.hideTextBubble();
+      this.processCommand(cmd);
+    }
+  }
+
+  private handleTextInputKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      const cmd = this.textInput?.value.trim();
+      if (cmd) {
+        this.hideTextBubble();
+        this.processCommand(cmd);
+      }
+    }
+  }
+
+  private handleDocumentClick() {
+    if (!this.isListening && !this.isProcessing) {
+      this.hideTextBubble();
+    }
+  }
+
+  private handleContainerClick(e: MouseEvent) {
+    e.stopPropagation();
+  }
+
+  private handleGlobalKeyDown(e: KeyboardEvent) {
+    if (e.repeat) return; // Prevent autorepeat toggling
+    if (e.code === 'Space') {
+      // Ignore if user is typing in an input, textarea, or contenteditable element
+      const activeEl = document.activeElement;
+      if (activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.hasAttribute('contenteditable')
+      )) {
+        return;
+      }
+
+      e.preventDefault();
+      if (this.isListening) {
+        this.stopActiveListening();
+      } else {
+        this.startActiveListening();
+      }
     }
   }
 
@@ -92,16 +262,6 @@ export class VoiceOrb {
       console.warn('Web Speech API is not supported in this browser. Falling back to text command input.');
       return;
     }
-
-    // Bind user gesture event listeners to start background wake-word listening
-    const startOnGesture = () => {
-      console.log('User gesture detected, starting background speech recognition...');
-      this.startBackgroundListening();
-      window.removeEventListener('click', startOnGesture, { capture: true });
-      window.removeEventListener('keydown', startOnGesture, { capture: true });
-    };
-    window.addEventListener('click', startOnGesture, { capture: true });
-    window.addEventListener('keydown', startOnGesture, { capture: true });
   }
 
   private resetSilenceTimeout() {
@@ -121,78 +281,15 @@ export class VoiceOrb {
   }
 
   private startBackgroundListening() {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    if (this.recognition) {
-      try {
-        this.recognition.stop();
-      } catch (e) { }
-    }
-
-    this.isBackgroundListening = true;
-    try {
-      this.recognition = new SpeechRecognition();
-      this.recognition.continuous = true;
-      this.recognition.interimResults = true;
-      this.recognition.lang = 'en-US';
-
-      this.recognition.onstart = () => {
-        console.log('Background speech recognition (wake-word) started');
-      };
-
-      this.recognition.onresult = (event: any) => {
-        if (this.isListening || this.isProcessing) return; // Ignore if in active state
-
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-
-        const spoken = (finalTranscript || interimTranscript).trim().toLowerCase();
-        console.log('Background heard:', spoken);
-
-        if (spoken.includes(this.wakeWord) || spoken.includes('hey mash') || spoken.includes('hey m.a.s.h') || spoken.includes('hey mesh') || spoken.includes('hey max')) {
-          this.startActiveListening();
-        }
-      };
-
-      this.recognition.onerror = (event: any) => {
-        if (event.error === 'no-speech') return;
-        console.error('Background speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
-          this.isBackgroundListening = false;
-        }
-      };
-
-      this.recognition.onend = () => {
-        console.log('Background speech recognition ended');
-        if (this.isBackgroundListening && !this.isListening && !this.isProcessing) {
-          // Restart background listening
-          setTimeout(() => {
-            if (this.isBackgroundListening && !this.isListening && !this.isProcessing) {
-              try {
-                this.recognition.start();
-              } catch (e) { }
-            }
-          }, 300);
-        }
-      };
-
-      this.recognition.start();
-    } catch (e) {
-      console.error('Failed to start background speech recognition:', e);
-    }
+    // Disabled wake-word background listening completely as per user request
+    return;
   }
 
-  private startActiveListening() {
+  // Fix 5 — startActiveListening is now async
+  private async startActiveListening() {
+    console.log('startActiveListening called, currently: isListening =', this.isListening, 'isProcessing =', this.isProcessing);
     if (this.isListening || this.isProcessing) return;
+    if (this.currentRoute === 'telemetry' || this.currentRoute === 'auth') return;
 
     this.isListening = true;
     this.setState('listening');
@@ -204,7 +301,8 @@ export class VoiceOrb {
     this.isBackgroundListening = false;
     if (this.recognition) {
       try {
-        this.recognition.stop();
+        // Fix 4 — Replace stop() with abort() in startActiveListening
+        this.recognition.abort();
       } catch (e) { }
       this.recognition = null;
     }
@@ -251,6 +349,20 @@ export class VoiceOrb {
             this.stopActiveListening();
             return;
           }
+          if (event.error === 'aborted') {
+            console.log('Active speech recognition aborted:', event.error);
+            if (this.isListening) {
+              // Reset state without calling recognition.stop() again, since it's already aborted
+              console.log('Abnormal abort detected, resetting state to idle');
+              this.isListening = false;
+              this.setState('idle');
+              this.hideTextBubble();
+              this.clearSilenceTimeout();
+              this.recognition = null;
+              this.startBackgroundListening();
+            }
+            return;
+          }
           console.error('Active speech recognition error:', event.error);
           this.stopActiveListening();
         };
@@ -263,6 +375,9 @@ export class VoiceOrb {
           }
         };
 
+        // Fix 5 — Add 150ms delay before recognition.start()
+        await new Promise(resolve => setTimeout(resolve, 150));
+
         this.recognition.start();
       } catch (e) {
         console.error('Failed to start active speech recognition:', e);
@@ -274,6 +389,7 @@ export class VoiceOrb {
   }
 
   private stopActiveListening() {
+    console.log('stopActiveListening called, currently: isListening =', this.isListening);
     this.isListening = false;
     this.setState('idle');
     this.hideTextBubble();
@@ -399,77 +515,24 @@ export class VoiceOrb {
 
   private bindEvents() {
     if (this.orb) {
-      // Click orb to toggle active listening
-      this.orb.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this.isListening) {
-          this.stopActiveListening();
-        } else {
-          this.startActiveListening();
-        }
-      });
-
-      // Spacebar or Enter activation when focused
-      this.orb.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' || e.code === 'Enter') {
-          e.preventDefault();
-          this.startActiveListening();
-        }
-      });
+      this.orb.addEventListener('click', this.handleOrbClick);
+      this.orb.addEventListener('keydown', this.handleOrbKeyDown);
     }
 
-    // Text submit handlers
-    if (this.textSubmit && this.textInput) {
-      const submit = () => {
-        const cmd = this.textInput!.value.trim();
-        if (cmd) {
-          this.hideTextBubble();
-          this.processCommand(cmd);
-        }
-      };
-
-      this.textSubmit.addEventListener('click', submit);
-      this.textInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          submit();
-        }
-      });
+    if (this.textSubmit) {
+      this.textSubmit.addEventListener('click', this.handleTextSubmitClick);
+    }
+    if (this.textInput) {
+      this.textInput.addEventListener('keydown', this.handleTextInputKeyDown);
     }
 
-    // Dismiss bubbles on outside click
-    document.addEventListener('click', () => {
-      if (!this.isListening && !this.isProcessing) {
-        this.hideTextBubble();
-      }
-    });
+    document.addEventListener('click', this.handleDocumentClick);
 
     if (this.container) {
-      this.container.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
+      this.container.addEventListener('click', this.handleContainerClick);
     }
 
-    // Global Spacebar activation
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        // Ignore if user is typing in an input, textarea, or contenteditable element
-        const activeEl = document.activeElement;
-        if (activeEl && (
-          activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          activeEl.hasAttribute('contenteditable')
-        )) {
-          return;
-        }
-
-        e.preventDefault();
-        if (this.isListening) {
-          this.stopActiveListening();
-        } else {
-          this.startActiveListening();
-        }
-      }
-    });
+    window.addEventListener('keydown', this.handleGlobalKeyDown);
   }
 
   private async processCommand(command: string) {
@@ -1089,11 +1152,12 @@ export class VoiceOrb {
     this.syncCanvasSize();
 
     if (this.orb) {
-      this.orb.addEventListener('mouseenter', () => { this.targetHover = 1.0; });
-      this.orb.addEventListener('mouseleave', () => { this.targetHover = 0.0; });
+      this.orb.addEventListener('mouseenter', this.handleOrbMouseEnter);
+      this.orb.addEventListener('mouseleave', this.handleOrbMouseLeave);
     }
 
     const renderLoop = (t: number) => {
+      if (this.destroyed) return;
       requestAnimationFrame(renderLoop);
       this.renderWebGL(t);
     };
@@ -1160,4 +1224,13 @@ export class VoiceOrb {
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (window.__voiceOrbInstance) {
+      window.__voiceOrbInstance.destroy();
+      window.__voiceOrbInstance = undefined;
+    }
+  });
 }
