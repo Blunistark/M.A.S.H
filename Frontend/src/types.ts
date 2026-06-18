@@ -67,7 +67,7 @@ export interface PrescriptionItem {
 export interface DashboardMetrics {
   todayAppointmentsCount: number;
   remainingAppointmentsCount: number;
-  pendingReschedulesCount: number;
+  pendingAlternativeMedCount: number;
   notificationsCount: number;
   stockAlertsCount: number;
 }

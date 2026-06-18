@@ -19,12 +19,23 @@ function getInitials(name: string): string {
 
 export class PatientProfileView implements View {
   public async render(params?: { patientId: string }): Promise<string> {
-    const patientId = params?.patientId || 'john-doe';
+    let patientId = params?.patientId || 'john-doe';
     let patient: Profile;
     try {
       patient = await fetchProfileById(patientId);
     } catch (err) {
-      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      try {
+        const profilesList = await fetchProfiles();
+        const firstPatient = profilesList.find(p => p.role === 'patient');
+        if (firstPatient) {
+          patientId = firstPatient.id;
+          patient = await fetchProfileById(patientId);
+        } else {
+          throw err;
+        }
+      } catch (fallbackErr) {
+        return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      }
     }
 
     const initials = getInitials(patient.full_name);
@@ -36,7 +47,7 @@ export class PatientProfileView implements View {
     const allInventory = await fetchMedicineInventory();
     const allProfiles = await fetchProfiles();
     const allDoctorDetails = await fetchDoctorDetails();
-    const allAppointments = await fetchAppointments();
+    const allAppointments = await fetchAppointments({ patient_id: patientId });
 
     // Get medical records for this patient
     const records = allRecords.filter(r => r.patient_id === patientId);
