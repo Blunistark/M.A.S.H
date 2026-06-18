@@ -389,7 +389,10 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
   try {
     const { patient_id, doctor_id, items, doctor_comments } = req.body;
 
+    console.log(`[Prescription API] Received: patient_id=${patient_id}, doctor_id=${doctor_id}, items=${JSON.stringify(items)}, comments=${doctor_comments}`);
+
     if (!patient_id || !items || !Array.isArray(items) || items.length === 0) {
+      console.log(`[Prescription API] REJECTED: Missing patient_id or items`);
       return res.status(400).json({ message: 'patient_id and items[] are required' });
     }
 
@@ -436,15 +439,35 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
 
     if (invErr) throw invErr;
 
-    // 3. Create prescription items
+    // 3. Create prescription items (with fuzzy medicine name matching)
     const prescriptionItems = items.map((item: any) => {
-      const med = (inventory || []).find(
-        (m: any) => m.medicine_name.toLowerCase() === item.name.toLowerCase()
+      const itemName = (item.name || '').toLowerCase().trim();
+      // Tier 1: Exact match
+      let med = (inventory || []).find(
+        (m: any) => m.medicine_name.toLowerCase() === itemName
       );
+      // Tier 2: Inventory name contains item name or vice-versa
+      if (!med) {
+        med = (inventory || []).find(
+          (m: any) => m.medicine_name.toLowerCase().includes(itemName) || itemName.includes(m.medicine_name.toLowerCase())
+        );
+      }
+      // Tier 3: First word match (e.g. "Tizanidine" matches "Tizanidine HCl 2mg Tablet")
+      if (!med && itemName.split(' ').length > 0) {
+        const firstWord = itemName.split(' ')[0];
+        if (firstWord.length > 3) {
+          med = (inventory || []).find(
+            (m: any) => m.medicine_name.toLowerCase().includes(firstWord)
+          );
+        }
+      }
+      
+      console.log(`[Prescription Item] "${item.name}" → ${med ? `matched: ${med.medicine_name} (${med.id})` : 'NO MATCH (medicine_id will be null)'}`);
+      
       return {
         prescription_id: rx.id,
         medicine_id: med ? med.id : null,
-        dosage: `${item.dosage} - ${item.frequency}`,
+        dosage: `${item.dosage || 'as directed'} - ${item.frequency || 'as needed'}`,
         quantity: item.quantity || item.duration || 7
       };
     });
@@ -711,6 +734,26 @@ app.post('/api/doctor-chat', async (req, res) => {
       return res.status(400).json({ message: 'Message is required' });
     }
 
+    // Try delegating to the python agent_server on port 8000
+    try {
+      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/doctor-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message, history })
+      });
+      if (agentResponse.ok) {
+        const agentData = (await agentResponse.json()) as { reply: string; action?: any };
+        console.log('Response from Python DoctorAgent received successfully.');
+        return res.json({ reply: agentData.reply, action: agentData.action });
+      } else {
+        console.warn('Python agent server returned non-ok status, falling back to direct Gemini call.');
+      }
+    } catch (err) {
+      console.warn('Python agent server is unreachable, falling back to direct Gemini call:', err);
+    }
+
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
     }
@@ -808,9 +851,303 @@ Guidelines:
 
     const resData = await response.json();
     const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-    res.json({ reply: replyText });
+
+    // --- Extract navigation action from the user's message (fallback action extraction) ---
+    let action: any = undefined;
+    const msgLower = message.toLowerCase();
+
+    // Check for patient profile navigation intent
+    const patientNavPatterns = [
+      /(?:open|show|go\s+to|view|navigate\s+to)\s+(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?(.+?)(?:'s)?\s*(?:profile|page|record)?$/i,
+      /(?:open|show|go\s+to|view)\s+(.+?)(?:'s)?\s*(?:profile|page)?$/i,
+    ];
+
+    let extractedName: string | null = null;
+    for (const pattern of patientNavPatterns) {
+      const match = message.match(pattern);
+      if (match && match[1]) {
+        extractedName = match[1].trim();
+        break;
+      }
+    }
+
+    if (extractedName && profiles) {
+      const searchLower = extractedName.toLowerCase();
+      const searchWords = searchLower.split(/\s+/).filter((w: string) => w.length > 1);
+      const patients = (profiles as any[]).filter((p: any) => p.role === 'patient');
+      
+      let bestMatch: any = null;
+      let bestScore = 0;
+
+      for (const p of patients) {
+        const fullName = (p.full_name || '').toLowerCase();
+        const nameWords = fullName.split(/\s+/);
+        let score = 0;
+
+        if (fullName === searchLower) { score += 20; }
+        else if (fullName.includes(searchLower)) { score += 10; }
+
+        for (const sw of searchWords) {
+          if (nameWords.some((nw: string) => nw === sw)) score += 5;
+          else if (nameWords.some((nw: string) => nw.startsWith(sw))) score += 3;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = p;
+        }
+      }
+
+      if (bestMatch && bestScore >= 3) {
+        action = { type: 'navigate', route: 'patient-profile', patientId: bestMatch.id };
+        console.log(`[Fallback] Resolved patient '${extractedName}' → ${bestMatch.full_name} (${bestMatch.id})`);
+      }
+    }
+
+    // Check for simple page navigation intent
+    if (!action) {
+      const routeMap: Record<string, string> = {
+        'dashboard': 'dashboard',
+        'home': 'dashboard',
+        'main page': 'dashboard',
+        'prescriptions': 'prescriptions',
+        'prescription writer': 'prescriptions',
+        'schedule': 'schedule',
+        'calendar': 'schedule',
+        'appointments': 'schedule',
+        'patients': 'patients',
+        'patients list': 'patients',
+        'patients directory': 'patients',
+        'pharmacy': 'pharmacy',
+        'stock': 'pharmacy',
+      };
+
+      const navPrefixes = ['go to', 'navigate to', 'open', 'show', 'take me to'];
+      for (const prefix of navPrefixes) {
+        if (msgLower.includes(prefix)) {
+          const afterPrefix = msgLower.split(prefix).pop()?.trim() || '';
+          for (const [keyword, route] of Object.entries(routeMap)) {
+            if (afterPrefix.includes(keyword)) {
+              action = { type: 'navigate', route };
+              break;
+            }
+          }
+          if (action) break;
+        }
+      }
+
+      // Also check if message itself is just the page name
+      if (!action) {
+        for (const [keyword, route] of Object.entries(routeMap)) {
+          if (msgLower === keyword || msgLower === `go to ${keyword}`) {
+            action = { type: 'navigate', route };
+            break;
+          }
+        }
+      }
+
+      // Check for appointment booking intent
+      if (!action && (msgLower.includes('new appointment') || msgLower.includes('book appointment') || msgLower.includes('create appointment'))) {
+        action = { type: 'navigate', route: 'new-appointment' };
+      }
+    }
+
+    res.json({ reply: replyText, action });
   } catch (err: any) {
     console.error('Chat error:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/pharmacist-chat
+app.post('/api/pharmacist-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+
+    // Try delegating to the python agent_server on port 8000
+    try {
+      const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/pharmacist-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message, history })
+      });
+      if (agentResponse.ok) {
+        const agentData = (await agentResponse.json()) as { reply: string; action?: any };
+        console.log('Response from Python PharmacistAgent received successfully.');
+        return res.json({ reply: agentData.reply, action: agentData.action });
+      } else {
+        console.warn('Python agent server (pharmacist) returned non-ok status, falling back to direct Gemini call.');
+      }
+    } catch (err) {
+      console.warn('Python agent server (pharmacist) is unreachable, falling back to direct Gemini call:', err);
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ message: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    // Fallback: fetch pharmacy context and use Gemini directly
+    const { data: inventory } = await supabase
+      .from('medicine_inventory')
+      .select('*');
+
+    const { data: prescriptions } = await supabase
+      .from('prescriptions')
+      .select('*')
+      .in('status', ['pushed_to_pharma', 'alternative_requested', 'pending_check']);
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role');
+
+    // Format inventory
+    const inventoryStr = (inventory || []).map(item => {
+      const status = item.current_stock <= item.reorder_threshold ? 'LOW STOCK' : 'OK';
+      return `- ${item.medicine_name}: ${item.current_stock} units (reorder at ${item.reorder_threshold}) [${status}]`;
+    }).join('\n');
+
+    // Format pending prescriptions
+    const rxStr = (prescriptions || []).map(rx => {
+      const patient = (profiles || []).find(p => p.id === rx.patient_id);
+      const patientName = patient ? patient.full_name : 'Unknown Patient';
+      return `- [${rx.status}] Patient: ${patientName}, ID: ${rx.id}`;
+    }).join('\n');
+
+    const systemInstruction = `You are the AI pharmacy assistant for the hospital pharmacy panel.
+You help the pharmacist manage inventory, fulfill prescription orders, restock medicines, and handle stock alerts.
+You speak like a friendly, efficient colleague — brief and action-oriented.
+
+Current Medicine Inventory:
+${inventoryStr || 'No inventory data available.'}
+
+Pending Prescription Orders:
+${rxStr || 'No pending prescriptions.'}
+
+Guidelines:
+1. Be concise, friendly, and practical.
+2. When asked about stock, summarize the key points (especially low-stock items).
+3. When asked to fulfill or restock, confirm the action clearly.
+4. No markdown tables or long dumps unless the user explicitly requests them.`;
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    
+    const contents = (history || []).map((h: any) => ({
+      role: h.role === 'model' ? 'model' : 'user',
+      parts: [{ text: h.text }]
+    }));
+    
+    contents.push({
+      role: 'user',
+      parts: [{ text: message }]
+    });
+
+    const response = await globalThis.fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini error (pharmacist):', errorText);
+      return res.status(500).json({ message: `Gemini API returned error: ${response.status}` });
+    }
+
+    const resData = await response.json();
+    const replyText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+
+    // Extract navigation actions from message
+    let action: any = undefined;
+    const msgLower = message.toLowerCase();
+
+    const routeMap: Record<string, string> = {
+      'dashboard': 'dashboard',
+      'doctor portal': 'dashboard',
+      'doctor dashboard': 'dashboard',
+      'prescriptions': 'prescriptions',
+      'patients': 'patients',
+      'schedule': 'schedule',
+      'pharmacy': 'pharmacy',
+    };
+
+    const navPrefixes = ['go to', 'navigate to', 'open', 'show', 'switch to', 'take me to'];
+    for (const prefix of navPrefixes) {
+      if (msgLower.includes(prefix)) {
+        const afterPrefix = msgLower.split(prefix).pop()?.trim() || '';
+        for (const [keyword, route] of Object.entries(routeMap)) {
+          if (afterPrefix.includes(keyword)) {
+            action = { type: 'navigate', route };
+            break;
+          }
+        }
+        if (action) break;
+      }
+    }
+
+    res.json({ reply: replyText, action });
+  } catch (err: any) {
+    console.error('Pharmacist chat error:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/tts
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, voiceId = 'pNInz6obpgDQGcFmaJcg' } = req.body; // Default Adam voice
+    if (!text) {
+      return res.status(400).json({ message: 'Text is required' });
+    }
+
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(500).json({ message: 'ELEVENLABS_API_KEY is not configured' });
+    }
+
+    const response = await globalThis.fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_turbo_v2_5', // Usually faster and better
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('ElevenLabs API error:', errText);
+      return res.status(response.status).json({ message: 'Error from ElevenLabs API' });
+    }
+
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked'
+    });
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('TTS error:', err);
     res.status(500).json({ message: err.message || 'Internal server error' });
   }
 });

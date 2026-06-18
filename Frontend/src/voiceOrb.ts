@@ -1,5 +1,5 @@
 import { Router } from './router';
-import { fetchProfiles, askDoctorAssistant } from './api';
+import { fetchProfiles, askDoctorAssistant, askPharmacistAssistant } from './api';
 import type { Profile } from './types';
 
 export class VoiceOrb {
@@ -34,6 +34,7 @@ export class VoiceOrb {
   private currentHue = 0;
   private timeScale = 1.0;
   private uniforms: any = {};
+  private silenceTimeoutId: any = null;
 
   constructor(router: Router) {
     this.router = router;
@@ -85,6 +86,44 @@ export class VoiceOrb {
       return;
     }
 
+    // Bind user gesture event listeners to start background wake-word listening
+    const startOnGesture = () => {
+      console.log('User gesture detected, starting background speech recognition...');
+      this.startBackgroundListening();
+      window.removeEventListener('click', startOnGesture, { capture: true });
+      window.removeEventListener('keydown', startOnGesture, { capture: true });
+    };
+    window.addEventListener('click', startOnGesture, { capture: true });
+    window.addEventListener('keydown', startOnGesture, { capture: true });
+  }
+
+  private resetSilenceTimeout() {
+    this.clearSilenceTimeout();
+    this.silenceTimeoutId = setTimeout(() => {
+      if (this.isListening && !this.isProcessing) {
+        this.stopActiveListening();
+      }
+    }, 6000); // 6 seconds timeout
+  }
+
+  private clearSilenceTimeout() {
+    if (this.silenceTimeoutId) {
+      clearTimeout(this.silenceTimeoutId);
+      this.silenceTimeoutId = null;
+    }
+  }
+
+  private startBackgroundListening() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch (e) {}
+    }
+
+    this.isBackgroundListening = true;
     try {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = true;
@@ -92,10 +131,12 @@ export class VoiceOrb {
       this.recognition.lang = 'en-US';
 
       this.recognition.onstart = () => {
-        console.log('Speech recognition started');
+        console.log('Background speech recognition (wake-word) started');
       };
 
       this.recognition.onresult = (event: any) => {
+        if (this.isListening || this.isProcessing) return; // Ignore if in active state
+
         let interimTranscript = '';
         let finalTranscript = '';
 
@@ -108,109 +149,119 @@ export class VoiceOrb {
         }
 
         const spoken = (finalTranscript || interimTranscript).trim().toLowerCase();
-        
-        if (!this.isListening) {
-          // Listen for wake word in idle state
-          if (spoken.includes(this.wakeWord) || spoken.includes('hey mash') || spoken.includes('hey m.a.s.h') || spoken.includes('hey mesh') || spoken.includes('hey max')) {
-            this.startActiveListening();
-          }
-        } else {
-          // Capturing active command
-          const textToShow = interimTranscript || finalTranscript;
-          this.updateTranscript(textToShow);
-          
-          if (finalTranscript) {
-            this.processCommand(finalTranscript);
-          }
+        console.log('Background heard:', spoken);
+
+        if (spoken.includes(this.wakeWord) || spoken.includes('hey mash') || spoken.includes('hey m.a.s.h') || spoken.includes('hey mesh') || spoken.includes('hey max')) {
+          this.startActiveListening();
         }
       };
 
       this.recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') return;
+        console.error('Background speech recognition error:', event.error);
         if (event.error === 'not-allowed') {
           this.isBackgroundListening = false;
         }
       };
 
       this.recognition.onend = () => {
-        // Restart background listening if not actively listening/processing
+        console.log('Background speech recognition ended');
         if (this.isBackgroundListening && !this.isListening && !this.isProcessing) {
-          try {
-            this.recognition.start();
-          } catch (e) {
-            // Already started
-          }
+          // Restart background listening
+          setTimeout(() => {
+            if (this.isBackgroundListening && !this.isListening && !this.isProcessing) {
+              try {
+                this.recognition.start();
+              } catch (e) {}
+            }
+          }, 300);
         }
       };
 
-      this.startBackgroundListening();
-    } catch (e) {
-      console.error('Failed to initialize Speech Recognition:', e);
-    }
-  }
-
-  private startBackgroundListening() {
-    if (!this.recognition) return;
-    this.isBackgroundListening = true;
-    try {
       this.recognition.start();
     } catch (e) {
-      // Already running
+      console.error('Failed to start background speech recognition:', e);
     }
   }
 
   private startActiveListening() {
     if (this.isListening || this.isProcessing) return;
-    
+
     this.isListening = true;
     this.setState('listening');
     this.updateTranscript('...');
     this.hideTextBubble();
+    this.resetSilenceTimeout();
 
+    // 1. Temporarily stop background listening (turn off wake word detection)
+    this.isBackgroundListening = false;
     if (this.recognition) {
       try {
         this.recognition.stop();
       } catch (e) {}
+      this.recognition = null;
+    }
 
-      // Reconfigure for single-shot command
-      this.recognition.continuous = false;
-      this.recognition.interimResults = true;
-
-      this.recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-
-        const text = finalTranscript || interimTranscript;
-        this.updateTranscript(text);
-
-        if (finalTranscript) {
-          this.processCommand(finalTranscript);
-        }
-      };
-
-      this.recognition.onend = () => {
-        // If we finished without processing a final result, reset to idle
-        if (this.isListening && !this.isProcessing) {
-          this.stopActiveListening();
-        }
-      };
-
+    // 2. Start a fresh active recognition instance with continuous = false
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
       try {
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = false; // Stop automatically when the user pauses speaking
+        this.recognition.interimResults = true;
+        this.recognition.lang = 'en-US';
+
+        this.recognition.onstart = () => {
+          console.log('Active speech recognition started');
+        };
+
+        this.recognition.onresult = (event: any) => {
+          this.resetSilenceTimeout();
+          let interimTranscript = '';
+          let finalTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+
+          const textToShow = interimTranscript || finalTranscript;
+          console.log('Active transcript:', textToShow);
+          this.updateTranscript(textToShow);
+
+          if (finalTranscript) {
+            this.clearSilenceTimeout(); // Stop timeout during processing
+            this.processCommand(finalTranscript);
+          }
+        };
+
+        this.recognition.onerror = (event: any) => {
+          if (event.error === 'no-speech') {
+            console.log('Active recognition ended with no speech');
+            this.stopActiveListening();
+            return;
+          }
+          console.error('Active speech recognition error:', event.error);
+          this.stopActiveListening();
+        };
+
+        this.recognition.onend = () => {
+          console.log('Active speech recognition ended');
+          // If we stopped active listening but are not processing, restart background listening
+          if (!this.isListening && !this.isProcessing) {
+            this.startBackgroundListening();
+          }
+        };
+
         this.recognition.start();
       } catch (e) {
-        console.error('Failed to start single shot recognition:', e);
+        console.error('Failed to start active speech recognition:', e);
         this.showTextBubble();
       }
     } else {
-      // No speech API support, show text command input bubble
       this.showTextBubble();
     }
   }
@@ -219,13 +270,16 @@ export class VoiceOrb {
     this.isListening = false;
     this.setState('idle');
     this.hideTextBubble();
-    
-    // Restart background listening
+    this.clearSilenceTimeout();
+
     if (this.recognition) {
-      this.recognition.onresult = null;
-      this.recognition.onend = null;
-      this.initSpeechRecognition(); // re-init continuous
+      try {
+        this.recognition.stop();
+      } catch (e) {}
+      this.recognition = null;
     }
+
+    this.startBackgroundListening();
   }
 
   private setState(state: 'idle' | 'listening' | 'processing' | 'confirmed') {
@@ -241,7 +295,7 @@ export class VoiceOrb {
     }
   }
 
-  private showConfirmation(text: string) {
+  private async showConfirmation(text: string) {
     if (!this.confirmBubble) return;
     const confirmTextEl = this.confirmBubble.querySelector('.confirmed-text');
     if (confirmTextEl) {
@@ -249,19 +303,29 @@ export class VoiceOrb {
     }
     
     // Trigger speaking TTS
-    this.speak(text);
+    await this.speak(text);
   }
 
-  private speak(text: string) {
+  private async speak(text: string) {
     if (!this.ttsEnabled) return;
     try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
+      const { synthesizeSpeech } = await import('./api');
+      const arrayBuffer = await synthesizeSpeech(text);
+      
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      
+      await new Promise((resolve) => {
+        audio.onended = resolve;
+        audio.onerror = resolve;
+        audio.play().catch(resolve);
+      });
+      
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.warn('Speech synthesis failed:', e);
+      await new Promise(resolve => setTimeout(resolve, Math.max(2000, text.length * 60)));
     }
   }
 
@@ -298,6 +362,8 @@ export class VoiceOrb {
       chips = ['Send to Pharmacy', 'Go to Dashboard', 'Go to Patients'];
     } else if (route === 'patient-profile') {
       chips = ['Book Appointment', 'Go to Dashboard', 'Go to Prescriptions'];
+    } else if (route === 'pharmacy') {
+      chips = ['Check Inventory', 'Pending Orders', 'Switch to Doctor Portal'];
     } else {
       chips = ['Go to Dashboard', 'Go to Patients', 'Go to Prescriptions'];
     }
@@ -305,6 +371,9 @@ export class VoiceOrb {
     this.suggestionChips.innerHTML = chips.map(chip => {
       let cmd = chip.toLowerCase();
       if (chip === 'Book Appointment' || chip === 'New Appointment') cmd = 'new appointment';
+      if (chip === 'Check Inventory') cmd = 'what medicines are low on stock';
+      if (chip === 'Pending Orders') cmd = 'show pending prescriptions';
+      if (chip === 'Switch to Doctor Portal') cmd = 'switch to doctor portal';
       return `<button class="mash-chip" data-cmd="${cmd}">${chip}</button>`;
     }).join('');
 
@@ -372,6 +441,28 @@ export class VoiceOrb {
         e.stopPropagation();
       });
     }
+
+    // Global Spacebar activation
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        // Ignore if user is typing in an input, textarea, or contenteditable element
+        const activeEl = document.activeElement;
+        if (activeEl && (
+          activeEl.tagName === 'INPUT' || 
+          activeEl.tagName === 'TEXTAREA' || 
+          activeEl.hasAttribute('contenteditable')
+        )) {
+          return;
+        }
+
+        e.preventDefault();
+        if (this.isListening) {
+          this.stopActiveListening();
+        } else {
+          this.startActiveListening();
+        }
+      }
+    });
   }
 
   private async processCommand(command: string) {
@@ -386,184 +477,314 @@ export class VoiceOrb {
     // Add a tiny artificial delay to show processing state and feel realistic
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Match routing / actions
     let actionExecuted = false;
-    let confirmMessage = "I couldn't match that command. Try 'go to prescriptions' or 'new appointment'.";
+    let confirmMessage = "";
+    let action: any = null;
 
-    // 1. ROUTING COMMANDS
-    if (cleanCmd.includes('dashboard') || cleanCmd.includes('home') || cleanCmd.includes('main page')) {
-      confirmMessage = 'Navigating to Dashboard';
-      this.router.navigate('dashboard');
-      actionExecuted = true;
-    } else if (cleanCmd.includes('prescriptions') || cleanCmd.includes('prescription writer') || cleanCmd.includes('medication')) {
-      confirmMessage = 'Navigating to Prescription Writer';
-      this.router.navigate('prescriptions');
-      actionExecuted = true;
-    } else if (cleanCmd.includes('schedule') || cleanCmd.includes('calendar') || cleanCmd.includes('appointments')) {
-      confirmMessage = 'Navigating to Schedule';
-      this.router.navigate('schedule');
-      actionExecuted = true;
-    } else if (cleanCmd.includes('patients list') || cleanCmd.includes('patients directory') || (cleanCmd.includes('patients') && !cleanCmd.includes('profile'))) {
-      confirmMessage = 'Navigating to Patients Directory';
-      this.router.navigate('patients');
-      actionExecuted = true;
-    } else if (cleanCmd.includes('pharmacy') || cleanCmd.includes('stock')) {
-      confirmMessage = 'Navigating to Pharmacy Portal';
-      this.router.navigate('pharmacy');
-      actionExecuted = true;
-    } else if (cleanCmd.includes('patient') && (cleanCmd.includes('profile') || cleanCmd.includes('go to') || cleanCmd.includes('open') || cleanCmd.includes('show'))) {
-      // Find patient profile by name
-      const patientName = this.extractPatientName(cleanCmd);
-      if (patientName) {
-        const patient = this.findCachedPatientByName(patientName);
-        if (patient) {
-          confirmMessage = `Opening profile for ${patient.full_name}`;
-          this.router.navigate('patient-profile', { patientId: patient.id });
+    // 1. First, send the voice command to the correct Python Agent based on current route
+    try {
+      const askAgent = this.currentRoute === 'pharmacy' ? askPharmacistAssistant : askDoctorAssistant;
+      const response = await askAgent(command, this.chatHistory);
+      confirmMessage = response.reply;
+      action = response.action;
+
+      if (action) {
+        if (action.type === 'navigate' && action.route) {
+          if (action.route === 'patient-profile' && action.patientId) {
+            this.router.navigate('patient-profile', { patientId: action.patientId });
+            actionExecuted = true;
+          } else if (action.route === 'new-appointment') {
+            const openBtn = document.getElementById('open-appointment-btn') || document.getElementById('book-appointment-action') || document.getElementById('book-appt-floating');
+            if (openBtn) {
+              this.flashElement(openBtn as HTMLElement);
+              openBtn.click();
+              actionExecuted = true;
+            } else {
+              // fallback: navigate to dashboard first, then click
+              await this.router.navigate('dashboard');
+              await new Promise(r => setTimeout(r, 600));
+              const dashboardBtn = document.getElementById('open-appointment-btn');
+              if (dashboardBtn) {
+                this.flashElement(dashboardBtn);
+                dashboardBtn.click();
+              }
+              actionExecuted = true;
+            }
+          } else {
+            this.router.navigate(action.route);
+            actionExecuted = true;
+          }
+        } else if (action.type === 'resolve_shortage' && action.patientId) {
+          let btnToClick = document.querySelector(`.btn-resolve-alert[data-patient-id="${action.patientId}"]`) as HTMLElement;
+          if (!btnToClick && this.currentRoute !== 'dashboard') {
+            // If we are not on dashboard, navigate to dashboard first
+            await this.router.navigate('dashboard');
+            await new Promise(r => setTimeout(r, 600));
+            btnToClick = document.querySelector(`.btn-resolve-alert[data-patient-id="${action.patientId}"]`) as HTMLElement;
+          }
+          if (!btnToClick) {
+            btnToClick = document.querySelector('.btn-resolve-alert') as HTMLElement; // fallback to first resolve button
+          }
+          if (btnToClick) {
+            this.flashElement(btnToClick);
+            btnToClick.click();
+            actionExecuted = true;
+          }
+        } else if (action.type === 'refresh_pharmacy') {
+          // Pharmacist agent requested a UI refresh after an action (fulfill, restock, etc.)
+          setTimeout(() => {
+            this.router.navigate('pharmacy');
+          }, 800);
+          actionExecuted = true;
+        }
+      }
+
+      this.chatHistory.push({ role: 'user', text: command });
+      this.chatHistory.push({ role: 'model', text: confirmMessage });
+      if (this.chatHistory.length > 30) {
+        this.chatHistory = this.chatHistory.slice(-30);
+      }
+
+      // If the agent successfully returned a reply, count it as handled
+      if (confirmMessage) {
+        actionExecuted = true;
+        
+        // Auto-refresh the current view if we mutated appointments or prescriptions
+        const lowerMsg = confirmMessage.toLowerCase();
+        if (lowerMsg.includes('booked') || lowerMsg.includes('scheduled') || lowerMsg.includes('rescheduled') || lowerMsg.includes('prescription')) {
+          setTimeout(() => {
+            this.router.navigate(this.currentRoute);
+          }, 800);
+        }
+      }
+    } catch (err) {
+      console.error('Agent query failed or was unreachable:', err);
+      // We will fall back to local routing logic below
+      confirmMessage = "";
+    }
+
+    // 2. LOCAL FALLBACK: If agent is offline, fails, or didn't execute an action, fall back to local parsing/routing
+    if (!actionExecuted) {
+      confirmMessage = "I couldn't match that command. Try 'go to prescriptions' or 'new appointment'.";
+
+      // 2.1 ROUTING COMMANDS
+      if (cleanCmd.includes('dashboard') || cleanCmd.includes('home') || cleanCmd.includes('main page')) {
+        confirmMessage = 'Navigating to Dashboard';
+        this.router.navigate('dashboard');
+        actionExecuted = true;
+      } else if (cleanCmd.includes('prescriptions') || cleanCmd.includes('prescription writer') || cleanCmd.includes('medication')) {
+        confirmMessage = 'Navigating to Prescription Writer';
+        this.router.navigate('prescriptions');
+        actionExecuted = true;
+      } else if (cleanCmd.includes('schedule') || cleanCmd.includes('calendar') || cleanCmd.includes('appointments')) {
+        confirmMessage = 'Navigating to Schedule';
+        this.router.navigate('schedule');
+        actionExecuted = true;
+      } else if (cleanCmd.includes('patients list') || cleanCmd.includes('patients directory') || (cleanCmd.includes('patients') && !cleanCmd.includes('profile'))) {
+        confirmMessage = 'Navigating to Patients Directory';
+        this.router.navigate('patients');
+        actionExecuted = true;
+      } else if (cleanCmd.includes('pharmacy') || cleanCmd.includes('stock')) {
+        confirmMessage = 'Navigating to Pharmacy Portal';
+        this.router.navigate('pharmacy');
+        actionExecuted = true;
+      } else if (cleanCmd.includes('patient') && (cleanCmd.includes('profile') || cleanCmd.includes('go to') || cleanCmd.includes('open') || cleanCmd.includes('show'))) {
+        // Find patient profile by name
+        const patientName = this.extractPatientName(cleanCmd);
+        if (patientName) {
+          const patient = this.findCachedPatientByName(patientName);
+          if (patient) {
+            confirmMessage = `Opening profile for ${patient.full_name}`;
+            this.router.navigate('patient-profile', { patientId: patient.id });
+            actionExecuted = true;
+          } else {
+            confirmMessage = `I couldn't find a patient named ${patientName}`;
+          }
+        } else {
+          confirmMessage = 'Please specify a patient name, for example: open patient Ayush.';
+        }
+      } 
+      // 2.2 DASHBOARD SHORTAGE ALERT RESOLUTION
+      else if (this.currentRoute === 'dashboard' && (cleanCmd.includes('provide alternative') || cleanCmd.includes('resolve shortage') || cleanCmd.includes('alternative for'))) {
+        const patientName = this.extractPatientName(cleanCmd);
+        let btnToClick: HTMLElement | null = null;
+
+        if (patientName) {
+          const patient = this.findCachedPatientByName(patientName);
+          if (patient) {
+            btnToClick = document.querySelector(`.btn-resolve-alert[data-patient-id="${patient.id}"]`);
+          }
+        } else {
+          // Click the first shortage alert resolve button
+          btnToClick = document.querySelector('.btn-resolve-alert');
+        }
+
+        if (btnToClick) {
+          confirmMessage = 'Resolving shortage alert...';
+          this.flashElement(btnToClick);
+          btnToClick.click();
           actionExecuted = true;
         } else {
-          confirmMessage = `I couldn't find a patient named ${patientName}`;
+          confirmMessage = 'No matching shortage alert found on the dashboard.';
         }
-      } else {
-        confirmMessage = 'Please specify a patient name, for example: open patient Ayush.';
       }
-    } 
-    // 2. DASHBOARD SHORTAGE ALERT RESOLUTION
-    else if (this.currentRoute === 'dashboard' && (cleanCmd.includes('provide alternative') || cleanCmd.includes('resolve shortage') || cleanCmd.includes('alternative for'))) {
-      const patientName = this.extractPatientName(cleanCmd);
-      let btnToClick: HTMLElement | null = null;
-
-      if (patientName) {
-        const patient = this.findCachedPatientByName(patientName);
-        if (patient) {
-          btnToClick = document.querySelector(`.btn-resolve-alert[data-patient-id="${patient.id}"]`);
-        }
-      } else {
-        // Click the first shortage alert resolve button
-        btnToClick = document.querySelector('.btn-resolve-alert');
-      }
-
-      if (btnToClick) {
-        confirmMessage = 'Resolving shortage alert...';
-        this.flashElement(btnToClick);
-        btnToClick.click();
-        actionExecuted = true;
-      } else {
-        confirmMessage = 'No matching shortage alert found on the dashboard.';
-      }
-    }
-    // 3. SEARCH ON CORRESPONDING PAGES
-    else if (cleanCmd.includes('search') || cleanCmd.includes('find')) {
-      const searchTerm = cleanCmd.replace('search for', '').replace('search', '').replace('find', '').trim();
-      if (searchTerm) {
-        // Check if on Patients list page
-        if (this.currentRoute === 'patients') {
-          const searchInput = document.getElementById('patient-search-input') as HTMLInputElement;
-          if (searchInput) {
-            confirmMessage = `Searching patients for '${searchTerm}'`;
-            searchInput.value = searchTerm;
-            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            this.flashElement(searchInput);
-            actionExecuted = true;
-          }
-        } 
-        // Check if on Pharmacy page
-        else if (this.currentRoute === 'pharmacy') {
-          const searchInput = document.getElementById('pharmacy-search-input') as HTMLInputElement;
-          if (searchInput) {
-            confirmMessage = `Searching medicine inventory for '${searchTerm}'`;
-            searchInput.value = searchTerm;
-            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            this.flashElement(searchInput);
-            actionExecuted = true;
+      // 2.3 SEARCH ON CORRESPONDING PAGES
+      else if (cleanCmd.includes('search') || cleanCmd.includes('find')) {
+        const searchTerm = cleanCmd.replace('search for', '').replace('search', '').replace('find', '').trim();
+        if (searchTerm) {
+          // Check if on Patients list page
+          if (this.currentRoute === 'patients') {
+            const searchInput = document.getElementById('patient-search-input') as HTMLInputElement;
+            if (searchInput) {
+              confirmMessage = `Searching patients for '${searchTerm}'`;
+              searchInput.value = searchTerm;
+              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              this.flashElement(searchInput);
+              actionExecuted = true;
+            }
+          } 
+          // Check if on Pharmacy page
+          else if (this.currentRoute === 'pharmacy') {
+            const searchInput = document.getElementById('pharmacy-search-input') as HTMLInputElement;
+            if (searchInput) {
+              confirmMessage = `Searching medicine inventory for '${searchTerm}'`;
+              searchInput.value = searchTerm;
+              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              this.flashElement(searchInput);
+              actionExecuted = true;
+            }
           }
         }
       }
-    }
-    // 4. PAGE DYNAMIC CONTEXT CLICK
-    if (!actionExecuted) {
-      // General DOM scanning matching
-      const targetEl = this.scanInteractiveElements(cleanCmd);
-      if (targetEl) {
-        const text = targetEl.innerText || targetEl.getAttribute('aria-label') || targetEl.id || 'button';
-        confirmMessage = `Clicking '${text.trim().substring(0, 20)}'`;
-        this.flashElement(targetEl);
-        targetEl.click();
-        actionExecuted = true;
-      }
-    }
-
-    // 5. ACTION SPECIFIC FALLBACKS
-    if (!actionExecuted && (cleanCmd.includes('new appointment') || cleanCmd.includes('create appointment') || cleanCmd.includes('book appointment'))) {
-      // If we are on dashboard or profile, click button, else navigate to dashboard first
-      const openBtn = document.getElementById('open-appointment-btn') || document.getElementById('book-appointment-action') || document.getElementById('book-appt-floating');
-      if (openBtn) {
-        confirmMessage = 'Opening appointment scheduler';
-        this.flashElement(openBtn as HTMLElement);
-        openBtn.click();
-        actionExecuted = true;
-      } else {
-        confirmMessage = 'Navigating to Dashboard to open appointment scheduler';
-        await this.router.navigate('dashboard');
-        await new Promise(r => setTimeout(r, 600)); // Wait for render
-        const dashboardBtn = document.getElementById('open-appointment-btn');
-        if (dashboardBtn) {
-          this.flashElement(dashboardBtn);
-          dashboardBtn.click();
+      
+      // 2.4 PAGE DYNAMIC CONTEXT CLICK
+      if (!actionExecuted) {
+        const targetEl = this.scanInteractiveElements(cleanCmd);
+        if (targetEl) {
+          const text = targetEl.innerText || targetEl.getAttribute('aria-label') || targetEl.id || 'button';
+          confirmMessage = `Clicking '${text.trim().substring(0, 20)}'`;
+          this.flashElement(targetEl);
+          targetEl.click();
+          actionExecuted = true;
         }
-        actionExecuted = true;
       }
-    }
 
-    if (!actionExecuted) {
-      try {
-        confirmMessage = await askDoctorAssistant(command, this.chatHistory);
-        this.chatHistory.push({ role: 'user', text: command });
-        this.chatHistory.push({ role: 'model', text: confirmMessage });
-        if (this.chatHistory.length > 30) {
-          this.chatHistory = this.chatHistory.slice(-30);
+      // 2.5 ACTION SPECIFIC FALLBACKS
+      if (!actionExecuted && (cleanCmd.includes('new appointment') || cleanCmd.includes('create appointment') || cleanCmd.includes('book appointment'))) {
+        const openBtn = document.getElementById('open-appointment-btn') || document.getElementById('book-appointment-action') || document.getElementById('book-appt-floating');
+        if (openBtn) {
+          confirmMessage = 'Opening appointment scheduler';
+          this.flashElement(openBtn as HTMLElement);
+          openBtn.click();
+          actionExecuted = true;
+        } else {
+          confirmMessage = 'Navigating to Dashboard to open appointment scheduler';
+          await this.router.navigate('dashboard');
+          await new Promise(r => setTimeout(r, 600)); // Wait for render
+          const dashboardBtn = document.getElementById('open-appointment-btn');
+          if (dashboardBtn) {
+            this.flashElement(dashboardBtn);
+            dashboardBtn.click();
+          }
+          actionExecuted = true;
         }
-      } catch (err) {
-        console.error('Doctor Assistant chatbot query failed:', err);
-        confirmMessage = "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
+      }
+      
+      // 2.6 If still not handled, try direct chat assistant fallback
+      if (!actionExecuted && confirmMessage.startsWith("I couldn't match")) {
+        try {
+          const askAgent = this.currentRoute === 'pharmacy' ? askPharmacistAssistant : askDoctorAssistant;
+          const response = await askAgent(command, this.chatHistory);
+          confirmMessage = response.reply;
+          this.chatHistory.push({ role: 'user', text: command });
+          this.chatHistory.push({ role: 'model', text: confirmMessage });
+          if (this.chatHistory.length > 30) {
+            this.chatHistory = this.chatHistory.slice(-30);
+          }
+        } catch (err) {
+          console.error('Assistant chatbot query failed:', err);
+          confirmMessage = this.currentRoute === 'pharmacy'
+            ? "I'm having trouble connecting to the pharmacy assistant. Try checking inventory or orders."
+            : "I'm having trouble connecting to the clinical assistant. Try checking inventory or appointments.";
+        }
       }
     }
 
     // Set state to confirmed and show bubble
     this.isProcessing = false;
     this.setState('confirmed');
-    this.showConfirmation(confirmMessage);
+    await this.showConfirmation(confirmMessage);
 
-    // Auto return to idle state after a dynamic duration based on message length
-    const displayTimeout = Math.max(4000, confirmMessage.length * 60);
-    setTimeout(() => {
-      if (!this.isListening && !this.isProcessing) {
-        this.setState('idle');
-        this.stopActiveListening();
-      }
-    }, displayTimeout);
+    if (!this.isListening && !this.isProcessing) {
+      this.setState('idle');
+      this.stopActiveListening();
+    }
   }
 
   private extractPatientName(cmd: string): string | null {
-    // Examples: "go to patient Ayush", "open Ayush", "show John Doe's profile", "provide alternative for Ayush"
-    let clean = cmd
-      .replace('go to patient', '')
-      .replace('go to', '')
-      .replace('open patient', '')
-      .replace('open', '')
-      .replace('show patient', '')
-      .replace('show', '')
-      .replace("s profile", '')
-      .replace('profile', '')
-      .replace('provide alternative for', '')
-      .replace('resolve shortage for', '')
-      .trim();
-    
-    return clean.length > 0 ? clean : null;
+    // Strip known command prefixes/suffixes to isolate the patient name
+    const prefixes = [
+      /^(?:go\s+to\s+)?(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?/i,
+      /^(?:open|show|view|navigate\s+to)\s+(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?/i,
+      /^(?:provide\s+alternative\s+for|resolve\s+shortage\s+for)\s+/i,
+    ];
+    const suffixes = [
+      /(?:'s)?\s*profile$/i,
+      /(?:'s)?\s*page$/i,
+      /(?:'s)?\s*record$/i,
+    ];
+
+    let clean = cmd.trim();
+    for (const prefix of prefixes) {
+      const stripped = clean.replace(prefix, '');
+      if (stripped !== clean && stripped.length > 0) {
+        clean = stripped;
+        break;
+      }
+    }
+    for (const suffix of suffixes) {
+      clean = clean.replace(suffix, '');
+    }
+    clean = clean.trim();
+    return clean.length > 1 ? clean : null;
   }
 
   private findCachedPatientByName(name: string): Profile | null {
     const search = name.toLowerCase().trim();
-    return this.profilesCache.find(p => p.full_name.toLowerCase().includes(search)) || null;
+    if (!search) return null;
+
+    // Tier 1: Exact full name match
+    const exact = this.profilesCache.find(p => p.full_name.toLowerCase() === search);
+    if (exact) return exact;
+
+    // Tier 2: Score-based matching — pick the best candidate
+    const searchWords = search.split(/\s+/).filter(w => w.length > 1);
+    let bestMatch: Profile | null = null;
+    let bestScore = 0;
+
+    for (const p of this.profilesCache) {
+      const fullName = p.full_name.toLowerCase();
+      const nameWords = fullName.split(/\s+/);
+      let score = 0;
+
+      // Full name contains search string
+      if (fullName.includes(search)) score += 10;
+
+      // Each search word that matches a name word (exact word match)
+      for (const sw of searchWords) {
+        if (nameWords.some(nw => nw === sw)) score += 5;
+        else if (nameWords.some(nw => nw.startsWith(sw))) score += 3;
+        else if (fullName.includes(sw)) score += 1;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = p;
+      }
+    }
+
+    // Require a minimum score to avoid false positives
+    return bestScore >= 3 ? bestMatch : null;
   }
 
   private scanInteractiveElements(cmd: string): HTMLElement | null {
