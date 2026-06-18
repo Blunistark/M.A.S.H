@@ -184,7 +184,7 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
             event=ChatEventRequest(
                 content=display_content,
                 message_type=msg_type,
-                metadata=payload
+                metadata=payload if isinstance(payload, dict) else ({"data": payload} if payload else {})
             ),
             request_options=DEFAULT_REQUEST_OPTIONS
         )
