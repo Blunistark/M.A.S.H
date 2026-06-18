@@ -1,6 +1,6 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
-import { 
+import {
   fetchProfiles,
   fetchProfileById,
   fetchMedicalRecords,
@@ -35,13 +35,13 @@ function getInitials(name: string): string {
 function calculateQuantity(frequency: string, duration: number): number {
   if (!frequency) return duration;
   const freqLower = frequency.toLowerCase();
-  
+
   let timesPerDay = 0;
   if (freqLower.includes('morning')) timesPerDay++;
   if (freqLower.includes('lunch')) timesPerDay++;
   if (freqLower.includes('evening')) timesPerDay++;
   if (freqLower.includes('night')) timesPerDay++;
-  
+
   if (timesPerDay === 0) {
     if (freqLower.includes('tid') || freqLower.includes('three times')) {
       timesPerDay = 3;
@@ -62,13 +62,13 @@ function calculateQuantity(frequency: string, duration: number): number {
 function calculateDurationFromQuantity(frequency: string, quantity: number): number {
   if (!frequency) return quantity;
   const freqLower = frequency.toLowerCase();
-  
+
   let timesPerDay = 0;
   if (freqLower.includes('morning')) timesPerDay++;
   if (freqLower.includes('lunch')) timesPerDay++;
   if (freqLower.includes('evening')) timesPerDay++;
   if (freqLower.includes('night')) timesPerDay++;
-  
+
   if (timesPerDay === 0) {
     if (freqLower.includes('tid') || freqLower.includes('three times')) {
       timesPerDay = 3;
@@ -87,33 +87,45 @@ function calculateDurationFromQuantity(frequency: string, quantity: number): num
 }
 
 export class PrescriptionsView implements View {
-  private currentPatientId: string = 'john-doe';
+  private currentPatientId: string = '550e8400-e29b-41d4-a716-446655440000';
   private inventory: any[] = [];
 
   public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
-    let patientId = params?.patientId || this.currentPatientId;
-
-    let patient: Profile;
+    let allProfiles: Profile[] = [];
     try {
-      patient = await fetchProfileById(patientId);
+      allProfiles = await fetchProfiles();
     } catch (err) {
-      try {
-        const profilesList = await fetchProfiles();
-        const firstPatient = profilesList.find(p => p.role === 'patient');
-        if (firstPatient) {
-          patientId = firstPatient.id;
-          patient = await fetchProfileById(patientId);
-        } else {
-          throw err;
-        }
-      } catch (fallbackErr) {
-        return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
-      }
+      console.error('Failed to fetch profiles:', err);
+    }
+    const patients = allProfiles.filter(p => p.role === 'patient');
+
+    if (patients.length === 0) {
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">no patients</h3>
+        </div>
+      `;
+    }
+
+    let patientId = params?.patientId || this.currentPatientId;
+    if (!patients.some(p => p.id === patientId)) {
+      patientId = patients[0].id;
     }
     this.currentPatientId = patientId;
 
     if (params?.forceReload) {
       delete rxState[patientId];
+    }
+
+    let patient: Profile;
+    try {
+      patient = await fetchProfileById(patientId);
+    } catch (err) {
+      return `
+        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
+          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">Patient not found.</h3>
+        </div>
+      `;
     }
 
     const allRecords = await fetchMedicalRecords();
@@ -130,10 +142,10 @@ export class PrescriptionsView implements View {
       const activeRxListFiltered = activeRxList.filter(p => p.patient_id === patientId && (p.status === 'active' || p.status === 'alternative_requested'));
       // Sort descending by created_at to get the latest one
       activeRxListFiltered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
+
       const latestRx = activeRxListFiltered[0];
       const activeItems = latestRx ? activeItemsList.filter(i => i.prescription_id === latestRx.id) : [];
-      
+
       rxState[patient.id] = activeItems.map(m => {
         const medInfo = this.inventory.find(inv => inv.id === m.medicine_id);
         const dosagePart = m.dosage.split(' - ')[0] || m.dosage;
@@ -167,7 +179,7 @@ export class PrescriptionsView implements View {
       const hasWarning = item.name.toLowerCase().includes('lisinopril');
       const warningIcon = hasWarning ? `<span class="rx-warning-tooltip" title="Patient has active condition/interaction check">ⓘ</span>` : '';
 
-      const rowStyle = isRemovedItem 
+      const rowStyle = isRemovedItem
         ? 'background-color: #fef2f2; color: #b91c1c; text-decoration: line-through;'
         : '';
 
@@ -414,7 +426,7 @@ export class PrescriptionsView implements View {
     if (form) {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
         const nameInput = container.querySelector('#rx-name') as HTMLInputElement;
         const dosageInput = container.querySelector('#rx-dosage') as HTMLInputElement;
         const freqInput = container.querySelector('#rx-frequency') as HTMLInputElement;
@@ -526,7 +538,7 @@ export class PrescriptionsView implements View {
             const cachedId = localStorage.getItem('medconnect_doctor_id');
             if (cachedId) activeDoctorId = cachedId;
           }
-        } catch (e) {}
+        } catch (e) { }
 
         try {
           // 1. Actually persist the prescription to Supabase via backend
