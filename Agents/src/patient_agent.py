@@ -341,3 +341,4 @@ class PatientManagementAgent:
         self.agent.on_event("BOOKING_FAILED", on_proxy_response)
         self.agent.on_event("RESCHEDULE_CONFIRMED", on_proxy_response)
         self.agent.on_event("RESCHEDULE_FAILED", on_proxy_response)
+        self.agent.on_event("NAVIGATION_DIRECTIONS", on_proxy_response)
