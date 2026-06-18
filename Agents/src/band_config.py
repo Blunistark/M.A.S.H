@@ -289,15 +289,39 @@ class BandSDK:
             "Pharmacist-Dashboard-Room"
         ]
 
+        # Fetch existing chats from the platform to reuse them if needed
+        existing_rooms = []
+        try:
+            rooms_list_res = await client.agent_api_chats.list_agent_chats(page_size=100)
+            if rooms_list_res and hasattr(rooms_list_res, 'data') and rooms_list_res.data:
+                existing_rooms = rooms_list_res.data
+                print(f"[BandSDK] Found {len(existing_rooms)} existing rooms on the platform.")
+        except Exception as e:
+            print(f"[BandSDK] Warning: Could not list existing rooms: {e}")
+
+        # Get set of all currently mapped IDs
+        mapped_ids = set(ROOM_NAME_TO_ID.values())
+        # Find unused existing room IDs from the platform list
+        available_ids = [room.id for room in existing_rooms if room.id not in mapped_ids]
+
         updated_rooms_file = False
         for room_name in required_rooms:
             if room_name not in ROOM_NAME_TO_ID:
-                print(f"[BandSDK] Creating platform room for '{room_name}'...")
-                room_res = await client.agent_api_chats.create_agent_chat(chat=ChatRoomRequest(task_id=None))
-                rid = room_res.data.id
-                ROOM_NAME_TO_ID[room_name] = rid
-                ROOM_ID_TO_NAME[rid] = room_name
-                updated_rooms_file = True
+                if available_ids:
+                    # Reuse an existing room ID from the platform
+                    rid = available_ids.pop(0)
+                    print(f"[BandSDK] Reusing existing room ID {rid} for '{room_name}'...")
+                    ROOM_NAME_TO_ID[room_name] = rid
+                    ROOM_ID_TO_NAME[rid] = room_name
+                    updated_rooms_file = True
+                else:
+                    # Create a new one
+                    print(f"[BandSDK] Creating platform room for '{room_name}'...")
+                    room_res = await client.agent_api_chats.create_agent_chat(chat=ChatRoomRequest(task_id=None))
+                    rid = room_res.data.id
+                    ROOM_NAME_TO_ID[room_name] = rid
+                    ROOM_ID_TO_NAME[rid] = room_name
+                    updated_rooms_file = True
 
         if updated_rooms_file:
             with open(rooms_file, "w") as f:
