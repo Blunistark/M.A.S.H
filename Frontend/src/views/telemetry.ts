@@ -1,5 +1,7 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
+import { API_BASE } from '../api';
+import { supabase } from '../supabase';
 
 interface TelemetryEvent {
   id: string;
@@ -20,7 +22,6 @@ interface TelemetryRoom {
 export class TelemetryView implements View {
   private rooms: TelemetryRoom[] = [];
   private ws: WebSocket | null = null;
-  private container: HTMLElement | null = null;
   private eventCounter = 0;
 
   async render(_params?: any): Promise<string> {
@@ -155,11 +156,26 @@ export class TelemetryView implements View {
 
   private async fetchInitialState() {
     try {
-      const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:8000'
-        : 'https://m-a-s-h-backend.onrender.com';
-        
-      const res = await fetch(`${baseUrl}/api/telemetry/state`);
+      const baseUrl = API_BASE.replace(/\/api\/?$/, '');
+      
+      let doctorId = '';
+      let doctorName = '';
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          doctorId = user.id;
+          doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+        } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+          doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+          doctorId = 'mock-doctor-uuid-alex-smith';
+        }
+      } catch (e) { }
+
+      const urlParams = doctorId && doctorName 
+        ? `?doctorId=${encodeURIComponent(doctorId)}&doctorName=${encodeURIComponent(doctorName)}`
+        : '';
+
+      const res = await fetch(`${baseUrl}/api/telemetry/state${urlParams}`);
       if (res.ok) {
         this.rooms = await res.json();
         this.updateDashboardUI();
@@ -180,12 +196,28 @@ export class TelemetryView implements View {
     }
   }
 
-  private connectWebSocket() {
-    const wsBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'ws://localhost:8000'
-      : 'wss://m-a-s-h-backend.onrender.com';
+  private async connectWebSocket() {
+    const baseUrl = API_BASE.replace(/\/api\/?$/, '');
+    const wsBaseUrl = baseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 
-    this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream`);
+    let doctorId = '';
+    let doctorName = '';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        doctorId = user.id;
+        doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        doctorId = 'mock-doctor-uuid-alex-smith';
+      }
+    } catch (e) { }
+
+    const urlParams = doctorId && doctorName
+      ? `?doctorId=${encodeURIComponent(doctorId)}&doctorName=${encodeURIComponent(doctorName)}`
+      : '';
+
+    this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream${urlParams}`);
     
     this.ws.onmessage = (msg) => {
       try {
@@ -283,9 +315,7 @@ export class TelemetryView implements View {
     }
   }
 
-  onMount(container: HTMLElement, _router: Router): void {
-    this.container = container;
-    
+  onMount(_container: HTMLElement, _router: Router): void {
     // Add pulsing animation styles dynamically
     if (!document.getElementById('pulse-style')) {
       const style = document.createElement('style');

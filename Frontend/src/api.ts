@@ -9,7 +9,9 @@ import type {
   DashboardMetrics
 } from './types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { supabase } from './supabase';
+
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -160,12 +162,28 @@ export interface DoctorAssistantResponse {
 }
 
 export async function askDoctorAssistant(message: string, history: { role: 'user' | 'model'; text: string }[]): Promise<DoctorAssistantResponse> {
+  let doctorId = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd";
+  let doctorName = "Dr. Smith";
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      doctorId = user.id;
+      doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Dr. Smith';
+    } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+      doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+      doctorId = 'mock-doctor-uuid-alex-smith';
+    }
+  } catch (e) {
+    console.warn("Failed to resolve logged-in doctor, using defaults:", e);
+  }
+
   return fetchJson<DoctorAssistantResponse>(`${API_BASE}/doctor-chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ message, history })
+    body: JSON.stringify({ message, history, doctorId, doctorName })
   });
 }
 
