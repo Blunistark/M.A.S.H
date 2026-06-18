@@ -7,11 +7,12 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const crypto_1 = __importDefault(require("crypto"));
-const net_1 = __importDefault(require("net"));
+const ws_1 = require("ws");
 const supabase_1 = require("./config/supabase");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
+const AGENTS_URL = process.env.AGENTS_URL || (process.env.RENDER === 'true' ? 'https://m-a-s-h-agents.onrender.com' : 'http://127.0.0.1:8000');
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Routes
@@ -673,7 +674,7 @@ app.post('/api/doctor-chat', async (req, res) => {
         }
         // Try delegating to the python agent_server on port 8000
         try {
-            const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/doctor-chat', {
+            const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/doctor-chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -891,7 +892,7 @@ app.post('/api/pharmacist-chat', async (req, res) => {
         }
         // Try delegating to the python agent_server on port 8000
         try {
-            const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/pharmacist-chat', {
+            const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/pharmacist-chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1058,7 +1059,7 @@ app.post('/api/tts', async (req, res) => {
 // GET /api/telemetry/state
 app.get('/api/telemetry/state', async (req, res) => {
     try {
-        const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/telemetry/state');
+        const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/telemetry/state`);
         if (agentResponse.ok) {
             const data = await agentResponse.json();
             return res.json(data);
@@ -1076,32 +1077,42 @@ app.get('/api/telemetry/state', async (req, res) => {
 const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+const wss = new ws_1.WebSocketServer({ noServer: true });
+wss.on('connection', (clientWs, req) => {
+    const targetBaseUrl = AGENTS_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+    const targetWs = new ws_1.WebSocket(`${targetBaseUrl}/api/telemetry-stream`);
+    targetWs.on('open', () => {
+        clientWs.on('message', (message, isBinary) => {
+            if (targetWs.readyState === ws_1.WebSocket.OPEN) {
+                targetWs.send(message, { binary: isBinary });
+            }
+        });
+        targetWs.on('message', (message, isBinary) => {
+            if (clientWs.readyState === ws_1.WebSocket.OPEN) {
+                clientWs.send(message, { binary: isBinary });
+            }
+        });
+    });
+    clientWs.on('close', () => {
+        targetWs.close();
+    });
+    targetWs.on('close', () => {
+        clientWs.close();
+    });
+    clientWs.on('error', (err) => {
+        console.error('Client WS error:', err);
+        targetWs.close();
+    });
+    targetWs.on('error', (err) => {
+        console.error('Target WS error:', err);
+        clientWs.close();
+    });
+});
 // Proxy websocket connections to Python agents server
 server.on('upgrade', (req, socket, head) => {
     if (req.url && req.url.startsWith('/api/telemetry-stream')) {
-        const targetSocket = net_1.default.connect(8000, '127.0.0.1', () => {
-            // Send the handshake request to the target server
-            let rawRequest = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
-            for (const [key, value] of Object.entries(req.headers)) {
-                rawRequest += `${key}: ${value}\r\n`;
-            }
-            rawRequest += '\r\n';
-            targetSocket.write(rawRequest);
-            // If there is head data, write it to target
-            if (head && head.length > 0) {
-                targetSocket.write(head);
-            }
-            // Pipe client socket and target socket together
-            targetSocket.pipe(socket);
-            socket.pipe(targetSocket);
-        });
-        targetSocket.on('error', (err) => {
-            console.error('Target socket error:', err);
-            socket.end();
-        });
-        socket.on('error', (err) => {
-            console.error('Client socket error:', err);
-            targetSocket.end();
+        wss.handleUpgrade(req, socket, head, (ws) => {
+            wss.emit('connection', ws, req);
         });
     }
     else {
