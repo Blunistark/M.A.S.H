@@ -16,24 +16,37 @@ def get_headers() -> Dict[str, str]:
         "Authorization": f"Bearer {SUPABASE_ANON_KEY}" if SUPABASE_ANON_KEY else ""
     }
 
+def resolve_target_date(date_str: str = None) -> str:
+    from datetime import timedelta
+    # Offset UTC time to user's local timezone (+05:30)
+    local_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    
+    if not date_str:
+        return local_now.strftime("%Y-%m-%d")
+        
+    date_str = str(date_str).strip().lower()
+    if date_str in ("today", "today's", "now", "current"):
+        return local_now.strftime("%Y-%m-%d")
+    elif date_str in ("tomorrow", "tomorrow's", "tom"):
+        return (local_now + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif date_str in ("day after tomorrow", "day after tom"):
+        return (local_now + timedelta(days=2)).strftime("%Y-%m-%d")
+    elif date_str in ("yesterday", "yesterday's"):
+        return (local_now - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+    import re
+    match = re.search(r'\d{4}-\d{2}-\d{2}', date_str)
+    if match:
+        return match.group(0)
+        
+    return local_now.strftime("%Y-%m-%d")
+
 async def fetch_doctors_from_supabase(date_str: str = None) -> List[Dict[str, Any]]:
     """Fetch active doctors and their details from Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return []
     
-    if date_str:
-        date_str = str(date_str).strip().lower()
-        if date_str in ("today", "today's", "now", "current"):
-            target_date = datetime.utcnow().strftime("%Y-%m-%d")
-        else:
-            import re
-            match = re.search(r'\d{4}-\d{2}-\d{2}', date_str)
-            if match:
-                target_date = match.group(0)
-            else:
-                target_date = datetime.utcnow().strftime("%Y-%m-%d")
-    else:
-        target_date = datetime.utcnow().strftime("%Y-%m-%d")
+    target_date = resolve_target_date(date_str)
         
     url = f"{SUPABASE_URL}/rest/v1/doctor_details?select=doctor_id,specialty,room_number,is_available,profiles(full_name)"
     appts_url = f"{SUPABASE_URL}/rest/v1/appointments?select=doctor_id,scheduled_time&status=in.(scheduled,rescheduled,in_progress)&scheduled_time=gte.{target_date}T00:00:00Z&scheduled_time=lte.{target_date}T23:59:59Z"
@@ -172,7 +185,7 @@ async def save_patient_summary_to_supabase(patient_id: str, summary: str) -> boo
 class PatientNotFoundError(ValueError):
     pass
 
-async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> bool:
+async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> bool:
     """Book a new appointment in Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
@@ -205,8 +218,8 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
     
     # Format slot_time into a proper timestamp if it is just HH:MM
     if len(slot_time) == 5 and ":" in slot_time:
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
-        slot_time = f"{today_str}T{slot_time}:00Z"
+        target_date = resolve_target_date(date)
+        slot_time = f"{target_date}T{slot_time}:00Z"
     
     url = f"{SUPABASE_URL}/rest/v1/appointments"
     try:
@@ -224,7 +237,7 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
         print(f"[Supabase Tool Warning] Failed to book appointment: {e}")
     return False
 
-async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: str) -> bool:
+async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: str, date: str = None) -> bool:
     """Reschedule an existing appointment in Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
@@ -252,8 +265,8 @@ async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: s
         raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
         
     if len(new_slot_time) == 5 and ":" in new_slot_time:
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
-        new_slot_time = f"{today_str}T{new_slot_time}:00Z"
+        target_date = resolve_target_date(date)
+        new_slot_time = f"{target_date}T{new_slot_time}:00Z"
         
     url = f"{SUPABASE_URL}/rest/v1/appointments?patient_id=eq.{patient_id}"
     try:
@@ -270,17 +283,17 @@ async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: s
     return False
 
 @tool
-async def get_doctors() -> list:
-    """Fetch a list of available doctors and their schedules."""
-    db_docs = await fetch_doctors_from_supabase(date_str=None)
+async def get_doctors(date: str = None) -> list:
+    """Fetch a list of available doctors and their schedules. Pass the date in YYYY-MM-DD or relative format (e.g. 'tomorrow')."""
+    db_docs = await fetch_doctors_from_supabase(date_str=date)
     docs = db_docs if db_docs else []
     return docs
 
 @tool
-async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
-    """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), and the patient's name."""
+async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
+    """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), the patient's name, and optionally the date (YYYY-MM-DD or 'tomorrow')."""
     try:
-        success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+        success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
         if success:
             return f"Successfully booked appointment for {patient_name} at {slot_time}."
         return "Failed to book appointment. Please try again."
@@ -288,10 +301,10 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, re
         return str(e)
 
 @tool
-async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
-    """Reschedules an existing appointment for the patient. Pass the patient's name and the new time slot (e.g. 10:00)."""
+async def reschedule_appointment(patient_name: str, new_slot_time: str, date: str = None) -> str:
+    """Reschedules an existing appointment for the patient. Pass the patient's name, the new time slot (e.g. 10:00), and optionally the date."""
     try:
-        success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
+        success = await reschedule_appointment_in_supabase(patient_name, new_slot_time, date)
         if success:
             return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
         else:
@@ -330,20 +343,7 @@ async def fetch_doctor_schedule_from_supabase(doctor_id: str, date_str: str = No
     
     doctor_id = resolve_doctor_id(doctor_id)
     
-    # Clean up and parse the date string
-    if date_str:
-        date_str = str(date_str).strip().lower()
-        if date_str in ("today", "today's", "now", "current"):
-            target_date = datetime.utcnow().strftime("%Y-%m-%d")
-        else:
-            import re
-            match = re.search(r'\d{4}-\d{2}-\d{2}', date_str)
-            if match:
-                target_date = match.group(0)
-            else:
-                target_date = datetime.utcnow().strftime("%Y-%m-%d")
-    else:
-        target_date = datetime.utcnow().strftime("%Y-%m-%d")
+    target_date = resolve_target_date(date_str)
         
     start_time = f"{target_date}T00:00:00Z"
     end_time = f"{target_date}T23:59:59Z"

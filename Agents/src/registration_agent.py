@@ -41,10 +41,11 @@ class RegistrationAgent:
             patient_name = payload.get("patientName")
             doctor_id = payload.get("doctorId")
             slot_time = payload.get("slotTime")
+            date = payload.get("date")
             reason = payload.get("reason", "")
             
             try:
-                success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+                success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
                 if success:
                     msg = f"Successfully booked appointment for {patient_name} at {slot_time}."
                     PatientManagementRoom.broadcast("BOOKING_CONFIRMED", {
@@ -78,9 +79,10 @@ class RegistrationAgent:
             req_id = payload.get("requestId")
             patient_name = payload.get("patientName")
             new_slot_time = payload.get("newSlotTime")
+            date = payload.get("date")
             
             try:
-                success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
+                success = await reschedule_appointment_in_supabase(patient_name, new_slot_time, date)
                 if success:
                     msg = f"Successfully rescheduled appointment for {patient_name} to {new_slot_time}."
                     PatientManagementRoom.broadcast("RESCHEDULE_CONFIRMED", {"requestId": req_id, "message": msg})
@@ -101,8 +103,9 @@ class RegistrationAgent:
             from src.supabase_tools import resolve_doctor_id
             doctor_id = resolve_doctor_id(payload["doctorId"])
             slot = payload["slot"]
+            date = payload.get("date")
 
-            db_docs = await fetch_doctors_from_supabase()
+            db_docs = await fetch_doctors_from_supabase(date)
             docs = db_docs if db_docs else []
             doc = next((d for d in docs if d["id"] == doctor_id), None)
             is_available = slot in doc["availableSlots"] if doc else False

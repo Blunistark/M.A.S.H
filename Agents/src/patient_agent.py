@@ -29,8 +29,8 @@ async def get_doctors(date: str = None) -> list:
         return []
 
 @tool
-async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
-    """Book an appointment for a patient with a specific doctor at a given slot_time."""
+async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
+    """Book an appointment for a patient with a specific doctor at a given slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow')."""
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
@@ -41,6 +41,7 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, re
         "patientName": patient_name,
         "doctorId": doctor_id,
         "slotTime": slot_time,
+        "date": date,
         "reason": reason
     })
     try:
@@ -50,8 +51,8 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, re
         return "Failed to book appointment: Registration Agent timed out."
 
 @tool
-async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
-    """Reschedule an existing appointment to a new slot_time."""
+async def reschedule_appointment(patient_name: str, new_slot_time: str, date: str = None) -> str:
+    """Reschedule an existing appointment to a new slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow')."""
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
@@ -60,7 +61,8 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
     PatientManagementRoom.broadcast("RESCHEDULE_REQUESTED", {
         "requestId": req_id,
         "patientName": patient_name,
-        "newSlotTime": new_slot_time
+        "newSlotTime": new_slot_time,
+        "date": date
     })
     try:
         result = await asyncio.wait_for(future, timeout=10.0)

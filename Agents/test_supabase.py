@@ -19,8 +19,8 @@ async def test():
         print("Appointments in DB:")
         print(res.json())
 
-    doctors = await fetch_doctors_from_supabase()
-    print("\nDoctors availability parsed:")
+    doctors = await fetch_doctors_from_supabase("tomorrow")
+    print("\nDoctors availability parsed for TOMORROW:")
     import json
     print(json.dumps(doctors, indent=2))
 
