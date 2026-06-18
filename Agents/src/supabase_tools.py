@@ -156,6 +156,9 @@ async def save_patient_summary_to_supabase(patient_id: str, summary: str) -> boo
         print(f"[Supabase Tool Warning] Failed to save clinical summary: {e}")
     return False
 
+class PatientNotFoundError(ValueError):
+    pass
+
 async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> bool:
     """Book a new appointment in Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -164,19 +167,28 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
     doctor_id = resolve_doctor_id(doctor_id)
         
     # First, lookup patient_id by name (case insensitive)
-    patient_id = "550e8400-e29b-41d4-a716-446655440000" # Fallback to John Doe
+    patient_id = None
     try:
         async with httpx.AsyncClient() as client:
             # Only use first name for matching to be robust
-            search_name = patient_name.split()[0] if patient_name else "John"
+            search_name = patient_name.split()[0] if patient_name else ""
+            if not search_name:
+                raise PatientNotFoundError("Patient name cannot be empty.")
             res = await client.get(
                 f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
                 headers=get_headers()
             )
             if res.status_code == 200 and res.json():
                 patient_id = res.json()[0]["id"]
-    except Exception:
-        pass
+            else:
+                raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
+    except PatientNotFoundError:
+        raise
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Error resolving patient: {e}")
+        
+    if not patient_id:
+        raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
     
     # Format slot_time into a proper timestamp if it is just HH:MM
     if len(slot_time) == 5 and ":" in slot_time:
@@ -204,18 +216,27 @@ async def reschedule_appointment_in_supabase(patient_name: str, new_slot_time: s
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
         
-    patient_id = "550e8400-e29b-41d4-a716-446655440000"
+    patient_id = None
     try:
         async with httpx.AsyncClient() as client:
-            search_name = patient_name.split()[0] if patient_name else "John"
+            search_name = patient_name.split()[0] if patient_name else ""
+            if not search_name:
+                raise PatientNotFoundError("Patient name cannot be empty.")
             res = await client.get(
                 f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
                 headers=get_headers()
             )
             if res.status_code == 200 and res.json():
                 patient_id = res.json()[0]["id"]
-    except Exception:
-        pass
+            else:
+                raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
+    except PatientNotFoundError:
+        raise
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Error resolving patient: {e}")
+        
+    if not patient_id:
+        raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
         
     if len(new_slot_time) == 5 and ":" in new_slot_time:
         today_str = datetime.utcnow().strftime("%Y-%m-%d")
@@ -243,19 +264,25 @@ async def get_doctors() -> list:
 @tool
 async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, reason: str = "") -> str:
     """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), and the patient's name."""
-    success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
-    if success:
-        return f"Successfully booked appointment for {patient_name} at {slot_time}."
-    return "Failed to book appointment. Please try again."
+    try:
+        success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, reason)
+        if success:
+            return f"Successfully booked appointment for {patient_name} at {slot_time}."
+        return "Failed to book appointment. Please try again."
+    except PatientNotFoundError as e:
+        return str(e)
 
 @tool
 async def reschedule_appointment(patient_name: str, new_slot_time: str) -> str:
     """Reschedules an existing appointment for the patient. Pass the patient's name and the new time slot (e.g. 10:00)."""
-    success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
-    if success:
-        return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
-    else:
-        return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."
+    try:
+        success = await reschedule_appointment_in_supabase(patient_name, new_slot_time)
+        if success:
+            return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
+        else:
+            return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."
+    except PatientNotFoundError as e:
+        return str(e)
 
 def resolve_doctor_id(doctor_id_or_name: str) -> str:
     if not doctor_id_or_name:
