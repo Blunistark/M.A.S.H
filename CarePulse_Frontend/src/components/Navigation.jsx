@@ -65,7 +65,7 @@ export default function Navigation({ selectedDestination, setSelectedDestination
 
   const getIcon = (name) => {
     switch (name) {
-      case 'Pills': return <Pills size={18} />;
+      case 'Pills': return <Pill size={18} />;
       case 'Bed': return <Bed size={18} />;
       case 'Info': return <Info size={18} />;
       case 'ArrowRight': return <ArrowRight size={18} />;
