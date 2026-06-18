@@ -155,7 +155,7 @@ export class TelemetryView implements View {
   private async fetchInitialState() {
     try {
       const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:8000'
+        ? 'http://localhost:3000'
         : 'https://m-a-s-h-backend.onrender.com';
         
       const res = await fetch(`${baseUrl}/api/telemetry/state`);
@@ -181,7 +181,7 @@ export class TelemetryView implements View {
 
   private connectWebSocket() {
     const wsBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'ws://localhost:8000'
+      ? 'ws://localhost:3000'
       : 'wss://m-a-s-h-backend.onrender.com';
 
     this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream`);

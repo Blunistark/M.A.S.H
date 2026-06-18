@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import net from 'net';
 import { supabase } from './config/supabase';
 
 dotenv.config();
@@ -1173,7 +1174,59 @@ app.post('/api/tts', async (req, res) => {
   }
 });
 
+// GET /api/telemetry/state
+app.get('/api/telemetry/state', async (req, res) => {
+  try {
+    const agentResponse = await globalThis.fetch('http://127.0.0.1:8000/api/telemetry/state');
+    if (agentResponse.ok) {
+      const data = await agentResponse.json();
+      return res.json(data);
+    } else {
+      return res.status(agentResponse.status).json({ message: 'Error from agents server' });
+    }
+  } catch (err: any) {
+    console.error('Error fetching telemetry state from python server:', err);
+    return res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+});
+
+// Proxy websocket connections to Python agents server
+server.on('upgrade', (req, socket, head) => {
+  if (req.url && req.url.startsWith('/api/telemetry-stream')) {
+    const targetSocket = net.connect(8000, '127.0.0.1', () => {
+      // Send the handshake request to the target server
+      let rawRequest = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+      for (const [key, value] of Object.entries(req.headers)) {
+        rawRequest += `${key}: ${value}\r\n`;
+      }
+      rawRequest += '\r\n';
+      targetSocket.write(rawRequest);
+      
+      // If there is head data, write it to target
+      if (head && head.length > 0) {
+        targetSocket.write(head);
+      }
+      
+      // Pipe client socket and target socket together
+      targetSocket.pipe(socket);
+      socket.pipe(targetSocket);
+    });
+
+    targetSocket.on('error', (err) => {
+      console.error('Target socket error:', err);
+      socket.end();
+    });
+
+    socket.on('error', (err) => {
+      console.error('Client socket error:', err);
+      targetSocket.end();
+    });
+  } else {
+    socket.destroy();
+  }
 });
