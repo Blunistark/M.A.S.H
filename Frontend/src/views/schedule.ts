@@ -1,7 +1,7 @@
 import type { View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { supabase } from '../supabase';
-import { fetchAppointments, fetchProfiles, updateAppointment } from '../api';
+import { fetchAppointments, fetchProfiles, updateAppointment, getPatientPhotoUrl } from '../api';
 import type { Appointment, Profile } from '../types';
 
 export class ScheduleView implements View {
@@ -40,6 +40,21 @@ export class ScheduleView implements View {
     doctorAppointments.sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime());
     this.filteredAppointments = doctorAppointments;
 
+    // Resolve logged-in user's name dynamically
+    let loggedInName = 'Doctor';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        loggedInName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Doctor';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+      }
+    } catch (e) {
+      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+      }
+    }
+
     // 4. Calculate metrics
     const totalSessions = doctorAppointments.length;
     const pendingSessions = doctorAppointments.filter(a => a.status === 'scheduled').length;
@@ -66,8 +81,8 @@ export class ScheduleView implements View {
               <div class="badge-dot"></div>
             </button>
             <div class="user-quick-profile">
-              <span class="user-name">Dr. Smith</span>
-              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150" alt="Dr. Smith" class="user-avatar" id="schedule-header-avatar" />
+              <span class="user-name">${loggedInName}</span>
+              <img src="/src/assets/dr-profile.jpg" alt="${loggedInName}" class="user-avatar" id="schedule-header-avatar" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150'" />
             </div>
           </div>
         </div>
@@ -424,8 +439,9 @@ export class ScheduleView implements View {
         <tr class="schedule-row" data-patient-name="${patientName.toLowerCase()}" data-status="${appt.status}" data-date="${appt.scheduled_time}">
           <td>
             <div class="patient-cell">
-              <div class="patient-initials-avatar ${avatarClass}">
-                ${initials}
+              <div class="patient-initials-avatar ${avatarClass}" style="position: relative; overflow: hidden;">
+                <img src="${getPatientPhotoUrl(patientName)}" alt="${patientName}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
+                <span>${initials}</span>
               </div>
               <span class="patient-name-bold">${patientName}</span>
             </div>

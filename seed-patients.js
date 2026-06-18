@@ -17,6 +17,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
   const doctorId = '2b6b5666-287a-4ea7-8cf1-fc8f508c6e75'; // Dr. Gregory House
+  const today = new Date().toISOString().split('T')[0];
 
   const patients = [
     {
@@ -31,7 +32,7 @@ async function run() {
       address: '122 Mercer St, Princeton, NJ',
       photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
       vitals: { bp: '120/80', hr: '70 bpm', weight: '175 lbs' },
-      time: '2026-06-17T10:00:00.000Z',
+      time: `${today}T10:00:00.000Z`,
       status: 'scheduled'
     },
     {
@@ -46,7 +47,7 @@ async function run() {
       address: '45 Broad St, Princeton, NJ',
       photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
       vitals: { bp: '110/72', hr: '64 bpm', weight: '125 lbs' },
-      time: '2026-06-17T13:30:00.000Z',
+      time: `${today}T13:30:00.000Z`,
       status: 'scheduled'
     },
     {
@@ -61,7 +62,7 @@ async function run() {
       address: '742 Evergreen Terrace, Princeton, NJ',
       photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=300',
       vitals: { bp: '115/70', hr: '75 bpm', weight: '120 lbs' },
-      time: '2026-06-17T15:00:00.000Z',
+      time: `${today}T15:00:00.000Z`,
       status: 'scheduled'
     }
   ];

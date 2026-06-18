@@ -150,7 +150,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
@@ -267,4 +267,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Theme.colors.secondary,
   },
-});
+}));

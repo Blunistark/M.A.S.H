@@ -161,7 +161,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath, navigationActi
           <Text style={styles.legendText}>Corridors</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: Theme.colors.primary, borderRadius: 4 }]} />
+          <View style={[styles.legendColor, { backgroundColor: Theme.colors.secondary, borderRadius: 4 }]} />
           <Text style={styles.legendText}>Your Route</Text>
         </View>
       </View>
@@ -169,7 +169,7 @@ export const ClinicMap: React.FC<ClinicMapProps> = ({ activePath, navigationActi
   );
 };
 
-const styles = StyleSheet.create({
+const styles = Theme.createStyleSheet(() => ({
   container: {
     backgroundColor: Theme.colors.surface, // Clean white card surface background
     borderRadius: Theme.roundness.lg,
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   highlightedRoom: {
-    backgroundColor: 'rgba(255, 141, 161, 0.15)', // Translucent pink container highlight
-    borderColor: Theme.colors.primary, // Pink border
-    shadowColor: Theme.colors.primary,
+    backgroundColor: 'rgba(98, 250, 227, 0.15)', // Translucent cyan container highlight
+    borderColor: Theme.colors.secondary, // Medical teal border
+    shadowColor: Theme.colors.secondary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -322,4 +322,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.typography.fontFamilyMedium,
     color: Theme.colors.onSurfaceVariant,
   },
-});
+}));
