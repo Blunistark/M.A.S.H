@@ -2,7 +2,6 @@ import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import {
   fetchProfiles,
-  fetchProfiles,
   fetchProfileById,
   fetchMedicalRecords,
   fetchPrescriptions,
@@ -92,25 +91,6 @@ export class PrescriptionsView implements View {
   private inventory: any[] = [];
 
   public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
-    let patientId = params?.patientId || this.currentPatientId;
-
-    let patient: Profile;
-    try {
-      patient = await fetchProfileById(patientId);
-    } catch (err) {
-      try {
-        const profilesList = await fetchProfiles();
-        const firstPatient = profilesList.find(p => p.role === 'patient');
-        if (firstPatient) {
-          patientId = firstPatient.id;
-          patient = await fetchProfileById(patientId);
-        } else {
-          throw err;
-        }
-      } catch (fallbackErr) {
-        return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
-      }
-    }
     let allProfiles: Profile[] = [];
     try {
       allProfiles = await fetchProfiles();
