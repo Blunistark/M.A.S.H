@@ -85,7 +85,7 @@
   --navbar-bg: rgba(255, 255, 255, 0.8);
   --input-bg: #FFFFFF;
   --cream: #ffffff;
-  color-scheme: light;
+  color-scheme: only light;
 }
 
 
@@ -112,7 +112,7 @@
   --navbar-bg: rgba(255, 255, 255, 0.8);
   --input-bg: #FFFFFF;
   --cream: #0F172A;
-  color-scheme: light;
+  color-scheme: only light;
 }
 
 /* ─── Base ──────────────────────────────────────────────────── */
