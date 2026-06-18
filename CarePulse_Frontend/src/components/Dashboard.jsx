@@ -2,6 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Paperclip, Mic, Send, MessageSquare, Compass, User as UserIcon } from 'lucide-react';
 import VoiceOrb from './VoiceOrb';
 
+const TypewriterText = ({ text }) => {
+  const [displayedText, setDisplayedText] = useState('');
+
+  useEffect(() => {
+    setDisplayedText('');
+    let i = 0;
+    const timer = setInterval(() => {
+      setDisplayedText(text.slice(0, i + 1));
+      i++;
+      if (i >= text.length) clearInterval(timer);
+    }, 25);
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return <span>{displayedText}</span>;
+};
+
 const Dashboard = () => {
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState('home');
@@ -74,7 +91,7 @@ const Dashboard = () => {
     
     // Look for either [SLOTS: ...] or [DATES: ...]
     const match = text.match(/\[(SLOTS|DATES):\s*(.*?)\s*\]/);
-    if (!match) return text;
+    if (!match) return <TypewriterText text={text} />;
 
     const type = match[1];
     const cleanText = text.replace(/\[(SLOTS|DATES):\s*(.*?)\s*\]/, '');
@@ -82,7 +99,7 @@ const Dashboard = () => {
 
     return (
       <>
-        <div>{cleanText}</div>
+        <div><TypewriterText text={cleanText} /></div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
           {items.map(item => (
             <button 
