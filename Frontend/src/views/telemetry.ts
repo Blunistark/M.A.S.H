@@ -20,7 +20,6 @@ interface TelemetryRoom {
 export class TelemetryView implements View {
   private rooms: TelemetryRoom[] = [];
   private ws: WebSocket | null = null;
-  private container: HTMLElement | null = null;
   private eventCounter = 0;
 
   async render(_params?: any): Promise<string> {
@@ -283,8 +282,7 @@ export class TelemetryView implements View {
     }
   }
 
-  onMount(container: HTMLElement, _router: Router): void {
-    this.container = container;
+  onMount(_container: HTMLElement, _router: Router): void {
     
     // Add pulsing animation styles dynamically
     if (!document.getElementById('pulse-style')) {
