@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Paperclip, Mic, Send, MessageSquare, Compass, User as UserIcon } from 'lucide-react';
+import VoiceOrb from './VoiceOrb';
 
 const Dashboard = () => {
   const [message, setMessage] = useState('');
@@ -178,7 +179,7 @@ const Dashboard = () => {
             <div className="orb-container">
               <div className="orb-glow"></div>
               <div className="orb-glow"></div>
-              <div className="orb"></div>
+              <VoiceOrb onCommand={sendDirectMessage} className="orb" />
             </div>
 
             <div className="actions-section">
@@ -212,26 +213,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Input Section */}
-        <div className="input-section">
-          <div className="input-container">
-            <button className="attachment-btn">
-              <Paperclip size={20} />
-            </button>
-            <input 
-              type="text" 
-              className="message-input" 
-              placeholder="Message CarePulse..." 
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-            />
-            <button className="mic-btn" onClick={handleSendMessage} disabled={isLoading}>
-              {message.trim() ? <Send size={22} /> : <Mic size={22} />}
-            </button>
-          </div>
-        </div>
+        {/* Input Section Removed for purely Voice-Driven UI */}
       </main>
 
       {/* Mobile Bottom Nav */}
@@ -247,6 +229,7 @@ const Dashboard = () => {
           </button>
         ))}
       </nav>
+      {messages.length > 0 && <VoiceOrb onCommand={sendDirectMessage} />}
     </div>
   );
 };
