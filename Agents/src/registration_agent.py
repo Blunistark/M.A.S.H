@@ -22,9 +22,10 @@ class RegistrationAgent:
         async def query_doctors_node(state: RegistrationState) -> RegistrationState:
             payload = state["payload"]
             req_id = payload.get("requestId")
+            date = payload.get("date")
             
             Telemetry.track_event(self.agent.name, "FETCHING_DOCTOR_LIST", {})
-            db_docs = await fetch_doctors_from_supabase()
+            db_docs = await fetch_doctors_from_supabase(date)
             docs = db_docs if db_docs else []
             
             response_payload = {"doctors": docs}

@@ -11,14 +11,14 @@ from src.telemetry import Telemetry
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
 
 @tool
-async def get_doctors() -> list:
-    """Fetch the list of doctors and their availability."""
+async def get_doctors(date: str = None) -> list:
+    """Fetch the list of doctors and their availability for a specific date (YYYY-MM-DD format). Defaults to today if not provided."""
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
     PENDING_REQUESTS[req_id] = future
     
-    PatientManagementRoom.broadcast("QUERY_DOCTORS", {"requestId": req_id})
+    PatientManagementRoom.broadcast("QUERY_DOCTORS", {"requestId": req_id, "date": date})
     try:
         result = await asyncio.wait_for(future, timeout=10.0)
         docs = result.get("doctors", [])
@@ -94,11 +94,15 @@ class PatientManagementAgent:
             "content": (
                 "You are the MASH Patient Management Assistant. "
                 "Your job is to understand patient symptoms, suggest an appropriate doctor by using the get_doctors tool. "
+                "First, ask the patient which date they prefer for the appointment (e.g. Today, Tomorrow, or a specific date). "
+                "When asking for a date, YOU MUST append a few date options at the end of your message in the format [DATES: Today, Tomorrow, Day After Tomorrow]. "
+                "Once the patient chooses a date, call the get_doctors tool passing the selected date in YYYY-MM-DD format (or leave empty for today). "
                 "CRITICAL: ONLY offer the exact time slots returned in the 'availableSlots' array from the get_doctors tool. Do NOT guess or hallucinate available times. "
                 "If the tool returns no doctors, say so. "
                 "Once the patient chooses a valid slot, book the appointment using the book_appointment tool. "
                 "If the patient wants to reschedule, use the reschedule_appointment tool instead of booking a new one. "
-                "Always confirm the doctor and time slot with the patient before booking."
+                "Always confirm the doctor and time slot with the patient before booking. "
+                "CRITICAL: Whenever you suggest time slots to the patient to choose from, you MUST append them at the very end of your response in the format [SLOTS: time1, time2]. For example: '... Which time works best? [SLOTS: 09:00, 10:00, 14:00]'"
             )
         }
         
