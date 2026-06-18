@@ -191,10 +191,19 @@ async def patient_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
+    from src.band_config import send_platform_message
     try:
+        from src.band_config import MOCK_ROOMS
+        room_id = next((rid for name, rid in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
+        if room_id:
+            await send_platform_message(room_id, f"**PATIENT:** {req.message}")
+
         updated_messages = await patient_agent.process_patient_query(langgraph_messages)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
+        
+        if room_id:
+            await send_platform_message(room_id, f"**CarePulse:** {reply}")
         
         return {"reply": reply}
     except Exception as e:
