@@ -129,11 +129,6 @@
         white-space: nowrap;
     }
 
-    .agent-sidebar-item:hover::after {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
-
     .agent-sidebar-item:hover {
         transform: scale(1.15) !important;
     }
@@ -273,11 +268,6 @@
         transform: scale(0.6);
         transition: opacity 0.25s ease, transform 0.25s ease;
         pointer-events: none;
-    }
-
-    .agent-banner-item-mobile:hover::after {
-        opacity: 1;
-        transform: scale(1);
     }
 
     .agent-banner-item-mobile:hover {
