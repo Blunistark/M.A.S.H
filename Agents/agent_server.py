@@ -2,7 +2,7 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 from typing import List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -135,6 +135,77 @@ async def pharmacist_chat(req: ChatRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/telemetry/state")
+async def get_telemetry_state():
+    from src.band_config import MOCK_ROOMS
+    rooms_data = []
+    
+    agent_roles = {
+        "DoctorAssistantAgent": "Clinical AI",
+        "SummaryAgent": "Data Summarization",
+        "PharmacistAssistantAgent": "Pharmacy AI",
+        "MedicineManagementAgent": "Inventory Sync",
+        "ReceptionAgent": "Navigation AI"
+    }
+
+    for room_name, room_obj in MOCK_ROOMS.items():
+        agents = []
+        for agent in room_obj.agents:
+            if agent.name.startswith("UI-Listener-"):
+                continue
+            role = agent_roles.get(agent.name, "Agent")
+            agents.append({
+                "id": agent.id,
+                "name": agent.name,
+                "role": role,
+                "status": "active"
+            })
+        rooms_data.append({
+            "id": room_obj.id,
+            "name": room_name,
+            "agents": agents,
+            "events": []
+        })
+    return rooms_data
+
+@app.websocket("/api/telemetry-stream")
+async def websocket_telemetry(websocket: WebSocket):
+    await websocket.accept()
+    from src.band_config import BandSDK, TelemetryAuditRoom
+    import datetime
+    
+    q = asyncio.Queue()
+    
+    listener_agent = BandSDK.create_agent(f"UI-Listener-{id(websocket)}")
+    
+    def on_agent_joined(payload):
+        q.put_nowait({"type": "AGENT_JOINED", "payload": payload, "timestamp": datetime.datetime.utcnow().isoformat() + "Z"})
+    def on_state_updated(payload):
+        q.put_nowait({"type": "STATE_UPDATED", "payload": payload, "timestamp": datetime.datetime.utcnow().isoformat() + "Z"})
+    def on_human_intervention(payload):
+        q.put_nowait({"type": "HUMAN_INTERVENTION_REQUESTED", "payload": payload, "timestamp": datetime.datetime.utcnow().isoformat() + "Z"})
+    def on_resolved(payload):
+        q.put_nowait({"type": "RESOLVED", "payload": payload, "timestamp": datetime.datetime.utcnow().isoformat() + "Z"})
+        
+    listener_agent.on_event("AGENT_JOINED", on_agent_joined)
+    listener_agent.on_event("STATE_UPDATED", on_state_updated)
+    listener_agent.on_event("HUMAN_INTERVENTION_REQUESTED", on_human_intervention)
+    listener_agent.on_event("RESOLVED", on_resolved)
+    
+    TelemetryAuditRoom.join(listener_agent)
+    
+    try:
+        while True:
+            event = await q.get()
+            await websocket.send_json(event)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        if listener_agent in TelemetryAuditRoom.agents:
+            TelemetryAuditRoom.agents.remove(listener_agent)
 
 if __name__ == "__main__":
     import uvicorn
