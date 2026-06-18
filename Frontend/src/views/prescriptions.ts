@@ -1,6 +1,7 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { 
+  fetchProfiles,
   fetchProfileById,
   fetchMedicalRecords,
   fetchPrescriptions,
@@ -10,6 +11,7 @@ import {
   sendPrescriptionToPharmacy
 } from '../api';
 import type { Profile } from '../types';
+import { supabase } from '../supabase';
 
 interface RxItem {
   medicine_id: string;
@@ -89,18 +91,29 @@ export class PrescriptionsView implements View {
   private inventory: any[] = [];
 
   public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
-    const patientId = params?.patientId || this.currentPatientId;
-    this.currentPatientId = patientId;
-
-    if (params?.forceReload) {
-      delete rxState[patientId];
-    }
+    let patientId = params?.patientId || this.currentPatientId;
 
     let patient: Profile;
     try {
       patient = await fetchProfileById(patientId);
     } catch (err) {
-      return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      try {
+        const profilesList = await fetchProfiles();
+        const firstPatient = profilesList.find(p => p.role === 'patient');
+        if (firstPatient) {
+          patientId = firstPatient.id;
+          patient = await fetchProfileById(patientId);
+        } else {
+          throw err;
+        }
+      } catch (fallbackErr) {
+        return `<div style="padding: 40px; text-align: center;">Patient not found.</div>`;
+      }
+    }
+    this.currentPatientId = patientId;
+
+    if (params?.forceReload) {
+      delete rxState[patientId];
     }
 
     const allRecords = await fetchMedicalRecords();
@@ -503,10 +516,23 @@ export class PrescriptionsView implements View {
         `;
         document.body.appendChild(loadingOverlay);
 
+        // Resolve active doctor ID
+        let activeDoctorId = 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd'; // fallback
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            activeDoctorId = user.id;
+          } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+            const cachedId = localStorage.getItem('medconnect_doctor_id');
+            if (cachedId) activeDoctorId = cachedId;
+          }
+        } catch (e) {}
+
         try {
           // 1. Actually persist the prescription to Supabase via backend
           await sendPrescriptionToPharmacy({
             patient_id: patientId,
+            doctor_id: activeDoctorId,
             items: activePrescriptionItems.map(item => ({
               name: item.name,
               dosage: item.dosage,

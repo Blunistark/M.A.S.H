@@ -36,7 +36,7 @@ export let inventoryCache: { id: string; medicine_name: string; current_stock: n
 export let metricsCache: DashboardMetrics = {
   todayAppointmentsCount: 0,
   remainingAppointmentsCount: 0,
-  pendingReschedulesCount: 0,
+  pendingAlternativeMedCount: 0,
   notificationsCount: 0,
   stockAlertsCount: 0
 };
@@ -205,7 +205,7 @@ export async function loadData(): Promise<boolean> {
     metricsCache = {
       todayAppointmentsCount: totalToday,
       remainingAppointmentsCount: remaining,
-      pendingReschedulesCount: 3, // Mock static
+      pendingAlternativeMedCount: 3, // Mock static
       notificationsCount: 8,      // Mock static
       stockAlertsCount: lowStockAlerts
     };
@@ -220,7 +220,7 @@ export async function loadData(): Promise<boolean> {
     metricsCache = {
       todayAppointmentsCount: 0,
       remainingAppointmentsCount: 0,
-      pendingReschedulesCount: 0,
+      pendingAlternativeMedCount: 0,
       notificationsCount: 0,
       stockAlertsCount: 0
     };

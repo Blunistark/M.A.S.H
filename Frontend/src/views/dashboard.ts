@@ -8,7 +8,8 @@ import {
   fetchPrescriptions,
   fetchPrescriptionItems,
   fetchMedicineInventory,
-  getPatientPhotoUrl
+  getPatientPhotoUrl,
+  fetchDoctorDetails
 } from '../api';
 import type { Appointment, Profile, DashboardMetrics } from '../types';
 import { getIcon } from '../assets/icons';
@@ -20,13 +21,14 @@ let profiles: Profile[] = [];
 let metrics: DashboardMetrics = {
   todayAppointmentsCount: 0,
   remainingAppointmentsCount: 0,
-  pendingReschedulesCount: 0,
+  pendingAlternativeMedCount: 0,
   notificationsCount: 0,
   stockAlertsCount: 0
 };
 
-let selectedDate: Date = new Date();
-let displayDate: Date = new Date();
+const now = new Date();
+let selectedDate: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+let displayDate: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
@@ -38,36 +40,51 @@ function formatTime(isoString: string): string {
   return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 }
 
+function formatTime24(isoString: string): string {
+  const date = new Date(isoString);
+  const hours = date.getUTCHours().toString().padStart(2, '0');
+  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
 export class DashboardView implements View {
   public async render(): Promise<string> {
-    queueAppointments = await fetchAppointments();
-    profiles = await fetchProfiles();
-    metrics = await fetchMetrics();
-
-    // Resolve logged-in user's name dynamically
+    // Resolve logged-in doctor's ID and name dynamically
+    let doctorId: string | null = null;
     let loggedInName = 'Doctor';
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        doctorId = user.id;
         loggedInName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Doctor';
       } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+        doctorId = localStorage.getItem('medconnect_doctor_id');
       }
     } catch (e) {
       if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
+        doctorId = localStorage.getItem('medconnect_doctor_id');
       }
     }
+
+    const activeDoctorId = doctorId || 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
+
+    queueAppointments = await fetchAppointments({ doctor_id: activeDoctorId });
+    profiles = await fetchProfiles();
+    metrics = await fetchMetrics(activeDoctorId);
     const allPrescriptions = await fetchPrescriptions();
     const allPrescriptionItems = await fetchPrescriptionItems();
     const allInventory = await fetchMedicineInventory();
+    const allDoctorDetails = await fetchDoctorDetails();
+    const doctorDetails = allDoctorDetails.find(d => d.doctor_id === activeDoctorId);
 
-    // Find all prescriptions with status 'alternative_requested'
-    const shortageRx = allPrescriptions.filter(rx => rx.status === 'alternative_requested');
+    // Find all prescriptions with status 'alternative_requested' for the active doctor
+    const shortageRx = allPrescriptions.filter(rx => rx.status === 'alternative_requested' && rx.doctor_id === activeDoctorId);
     
     let alertsHTML = '';
     if (shortageRx.length > 0) {
@@ -109,11 +126,11 @@ export class DashboardView implements View {
       `;
     }
 
-    // Filter queue by selected date (local date comparison)
-    const selectedDateString = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}`;
+    // Filter queue by selected date (timezone-safe UTC date comparison)
+    const selectedDateString = `${selectedDate.getUTCFullYear()}-${(selectedDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getUTCDate().toString().padStart(2, '0')}`;
     const filteredAppts = queueAppointments.filter(appt => {
       const apptDate = new Date(appt.scheduled_time);
-      const apptDateString = `${apptDate.getFullYear()}-${(apptDate.getMonth() + 1).toString().padStart(2, '0')}-${apptDate.getDate().toString().padStart(2, '0')}`;
+      const apptDateString = `${apptDate.getUTCFullYear()}-${(apptDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${apptDate.getUTCDate().toString().padStart(2, '0')}`;
       return apptDateString === selectedDateString;
     });
 
@@ -166,29 +183,33 @@ export class DashboardView implements View {
     });
 
     // Calendar widget dynamic construction
-    const displayYear = displayDate.getFullYear();
-    const displayMonth = displayDate.getMonth();
+    const displayYear = displayDate.getUTCFullYear();
+    const displayMonth = displayDate.getUTCMonth();
 
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    const firstDayOfMonth = new Date(displayYear, displayMonth, 1);
-    const startDayOfWeek = firstDayOfMonth.getDay();
-    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
-    const prevMonthDays = new Date(displayYear, displayMonth, 0).getDate();
+    const firstDayOfMonth = new Date(Date.UTC(displayYear, displayMonth, 1));
+    const startDayOfWeek = firstDayOfMonth.getUTCDay();
+    const daysInMonth = new Date(Date.UTC(displayYear, displayMonth + 1, 0)).getUTCDate();
+    const prevMonthDays = new Date(Date.UTC(displayYear, displayMonth, 0)).getUTCDate();
 
     const calendarCells: string[] = [];
 
     // Padding prev month (timezone-safe date strings)
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const dayNum = prevMonthDays - i;
-      const prevDate = new Date(displayYear, displayMonth - 1, dayNum);
-      const prevYear = prevDate.getFullYear();
-      const prevMonth = prevDate.getMonth();
+      const prevDate = new Date(Date.UTC(displayYear, displayMonth - 1, dayNum));
+      const prevYear = prevDate.getUTCFullYear();
+      const prevMonth = prevDate.getUTCMonth();
       const cellDateStr = `${prevYear}-${(prevMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
-      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      const hasEvent = queueAppointments.some(appt => {
+        const apptDate = new Date(appt.scheduled_time);
+        const apptDateStr = `${apptDate.getUTCFullYear()}-${(apptDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${apptDate.getUTCDate().toString().padStart(2, '0')}`;
+        return apptDateStr === cellDateStr;
+      });
       calendarCells.push(`
         <div class="calendar-day prev-month ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
       `);
@@ -197,8 +218,12 @@ export class DashboardView implements View {
     // Current month days (timezone-safe date strings)
     for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
       const cellDateStr = `${displayYear}-${(displayMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
-      const isSelected = selectedDate.getDate() === dayNum && selectedDate.getMonth() === displayMonth && selectedDate.getFullYear() === displayYear;
-      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      const isSelected = selectedDate.getUTCDate() === dayNum && selectedDate.getUTCMonth() === displayMonth && selectedDate.getUTCFullYear() === displayYear;
+      const hasEvent = queueAppointments.some(appt => {
+        const apptDate = new Date(appt.scheduled_time);
+        const apptDateStr = `${apptDate.getUTCFullYear()}-${(apptDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${apptDate.getUTCDate().toString().padStart(2, '0')}`;
+        return apptDateStr === cellDateStr;
+      });
       calendarCells.push(`
         <div class="calendar-day current-month ${isSelected ? 'active' : ''} ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
       `);
@@ -208,11 +233,15 @@ export class DashboardView implements View {
     const totalCells = calendarCells.length;
     const nextMonthPadding = 42 - totalCells;
     for (let dayNum = 1; dayNum <= nextMonthPadding; dayNum++) {
-      const nextDate = new Date(displayYear, displayMonth + 1, dayNum);
-      const nextYear = nextDate.getFullYear();
-      const nextMonth = nextDate.getMonth();
+      const nextDate = new Date(Date.UTC(displayYear, displayMonth + 1, dayNum));
+      const nextYear = nextDate.getUTCFullYear();
+      const nextMonth = nextDate.getUTCMonth();
       const cellDateStr = `${nextYear}-${(nextMonth + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
-      const hasEvent = queueAppointments.some(appt => new Date(appt.scheduled_time).toISOString().split('T')[0] === cellDateStr);
+      const hasEvent = queueAppointments.some(appt => {
+        const apptDate = new Date(appt.scheduled_time);
+        const apptDateStr = `${apptDate.getUTCFullYear()}-${(apptDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${apptDate.getUTCDate().toString().padStart(2, '0')}`;
+        return apptDateStr === cellDateStr;
+      });
       calendarCells.push(`
         <div class="calendar-day next-month ${hasEvent ? 'has-event' : ''}" data-date="${cellDateStr}">${dayNum}</div>
       `);
@@ -220,39 +249,49 @@ export class DashboardView implements View {
 
     const calendarDaysHTML = calendarCells.join('');
 
-    // Upcoming Patient dynamic creation
-    const upcomingAppt = filteredAppts.find(appt => appt.status === 'scheduled');
-    let upcomingPatientHTML = '';
-    if (upcomingAppt) {
-      const patient = profiles.find(p => p.id === upcomingAppt.patient_id);
-      if (patient) {
-        const timeStr = formatTime(upcomingAppt.scheduled_time);
-        const initials = getInitials(patient.full_name);
-        upcomingPatientHTML = `
-          <div class="upcoming-patient-body">
-            <div class="upcoming-patient-info">
-              <div class="patient-avatar-wrapper" style="background: #0ea5e9; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; width: 44px; height: 44px; border-radius: 50%; position: relative; overflow: hidden;">
-                <img src="${getPatientPhotoUrl(patient.full_name)}" alt="${patient.full_name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';" />
-                <span>${initials}</span>
-              </div>
-              <div class="upcoming-patient-text">
-                <span class="upcoming-patient-name">${patient.full_name}</span>
-                <span class="upcoming-patient-schedule">${timeStr} - Consultation</span>
-              </div>
+    // Sort active appointments for events list
+    const sortedFilteredAppts = [...filteredAppts].sort((a, b) => {
+      return new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime();
+    });
+
+    let upcomingEventsHTML = '';
+    if (sortedFilteredAppts.length > 0) {
+      upcomingEventsHTML = sortedFilteredAppts.map((appt, idx) => {
+        const patient = profiles.find(p => p.id === appt.patient_id);
+        const patientName = patient ? patient.full_name : 'Unknown Patient';
+        const timeStr = formatTime24(appt.scheduled_time);
+        
+        let location = 'Telehealth';
+        if (doctorDetails && doctorDetails.room_number) {
+          location = `Room ${doctorDetails.room_number}`;
+        }
+        
+        if (appt.status === 'in_progress') {
+          location = 'In Progress';
+        } else if (appt.status === 'completed') {
+          location = 'Completed';
+        }
+
+        const borderStyle = idx % 2 === 1 ? 'style="border-left-color: var(--accent-cyan);"' : '';
+        return `
+          <div class="upcoming-event-item" ${borderStyle}>
+            <div class="event-time">${timeStr}</div>
+            <div class="event-details">
+              <span class="event-title">Consultation - ${patientName}</span>
+              <span class="event-location">${location}</span>
             </div>
-            <button class="chat-bubble-btn" id="upcoming-chat-btn" data-patient-id="${patient.id}">
-              ${getIcon('message-square', 'nav-icon')}
-            </button>
           </div>
         `;
-      }
+      }).join('');
     } else {
-      upcomingPatientHTML = `
+      upcomingEventsHTML = `
         <div style="padding: 16px 20px; color: #64748b; font-size: 13px; text-align: center;">
-          No upcoming scheduled patients for this day.
+          No events scheduled for this day.
         </div>
       `;
     }
+
+
 
     return `
       <!-- Header -->
@@ -296,15 +335,15 @@ export class DashboardView implements View {
             </div>
           </div>
 
-          <div class="metric-card metric-reschedules">
+          <div class="metric-card metric-alternative-meds">
             <div class="metric-card-content">
-              <span class="metric-label">Pending Reschedules</span>
+              <span class="metric-label">Pending Alt Med Requests</span>
               <div class="metric-number-row">
-                <span class="metric-value">${metrics.pendingReschedulesCount}</span>
+                <span class="metric-value">${metrics.pendingAlternativeMedCount}</span>
               </div>
             </div>
             <div class="metric-icon-wrapper">
-              ${getIcon('clock', 'nav-icon')}
+              ${getIcon('pill', 'nav-icon')}
             </div>
           </div>
 
@@ -379,31 +418,14 @@ export class DashboardView implements View {
                 <div class="calendar-days-grid">
                   ${calendarDaysHTML}
                 </div>
-                <div class="upcoming-today-section">
-                  <div class="upcoming-section-title">Upcoming Today</div>
-                  <div class="upcoming-events-list">
-                    <div class="upcoming-event-item">
-                      <div class="event-time">13:00</div>
-                      <div class="event-details">
-                        <span class="event-title">Dr. Consult Board</span>
-                        <span class="event-location">Room 4B</span>
-                      </div>
-                    </div>
-                    <div class="upcoming-event-item" style="border-left-color: var(--accent-cyan);">
-                      <div class="event-time">14:30</div>
-                      <div class="event-details">
-                        <span class="event-title">Patient Follow-up</span>
-                        <span class="event-location">Telehealth</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
             <div class="dashboard-card upcoming-patient-card">
-              <h2 class="card-title" style="margin-bottom: 12px;">Upcoming Patient</h2>
-              ${upcomingPatientHTML}
+              <h2 class="card-title" style="margin-bottom: 12px;">Upcoming Today</h2>
+              <div class="upcoming-events-list">
+                ${upcomingEventsHTML}
+              </div>
             </div>
 
           </aside>
@@ -492,26 +514,19 @@ export class DashboardView implements View {
       });
     }
 
-    const chatBtn = container.querySelector('#upcoming-chat-btn');
-    if (chatBtn) {
-      chatBtn.addEventListener('click', () => {
-        const patientId = chatBtn.getAttribute('data-patient-id');
-        if (patientId) router.navigate('patient-profile', { patientId });
-      });
-    }
 
     // Calendar month navigation
     const prevMonthBtn = container.querySelector('.calendar-arrow-btn:first-child');
     const nextMonthBtn = container.querySelector('.calendar-arrow-btn:last-child');
     if (prevMonthBtn) {
       prevMonthBtn.addEventListener('click', () => {
-        displayDate.setMonth(displayDate.getMonth() - 1);
+        displayDate.setUTCMonth(displayDate.getUTCMonth() - 1);
         router.navigate('dashboard');
       });
     }
     if (nextMonthBtn) {
       nextMonthBtn.addEventListener('click', () => {
-        displayDate.setMonth(displayDate.getMonth() + 1);
+        displayDate.setUTCMonth(displayDate.getUTCMonth() + 1);
         router.navigate('dashboard');
       });
     }
@@ -522,7 +537,11 @@ export class DashboardView implements View {
       dayEl.addEventListener('click', () => {
         const dateStr = dayEl.getAttribute('data-date');
         if (dateStr) {
-          selectedDate = new Date(dateStr);
+          const parts = dateStr.split('-');
+          const yr = parseInt(parts[0], 10);
+          const mo = parseInt(parts[1], 10) - 1;
+          const dy = parseInt(parts[2], 10);
+          selectedDate = new Date(Date.UTC(yr, mo, dy));
           displayDate = new Date(selectedDate);
           router.navigate('dashboard');
         }

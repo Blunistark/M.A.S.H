@@ -10,7 +10,7 @@ from src.band_config import DoctorDashboardRoom, PatientManagementRoom, BandSDK
 from src.supabase_tools import (
     get_doctor_schedule,
     fetch_doctor_schedule_from_supabase,
-    create_prescription,
+    create_prescription_in_supabase,
     book_appointment,
     get_doctors,
     fetch_medical_records_from_supabase,
@@ -245,7 +245,8 @@ class DoctorAssistantAgent:
                     return f"Could not find a patient named '{patient_name}' in the database."
                 
                 # Make sure the view name is set to patient-profile if a patient was resolved
-                view_name = 'patient-profile'
+                if view_name != 'prescriptions':
+                    view_name = 'patient-profile'
 
             action = {
                 "type": "navigate",
@@ -262,6 +263,27 @@ class DoctorAssistantAgent:
                 return "Opening the appointment booking dialog."
             else:
                 return f"Navigating to the {view_name} page."
+
+        @tool
+        async def create_prescription(patient_name: str, items: List[Dict[str, Any]], doctor_comments: str = None) -> str:
+            """Create a new prescription for a patient and send it to the pharmacy database.
+            Use this when the doctor confirms the prescription is ready to be written, processed, or sent.
+            Args:
+                patient_name: The name of the patient (e.g. "Bob Smith")
+                items: A list of prescription items, where each item has keys:
+                    - "name": The exact name of the medicine (e.g. "Amoxicillin 500mg Capsule" or "Albuterol HFA")
+                    - "dosage": The dosage string (e.g. "500mg" or "1 inhalation")
+                    - "frequency": The frequency string (e.g. "twice daily" or "before food")
+                    - "duration": The duration in days as an integer (e.g. 3)
+                    - "quantity": The total quantity to dispense as an integer (e.g. 6)
+                doctor_comments: Optional additional instructions or comments from the doctor.
+            """
+            success = await create_prescription_in_supabase(
+                patient_name, items, doctor_comments, doctor_id=agent_self.doctor_id
+            )
+            if success:
+                return f"Successfully created prescription for {patient_name} in Supabase and pushed it to the pharmacy."
+            return f"Failed to create prescription for {patient_name}. Ensure the patient exists and the backend is running."
 
         @tool
         async def resolve_shortage_alert(patient_name: str) -> str:
