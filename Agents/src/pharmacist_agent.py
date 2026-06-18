@@ -1,13 +1,20 @@
 import asyncio
 import json
+import os
 from typing import Dict, Any, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from src.band_config import PharmacistDashboardRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import SUPABASE_URL, get_headers
+
+# Backend URL — overrideable via env (needed when running inside Docker)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:3000")
 
 
 class PharmacistAssistantAgent:
@@ -82,8 +89,8 @@ class PharmacistAssistantAgent:
             Use this when the pharmacist asks about incoming orders, pending prescriptions, or what needs to be prepared."""
             import httpx
             try:
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code == 200:
                         data = res.json()
@@ -115,8 +122,8 @@ class PharmacistAssistantAgent:
             import httpx
             try:
                 # First get pharmacy data to find the prescription ID
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code != 200:
                         return "Could not fetch pharmacy data."
@@ -152,7 +159,7 @@ class PharmacistAssistantAgent:
                         return f"Cannot fulfill prescription for {match['patient_name']} — some items are out of stock. Consider restocking first or requesting an alternative."
 
                     rx_id = match["id"]
-                    fulfill_url = f"http://127.0.0.1:3000/api/prescriptions/{rx_id}/fulfill"
+                    fulfill_url = f"{BACKEND_URL}/api/prescriptions/{rx_id}/fulfill"
                     fulfill_res = await client.patch(fulfill_url, headers={"Content-Type": "application/json"})
 
                     if fulfill_res.status_code == 200:
@@ -173,7 +180,7 @@ class PharmacistAssistantAgent:
                 # Find the medicine ID
                 search_term = medicine_name.split()[0] if medicine_name else ""
                 url = f"{SUPABASE_URL}/rest/v1/medicine_inventory?medicine_name=ilike.*{search_term}*"
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(url, headers=get_headers())
                     if res.status_code != 200 or not res.json():
                         return f"Could not find medicine matching '{medicine_name}' in inventory."
@@ -182,7 +189,7 @@ class PharmacistAssistantAgent:
                     med_id = med["id"]
                     med_full_name = med["medicine_name"]
 
-                    restock_url = f"http://127.0.0.1:3000/api/medicine_inventory/{med_id}/restock"
+                    restock_url = f"{BACKEND_URL}/api/medicine_inventory/{med_id}/restock"
                     restock_res = await client.patch(
                         restock_url,
                         headers={"Content-Type": "application/json"},
@@ -204,8 +211,8 @@ class PharmacistAssistantAgent:
             Use this when the pharmacist needs to ask the doctor for an alternative due to stock issues."""
             import httpx
             try:
-                backend_url = "http://127.0.0.1:3000/api/pharmacy"
-                async with httpx.AsyncClient() as client:
+                backend_url = f"{BACKEND_URL}/api/pharmacy"
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(backend_url)
                     if res.status_code != 200:
                         return "Could not fetch pharmacy data."
@@ -236,7 +243,7 @@ class PharmacistAssistantAgent:
                         return f"No active prescription found for '{patient_name}' to request alternative."
 
                     rx_id = match["id"]
-                    alt_url = f"http://127.0.0.1:3000/api/prescriptions/{rx_id}/alternative"
+                    alt_url = f"{BACKEND_URL}/api/prescriptions/{rx_id}/alternative"
                     alt_res = await client.patch(
                         alt_url,
                         headers={"Content-Type": "application/json"},

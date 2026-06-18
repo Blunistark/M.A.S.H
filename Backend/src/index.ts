@@ -498,6 +498,15 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
       .in('status', ['active', 'alternative_requested'])
       .neq('id', rx.id);
 
+    // 5. Notify agent server so StockManagementAgent tracks usage and deducts Supabase stock
+    try {
+      globalThis.fetch(`${AGENTS_URL}/api/prescription-event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id, items })
+      }).catch(() => {}); // fire-and-forget — don't block response
+    } catch (_) {}
+
     res.status(201).json(rx);
   } catch (err: any) {
     console.error('Error creating pharmacy prescription:', err);

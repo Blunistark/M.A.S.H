@@ -361,13 +361,13 @@ class BandSDK:
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
-            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent"],
+            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent", "stock_management_agent"],
             "Doctor-Dashboard-Room": ["doctor_agent", "summary_agent"],
             "Reception-Navigation-Room": ["patient_navigation_agent", "registration_agent"],
             "Clinical-Consult-Room": ["summary_agent", "doctor_agent"],
-            "Pharmacy-Inventory-Room": ["medicine_management_agent", "pharmacist_agent"],
+            "Pharmacy-Inventory-Room": ["medicine_management_agent", "pharmacist_agent", "stock_management_agent"],
             "Telemetry-Audit-Room": ["telemetry_agent"],
-            "Pharmacist-Dashboard-Room": ["pharmacist_agent"]
+            "Pharmacist-Dashboard-Room": ["pharmacist_agent", "stock_management_agent"]
         }
 
         agent_config = {}

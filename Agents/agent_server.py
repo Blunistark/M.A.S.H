@@ -2,7 +2,7 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 from typing import List
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -13,10 +13,12 @@ from typing import Optional
 from src.summary_agent import SummaryAgent
 from src.doctor_agent import DoctorAssistantAgent
 from src.pharmacist_agent import PharmacistAssistantAgent
+from src.stock_agent import StockManagementAgent
 
 summary_agent = None
 doctor_agents = {}
 pharmacist_agent = None
+stock_agent = None
 
 async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
     if doctor_id not in doctor_agents:
@@ -34,7 +36,7 @@ async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global summary_agent, pharmacist_agent
+    global summary_agent, pharmacist_agent, stock_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
         from src.band_config import BandSDK
@@ -47,7 +49,8 @@ async def lifespan(app: FastAPI):
         # Pre-initialize Dr. Smith agent
         await get_or_create_doctor_agent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
         pharmacist_agent = PharmacistAssistantAgent()
-        print("Agents initialized successfully (Doctor + Pharmacist).")
+        stock_agent = StockManagementAgent()
+        print("Agents initialized successfully (Doctor + Pharmacist + Stock).")
     except Exception as e:
         print(f"Failed to initialize agents: {e}")
         import traceback
@@ -154,6 +157,30 @@ async def pharmacist_chat(req: ChatRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/prescription-event")
+async def prescription_event(req: dict = Body(...)):
+    """Called by the backend when a prescription is sent to pharmacy.
+    Triggers the StockManagementAgent to deduct Supabase stock and raise demand alerts."""
+    if not stock_agent:
+        return {"status": "agent_not_ready"}
+    
+    patient_id = req.get("patient_id", "unknown")
+    items = req.get("items", [])
+    
+    # Fire ROUTE_TO_PHARMACY for each prescription item so the stock agent tracks usage
+    from src.band_config import PharmacyInventoryRoom
+    for item in items:
+        medicine_name = item.get("name", item.get("medicine_name", ""))
+        if medicine_name:
+            payload = {
+                "patientId": patient_id,
+                "prescription": {"medicine": medicine_name},
+            }
+            PharmacyInventoryRoom.broadcast_local("ROUTE_TO_PHARMACY", payload)
+    
+    return {"status": "ok", "items_triggered": len(items)}
+
 
 @app.get("/api/telemetry/state")
 async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Optional[str] = None):
