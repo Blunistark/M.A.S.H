@@ -283,7 +283,6 @@ export class TelemetryView implements View {
   }
 
   onMount(_container: HTMLElement, _router: Router): void {
-    
     // Add pulsing animation styles dynamically
     if (!document.getElementById('pulse-style')) {
       const style = document.createElement('style');
