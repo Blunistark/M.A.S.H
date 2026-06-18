@@ -1,6 +1,7 @@
 import { type View, Router } from '../router';
 import { getIcon } from '../assets/icons';
 import { API_BASE } from '../api';
+import { supabase } from '../supabase';
 
 interface TelemetryEvent {
   id: string;
@@ -156,7 +157,25 @@ export class TelemetryView implements View {
   private async fetchInitialState() {
     try {
       const baseUrl = API_BASE.replace(/\/api\/?$/, '');
-      const res = await fetch(`${baseUrl}/api/telemetry/state`);
+      
+      let doctorId = '';
+      let doctorName = '';
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          doctorId = user.id;
+          doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+        } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+          doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+          doctorId = 'mock-doctor-uuid-alex-smith';
+        }
+      } catch (e) { }
+
+      const urlParams = doctorId && doctorName 
+        ? `?doctorId=${encodeURIComponent(doctorId)}&doctorName=${encodeURIComponent(doctorName)}`
+        : '';
+
+      const res = await fetch(`${baseUrl}/api/telemetry/state${urlParams}`);
       if (res.ok) {
         this.rooms = await res.json();
         this.updateDashboardUI();
@@ -177,11 +196,28 @@ export class TelemetryView implements View {
     }
   }
 
-  private connectWebSocket() {
+  private async connectWebSocket() {
     const baseUrl = API_BASE.replace(/\/api\/?$/, '');
     const wsBaseUrl = baseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 
-    this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream`);
+    let doctorId = '';
+    let doctorName = '';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        doctorId = user.id;
+        doctorName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
+        doctorName = localStorage.getItem('medconnect_mock_user') || 'Dr. Alex Smith';
+        doctorId = 'mock-doctor-uuid-alex-smith';
+      }
+    } catch (e) { }
+
+    const urlParams = doctorId && doctorName
+      ? `?doctorId=${encodeURIComponent(doctorId)}&doctorName=${encodeURIComponent(doctorName)}`
+      : '';
+
+    this.ws = new WebSocket(`${wsBaseUrl}/api/telemetry-stream${urlParams}`);
     
     this.ws.onmessage = (msg) => {
       try {

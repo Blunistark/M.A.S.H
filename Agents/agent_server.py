@@ -9,17 +9,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from typing import Optional
 from src.summary_agent import SummaryAgent
 from src.doctor_agent import DoctorAssistantAgent
 from src.pharmacist_agent import PharmacistAssistantAgent
 
 summary_agent = None
-doctor_agent = None
+doctor_agents = {}
 pharmacist_agent = None
+
+async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
+    if doctor_id not in doctor_agents:
+        try:
+            print(f"Initializing DoctorAgent for {doctor_name} ({doctor_id})...")
+            agent = DoctorAssistantAgent(doctor_id, doctor_name)
+            await agent.load_schedule_to_patient_map()
+            doctor_agents[doctor_id] = agent
+            print(f"DoctorAgent for {doctor_name} ({doctor_id}) initialized successfully.")
+        except Exception as e:
+            print(f"Failed to initialize DoctorAgent for {doctor_name}: {e}")
+            import traceback
+            traceback.print_exc()
+    return doctor_agents.get(doctor_id)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global summary_agent, doctor_agent, pharmacist_agent
+    global summary_agent, pharmacist_agent
     use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
     if use_real_band:
         from src.band_config import BandSDK
@@ -29,8 +44,8 @@ async def lifespan(app: FastAPI):
     print("Initializing Agents...")
     try:
         summary_agent = SummaryAgent()
-        doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
-        await doctor_agent.load_schedule_to_patient_map()
+        # Pre-initialize Dr. Smith agent
+        await get_or_create_doctor_agent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
         pharmacist_agent = PharmacistAssistantAgent()
         print("Agents initialized successfully (Doctor + Pharmacist).")
     except Exception as e:
@@ -61,6 +76,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage]
+    doctorId: Optional[str] = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
+    doctorName: Optional[str] = "Dr. Smith"
 
 def extract_text(content) -> str:
     """Robustly extract plain text from LangChain message content."""
@@ -78,8 +95,10 @@ def extract_text(content) -> str:
 
 @app.post("/api/doctor-chat")
 async def doctor_chat(req: ChatRequest):
-    print(f"[DEBUG] Incoming doctor-chat message: '{req.message}'")
-    if not doctor_agent:
+    print(f"[DEBUG] Incoming doctor-chat message: '{req.message}' for {req.doctorName} ({req.doctorId})")
+    
+    agent = await get_or_create_doctor_agent(req.doctorId, req.doctorName)
+    if not agent:
         raise HTTPException(status_code=503, detail="Doctor Agent is not initialized yet.")
     
     # Map input history to LangGraph format
@@ -92,14 +111,14 @@ async def doctor_chat(req: ChatRequest):
     
     try:
         # Clear actions before query (handled in process_doctor_query as well)
-        doctor_agent.pending_actions = []
+        agent.pending_actions = []
         
-        updated_messages = await doctor_agent.process_doctor_query(langgraph_messages)
+        updated_messages = await agent.process_doctor_query(langgraph_messages)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
         
         # Get the first pending action if any was triggered by a tool
-        action = doctor_agent.pending_actions[0] if doctor_agent.pending_actions else None
+        action = agent.pending_actions[0] if agent.pending_actions else None
         
         return {"reply": reply, "action": action}
     except Exception as e:
@@ -137,7 +156,10 @@ async def pharmacist_chat(req: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/telemetry/state")
-async def get_telemetry_state():
+async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Optional[str] = None):
+    if doctorId and doctorName:
+        await get_or_create_doctor_agent(doctorId, doctorName)
+        
     from src.band_config import MOCK_ROOMS
     rooms_data = []
     
@@ -154,7 +176,7 @@ async def get_telemetry_state():
         for agent in room_obj.agents:
             if agent.name.startswith("UI-Listener-"):
                 continue
-            role = agent_roles.get(agent.name, "Agent")
+            role = "Clinical AI" if agent.name.startswith("DoctorAgent_") else agent_roles.get(agent.name, "Agent")
             agents.append({
                 "id": agent.id,
                 "name": agent.name,
@@ -170,11 +192,14 @@ async def get_telemetry_state():
     return rooms_data
 
 @app.websocket("/api/telemetry-stream")
-async def websocket_telemetry(websocket: WebSocket):
+async def websocket_telemetry(websocket: WebSocket, doctorId: Optional[str] = None, doctorName: Optional[str] = None):
     await websocket.accept()
     from src.band_config import BandSDK, TelemetryAuditRoom
     import datetime
     
+    if doctorId and doctorName:
+        await get_or_create_doctor_agent(doctorId, doctorName)
+        
     q = asyncio.Queue()
     
     listener_agent = BandSDK.create_agent(f"UI-Listener-{id(websocket)}")

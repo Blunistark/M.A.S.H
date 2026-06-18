@@ -741,7 +741,7 @@ app.get('/api/medicine_inventory', async (req, res) => {
 // POST /api/doctor-chat
 app.post('/api/doctor-chat', async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, history, doctorId, doctorName } = req.body;
     if (!message) {
       return res.status(400).json({ message: 'Message is required' });
     }
@@ -753,7 +753,7 @@ app.post('/api/doctor-chat', async (req, res) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message, history })
+        body: JSON.stringify({ message, history, doctorId, doctorName })
       });
       if (agentResponse.ok) {
         const agentData = (await agentResponse.json()) as { reply: string; action?: any };
@@ -1178,7 +1178,11 @@ app.post('/api/tts', async (req, res) => {
 // GET /api/telemetry/state
 app.get('/api/telemetry/state', async (req, res) => {
   try {
-    const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/telemetry/state`);
+    const { doctorId, doctorName } = req.query;
+    const urlParams = doctorId && doctorName
+      ? `?doctorId=${encodeURIComponent(doctorId as string)}&doctorName=${encodeURIComponent(doctorName as string)}`
+      : '';
+    const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/telemetry/state${urlParams}`);
     if (agentResponse.ok) {
       const data = await agentResponse.json();
       return res.json(data);
