@@ -13,8 +13,13 @@ const Login = ({ onLogin }) => {
       setIsLoading(true);
       setError('');
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const response = await fetch(`${apiUrl}/api/auth/login`, {
+        let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        // Remove trailing slash if present
+        if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+        // If apiUrl already ends with /api, don't add it again
+        const endpoint = apiUrl.endsWith('/api') ? '/auth/login' : '/api/auth/login';
+        
+        const response = await fetch(`${apiUrl}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })

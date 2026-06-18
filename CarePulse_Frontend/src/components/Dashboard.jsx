@@ -33,8 +33,13 @@ const Dashboard = () => {
         text: msg.text
       }));
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/patient-chat`, {
+      let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Remove trailing slash if present
+      if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      // If apiUrl already ends with /api, don't add it again
+      const endpoint = apiUrl.endsWith('/api') ? '/patient-chat' : '/api/patient-chat';
+
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

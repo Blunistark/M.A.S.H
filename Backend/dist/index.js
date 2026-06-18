@@ -126,24 +126,38 @@ app.post('/api/auth/logout', async (req, res) => {
 // GET /api/metrics
 app.get('/api/metrics', async (req, res) => {
     try {
+        const { doctor_id } = req.query;
         // Today's date range in UTC
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
         const todayEnd = new Date();
         todayEnd.setUTCHours(23, 59, 59, 999);
         // Today's appointments count
-        const { count: todayCount, error: todayErr } = await supabase_1.supabase
+        let todayQuery = supabase_1.supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .gte('scheduled_time', todayStart.toISOString())
             .lte('scheduled_time', todayEnd.toISOString());
         // Remaining appointments count (scheduled, today only)
-        const { count: remainingCount, error: remainingErr } = await supabase_1.supabase
+        let remainingQuery = supabase_1.supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'scheduled')
             .gte('scheduled_time', todayStart.toISOString())
             .lte('scheduled_time', todayEnd.toISOString());
+        // Pending alternative medicine requests count (prescriptions with status 'alternative_requested')
+        let altMedQuery = supabase_1.supabase
+            .from('prescriptions')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'alternative_requested');
+        if (doctor_id) {
+            todayQuery = todayQuery.eq('doctor_id', doctor_id);
+            remainingQuery = remainingQuery.eq('doctor_id', doctor_id);
+            altMedQuery = altMedQuery.eq('doctor_id', doctor_id);
+        }
+        const { count: todayCount, error: todayErr } = await todayQuery;
+        const { count: remainingCount, error: remainingErr } = await remainingQuery;
+        const { count: altMedCount, error: altMedErr } = await altMedQuery;
         // Stock alerts count (current_stock <= reorder_threshold)
         // Supabase JS doesn't support complex column-to-column comparisons directly via filters,
         // so we can fetch and filter or run a RPC. To keep it simple and clean:
@@ -153,14 +167,15 @@ app.get('/api/metrics', async (req, res) => {
         const stockAlertsCount = inventory
             ? inventory.filter(m => m.current_stock <= m.reorder_threshold).length
             : 0;
-        if (todayErr || remainingErr || invErr) {
+        if (todayErr || remainingErr || altMedErr || invErr) {
             return res.status(500).json({ message: 'Error fetching metrics from database' });
         }
         res.json({
             todayAppointmentsCount: todayCount || 0,
             remainingAppointmentsCount: remainingCount || 0,
-            pendingReschedulesCount: 3, // mocked
-            notificationsCount: 8, // mocked
+            pendingAlternativeMedCount: altMedCount || 0,
+            pendingReschedulesCount: altMedCount || 0, // kept for backward compatibility
+            notificationsCount: altMedCount || 0, // sync notifications to pending requests count
             stockAlertsCount
         });
     }
@@ -277,7 +292,15 @@ app.get('/api/doctor_details', async (req, res) => {
 // GET /api/appointments
 app.get('/api/appointments', async (req, res) => {
     try {
-        const { data, error } = await supabase_1.supabase.from('appointments').select('*');
+        const { doctor_id, patient_id } = req.query;
+        let query = supabase_1.supabase.from('appointments').select('*');
+        if (doctor_id) {
+            query = query.eq('doctor_id', doctor_id);
+        }
+        if (patient_id) {
+            query = query.eq('patient_id', patient_id);
+        }
+        const { data, error } = await query;
         if (error) {
             return res.status(500).json({ message: error.message });
         }
@@ -445,6 +468,15 @@ app.post('/api/prescriptions/send-to-pharmacy', async (req, res) => {
             .eq('patient_id', patient_id)
             .in('status', ['active', 'alternative_requested'])
             .neq('id', rx.id);
+        // 5. Notify agent server so StockManagementAgent tracks usage and deducts Supabase stock
+        try {
+            globalThis.fetch(`${AGENTS_URL}/api/prescription-event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ patient_id, items })
+            }).catch(() => { }); // fire-and-forget — don't block response
+        }
+        catch (_) { }
         res.status(201).json(rx);
     }
     catch (err) {
@@ -791,12 +823,29 @@ Guidelines:
             /(?:open|show|go\s+to|view|navigate\s+to)\s+(?:patient\s+)?(?:profile\s+(?:of|for)\s+)?(.+?)(?:'s)?\s*(?:profile|page|record)?$/i,
             /(?:open|show|go\s+to|view)\s+(.+?)(?:'s)?\s*(?:profile|page)?$/i,
         ];
+        // Check for prescription writing intent
+        const prescriptionPatterns = [
+            /(?:write|create|send)\s+(?:a\s+)?prescription\s+(?:to|for)\s+(.+?)(?:\s+|$)/i,
+            /prescribe\s+(?:.+?)\s+(?:to|for)\s+(.+?)(?:\s+|$)/i,
+            /prescription\s+(?:to|for)\s+(.+?)(?:\s+|$)/i
+        ];
         let extractedName = null;
+        let isPrescriptionIntent = false;
         for (const pattern of patientNavPatterns) {
             const match = message.match(pattern);
             if (match && match[1]) {
                 extractedName = match[1].trim();
                 break;
+            }
+        }
+        if (!extractedName) {
+            for (const pattern of prescriptionPatterns) {
+                const match = message.match(pattern);
+                if (match && match[1]) {
+                    extractedName = match[1].trim();
+                    isPrescriptionIntent = true;
+                    break;
+                }
             }
         }
         if (extractedName && profiles) {
@@ -827,7 +876,11 @@ Guidelines:
                 }
             }
             if (bestMatch && bestScore >= 3) {
-                action = { type: 'navigate', route: 'patient-profile', patientId: bestMatch.id };
+                action = {
+                    type: 'navigate',
+                    route: isPrescriptionIntent ? 'prescriptions' : 'patient-profile',
+                    patientId: bestMatch.id
+                };
                 console.log(`[Fallback] Resolved patient '${extractedName}' → ${bestMatch.full_name} (${bestMatch.id})`);
             }
         }
@@ -880,6 +933,42 @@ Guidelines:
     }
     catch (err) {
         console.error('Chat error:', err);
+        res.status(500).json({ message: err.message || 'Internal server error' });
+    }
+});
+// POST /api/patient-chat
+app.post('/api/patient-chat', async (req, res) => {
+    try {
+        const { message, history } = req.body;
+        if (!message) {
+            return res.status(400).json({ message: 'Message is required' });
+        }
+        // Try delegating to the python agent_server on port 8000
+        try {
+            const agentResponse = await globalThis.fetch(`${AGENTS_URL}/api/patient-chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message, history })
+            });
+            if (agentResponse.ok) {
+                const agentData = (await agentResponse.json());
+                console.log('Response from Python PatientAgent received successfully.');
+                return res.json({ reply: agentData.reply });
+            }
+            else {
+                console.warn('Python agent server (patient) returned non-ok status.');
+                return res.status(500).json({ message: 'Error from patient agent server' });
+            }
+        }
+        catch (err) {
+            console.warn('Python agent server (patient) is unreachable:', err);
+            return res.status(503).json({ message: 'Patient agent server is unreachable' });
+        }
+    }
+    catch (err) {
+        console.error('Patient Chat error:', err);
         res.status(500).json({ message: err.message || 'Internal server error' });
     }
 });
