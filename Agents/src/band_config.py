@@ -190,7 +190,19 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
     from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
     from thenvoi_rest.types import ChatMessageRequestMentionsItem
     try:
-        agent_ids = BandSDK.room_agent_ids.get(room_id, [])
+        # Resolve which agents should receive this specific event.
+        # Only @mention agents that (a) are in this room AND (b) handle this event.
+        room_agent_id_set = set(BandSDK.room_agent_ids.get(room_id, []))
+        handler_keys = EVENT_AGENT_ROUTING.get(event)
+        if handler_keys:
+            agent_ids = [
+                BandSDK.agent_config_ids[key]
+                for key in handler_keys
+                if key in BandSDK.agent_config_ids and BandSDK.agent_config_ids[key] in room_agent_id_set
+            ]
+        else:
+            # Unknown event: fall back to all agents in the room
+            agent_ids = list(room_agent_id_set)
         mentions = [ChatMessageRequestMentionsItem(id=aid) for aid in agent_ids]
         safe_payload = payload if isinstance(payload, dict) else ({"data": str(payload)} if payload is not None else {})
         content = json.dumps({"event": event, "payload": safe_payload})
@@ -301,10 +313,55 @@ except ImportError:
     class BandPreprocessor:
         pass
 
+# Maps each event name to the config keys of agents that handle it.
+# send_platform_event uses this to @mention only the relevant agent(s).
+EVENT_AGENT_ROUTING: Dict[str, List[str]] = {
+    # Registration agent handles all booking / scheduling events
+    "QUERY_DOCTORS":             ["registration_agent"],
+    "BOOKING_REQUESTED":         ["registration_agent"],
+    "RESCHEDULE_REQUESTED":      ["registration_agent"],
+    "CHECK_DOCTOR_AVAILABILITY": ["registration_agent"],
+    "REQUEST_DOCTOR_MATCH":      ["registration_agent"],
+    # Navigation agent handles wayfinding events
+    "REQUEST_NAVIGATION":        ["patient_navigation_agent"],
+    "NAVIGATE_TO_ROOM":          ["patient_navigation_agent"],
+    "DOCTOR_ROOM_CHANGE":        ["patient_navigation_agent"],
+    # Patient management agent receives all responses from other agents
+    "DOCTORS_LIST_RESPONSE":     ["patient_management_agent"],
+    "BOOKING_FAILED":            ["patient_management_agent"],
+    "RESCHEDULE_CONFIRMED":      ["patient_management_agent"],
+    "RESCHEDULE_FAILED":         ["patient_management_agent"],
+    "NAVIGATION_DIRECTIONS":     ["patient_management_agent"],
+    "DOCTOR_AVAILABILITY_STATUS":["patient_management_agent"],
+    "DOCTOR_ASSIGNED":           ["patient_management_agent"],
+    "RESCHEDULE_APPOINTMENT":    ["patient_management_agent"],
+    "PATIENT_CHECK_IN":          ["patient_management_agent"],
+    # BOOKING_CONFIRMED goes to both patient agent (PatientManagementRoom) and doctor agent (DoctorDashboardRoom)
+    "BOOKING_CONFIRMED":         ["patient_management_agent", "doctor_agent"],
+    # Summary agent generates patient summaries
+    "PATIENT_SUMMARY_REQUESTED": ["summary_agent"],
+    "GENERATE_SUMMARY":          ["summary_agent"],
+    "SUMMARIZE_PATIENT_HISTORY": ["summary_agent"],
+    # Doctor agent receives results from summary agent and pharmacy alerts
+    "PATIENT_SUMMARY_RESPONSE":  ["doctor_agent"],
+    "ALTERNATIVE_MEDICINE_REQUESTED": ["doctor_agent"],
+    # Medicine agent processes prescriptions
+    "PRESCRIPTION_WRITTEN":      ["medicine_management_agent"],
+    "PROCESS_PRESCRIPTION":      ["medicine_management_agent"],
+    "CHECK_MEDICINE_AVAILABILITY":["medicine_management_agent"],
+    # Stock / pharmacy events
+    "ROUTE_TO_PHARMA":           ["pharmacist_agent", "stock_management_agent"],
+    "ROUTE_TO_PHARMACY":         ["stock_management_agent"],
+    "GET_STOCK_STATS":           ["stock_management_agent"],
+    "STOCK_DEMAND_ALERT":        ["pharmacist_agent"],
+    "PREPARE_MEDICINE":          ["pharmacist_agent"],
+}
+
 class BandSDK:
     real_agent = None
     rest_client = None
-    room_agent_ids: Dict[str, List[str]] = {}  # room_id → [agent_uuid, ...]
+    room_agent_ids: Dict[str, List[str]] = {}    # room_id → [all agent UUIDs in room]
+    agent_config_ids: Dict[str, str] = {}         # config_key → agent UUID
 
     @staticmethod
     def create_room(name: str) -> BandRoom:
@@ -458,8 +515,9 @@ class BandSDK:
             except Exception as e:
                 print(f"[BandSDK] Warning: Failed to sync participants for '{room_name}': {e}")
 
-        # 5. Build room_agent_ids for message @mentions (inter-agent routing)
+        # 5. Build room_agent_ids and agent_config_ids for @mention routing
         BandSDK.room_agent_ids = {}
+        BandSDK.agent_config_ids = {}
         for room_name, keys in room_participants.items():
             rid = ROOM_NAME_TO_ID.get(room_name)
             if not rid:
@@ -473,6 +531,7 @@ class BandSDK:
                         p_id = p_id[1:]
                     if p_id:
                         ids.append(p_id)
+                        BandSDK.agent_config_ids[key] = p_id
             if ids:
                 BandSDK.room_agent_ids[rid] = ids
 
