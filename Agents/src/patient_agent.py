@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, ReceptionNavigationRoom, BandSDK
+from src.band_config import PatientManagementRoom, BandSDK
 from src.telemetry import Telemetry
 
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
@@ -13,20 +13,23 @@ PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
 @tool
 async def get_doctors(date: str = None) -> list:
     """Fetch the list of doctors and their availability for a specific date (YYYY-MM-DD format). Defaults to today if not provided."""
+    from src.supabase_tools import fetch_doctors_from_supabase
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
     PENDING_REQUESTS[req_id] = future
-    
+
     PatientManagementRoom.broadcast("QUERY_DOCTORS", {"requestId": req_id, "date": date})
     try:
-        result = await asyncio.wait_for(future, timeout=10.0)
+        result = await asyncio.wait_for(asyncio.shield(future), timeout=5.0)
         docs = result.get("doctors", [])
-        print(f"[DEBUG] get_doctors returned: {docs}")
         return docs
     except asyncio.TimeoutError:
-        print("[DEBUG] get_doctors timed out")
-        return []
+        print("[get_doctors] Registration agent timed out — querying Supabase directly")
+        docs = await fetch_doctors_from_supabase(date)
+        return docs
+    finally:
+        PENDING_REQUESTS.pop(req_id, None)
 
 @tool
 async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
@@ -147,7 +150,6 @@ class PatientManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("PatientManagementAgent")
         PatientManagementRoom.join(self.agent)
-        ReceptionNavigationRoom.join(self.agent)
         self.bookings: Dict[str, Dict[str, Any]] = {}
         self.graph = self._build_graph()
         self.setup_listeners()
@@ -231,7 +233,7 @@ class PatientManagementAgent:
             booking = state["bookings"].get(patient_id)
             doctor_id = booking["doctorId"] if booking else "unknown"
 
-            ReceptionNavigationRoom.broadcast("NAVIGATE_TO_ROOM", {
+            PatientManagementRoom.broadcast("NAVIGATE_TO_ROOM", {
                 "patientId": patient_id,
                 "doctorId": doctor_id,
                 "currentLocation": "Reception Desk"
