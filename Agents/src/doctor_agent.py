@@ -160,7 +160,7 @@ class DoctorAssistantAgent:
                 return f"Could not find a patient named '{patient_name}' in the database. Please check the name and try again."
 
             req_id = str(uuid_lib.uuid4())
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             future: asyncio.Future = loop.create_future()
             PENDING_REQUESTS[req_id] = future
 

@@ -166,25 +166,39 @@ class BandRoom:
 async def send_platform_event(room_id: str, event: str, payload: Any):
     if not BandSDK.rest_client:
         return
-    from band.client.rest import ChatEventRequest, DEFAULT_REQUEST_OPTIONS
-    try:
-        # Make the payload visible in the UI for non-join events
-        msg_type = "task"
-        if event != "AGENT_JOINED" and event != "STATE_UPDATED":
-            msg_type = "text"
-            try:
-                display_content = f"**Event: {event}**\n```json\n{json.dumps(payload, indent=2)}\n```"
-            except Exception:
-                display_content = f"**Event: {event}**\n{str(payload)}"
-        else:
-            display_content = event
 
-        await BandSDK.rest_client.agent_api_events.create_agent_chat_event(
+    # Display-only lifecycle events: post as Band events (visible in UI, not routed to agents)
+    if event in ("AGENT_JOINED", "STATE_UPDATED"):
+        from band.client.rest import ChatEventRequest, DEFAULT_REQUEST_OPTIONS
+        try:
+            await BandSDK.rest_client.agent_api_events.create_agent_chat_event(
+                chat_id=room_id,
+                event=ChatEventRequest(
+                    content=event,
+                    message_type="task",
+                    metadata=payload if isinstance(payload, dict) else {}
+                ),
+                request_options=DEFAULT_REQUEST_OPTIONS
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger("band_config").exception(f"Failed to send display event {event} to room {room_id}: {e}")
+        return
+
+    # All other events: use messages API so agents receive them via WebSocket
+    # Band docs: "Events don't route to other agents" — messages do.
+    from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
+    from thenvoi_rest.types import ChatMessageRequestMentionsItem
+    try:
+        agent_ids = BandSDK.room_agent_ids.get(room_id, [])
+        mentions = [ChatMessageRequestMentionsItem(id=aid) for aid in agent_ids]
+        safe_payload = payload if isinstance(payload, dict) else ({"data": str(payload)} if payload is not None else {})
+        content = json.dumps({"event": event, "payload": safe_payload})
+        await BandSDK.rest_client.agent_api_messages.create_agent_chat_message(
             chat_id=room_id,
-            event=ChatEventRequest(
-                content=display_content,
-                message_type=msg_type,
-                metadata=payload if isinstance(payload, dict) else ({"data": payload} if payload else {})
+            message=ChatMessageRequest(
+                content=content,
+                mentions=mentions,
             ),
             request_options=DEFAULT_REQUEST_OPTIONS
         )
@@ -197,14 +211,11 @@ async def send_platform_message(room_id: str, message: str, agent_id: str = None
         return
     from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
     try:
-        # Note: If agent_id is provided we might want to specify from_agent, but the SDK
-        # ChatMessageRequest usually takes role and content. Let's inspect signature later if needed.
-        # But generally, we can just send it as text content.
         await BandSDK.rest_client.agent_api_messages.create_agent_chat_message(
             chat_id=room_id,
             message=ChatMessageRequest(
                 content=message,
-                metadata={}
+                mentions=[],
             ),
             request_options=DEFAULT_REQUEST_OPTIONS
         )
@@ -238,13 +249,13 @@ try:
             if not room:
                 return
 
-            event_name = msg.content if msg.message_type == "task" else msg.message_type
-            payload = msg.metadata
-            if not payload and msg.content:
-                try:
-                    payload = json.loads(msg.content)
-                except Exception:
-                    payload = msg.content
+            try:
+                parsed = json.loads(msg.content)
+                event_name = parsed.get("event", msg.content)
+                payload = parsed.get("payload", {})
+            except (json.JSONDecodeError, TypeError):
+                event_name = msg.content
+                payload = msg.metadata or {}
 
             room.broadcast_local(event_name, payload)
 
@@ -264,13 +275,13 @@ try:
             is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
-            event_name = msg.content if msg.message_type == "task" else msg.message_type
-            payload = msg.metadata
-            if not payload and msg.content:
-                try:
-                    payload = json.loads(msg.content)
-                except Exception:
-                    payload = msg.content
+            try:
+                parsed = json.loads(msg.content)
+                event_name = parsed.get("event", msg.content)
+                payload = parsed.get("payload", {})
+            except (json.JSONDecodeError, TypeError):
+                event_name = msg.content
+                payload = msg.metadata or {}
 
             print(f"[BandSDK] Real Agent client for '{self.config_key}' received event '{event_name}' in room {room_id}")
             local_agents = LOCAL_AGENTS_BY_CONFIG_KEY.get(self.config_key, [])
@@ -293,6 +304,7 @@ except ImportError:
 class BandSDK:
     real_agent = None
     rest_client = None
+    room_agent_ids: Dict[str, List[str]] = {}  # room_id → [agent_uuid, ...]
 
     @staticmethod
     def create_room(name: str) -> BandRoom:
@@ -407,7 +419,7 @@ class BandSDK:
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
-            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent", "stock_management_agent"],
+            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent", "stock_management_agent", "patient_navigation_agent"],
             "Doctor-Dashboard-Room": ["doctor_agent", "summary_agent"],
             "Reception-Navigation-Room": ["patient_navigation_agent", "registration_agent"],
             "Clinical-Consult-Room": ["summary_agent", "doctor_agent"],
@@ -446,7 +458,25 @@ class BandSDK:
             except Exception as e:
                 print(f"[BandSDK] Warning: Failed to sync participants for '{room_name}': {e}")
 
-        # 5. Initialize real agent
+        # 5. Build room_agent_ids for message @mentions (inter-agent routing)
+        BandSDK.room_agent_ids = {}
+        for room_name, keys in room_participants.items():
+            rid = ROOM_NAME_TO_ID.get(room_name)
+            if not rid:
+                continue
+            ids = []
+            for key in keys:
+                p_conf = agent_config.get(key)
+                if p_conf:
+                    p_id = p_conf.get("agent_id", "")
+                    if p_id and p_id.startswith("Y"):
+                        p_id = p_id[1:]
+                    if p_id:
+                        ids.append(p_id)
+            if ids:
+                BandSDK.room_agent_ids[rid] = ids
+
+        # 6. Initialize real agent
         adapter = BandSimpleAdapter()
         real_agent = Agent.create(
             adapter=adapter,
