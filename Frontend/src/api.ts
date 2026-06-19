@@ -16,7 +16,16 @@ export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/a
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    let errorMsg = `HTTP error! status: ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body && body.message) {
+        errorMsg += ` - ${body.message}`;
+      } else if (body && body.error) {
+        errorMsg += ` - ${body.error}`;
+      }
+    } catch (_) {}
+    throw new Error(errorMsg);
   }
   return response.json() as Promise<T>;
 }
