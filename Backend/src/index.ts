@@ -1042,7 +1042,9 @@ Guidelines:
 app.post('/api/patient-chat', async (req, res) => {
   try {
     const { message, history, patientId, patientName } = req.body;
+    console.log(`[Patient Chat API] Received message. AGENTS_URL=${AGENTS_URL}, patientId=${patientId}`);
     if (!message) {
+      console.log(`[Patient Chat API] Rejected: message is missing`);
       return res.status(400).json({ message: 'Message is required' });
     }
 

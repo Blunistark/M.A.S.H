@@ -608,10 +608,10 @@ export class PrescriptionsView implements View {
               router.navigate('patient-profile', { patientId });
             });
           }
-        } catch (err) {
+        } catch (err: any) {
           loadingOverlay.remove();
           console.error('Failed to send prescription to pharmacy:', err);
-          alert('Failed to send prescription to pharmacy. Please check your connection and try again.');
+          alert('Failed to send prescription to pharmacy: ' + (err?.message || err));
         }
       });
     }
