@@ -1,12 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bell, Paperclip, Mic, Send, MessageSquare, Compass, User as UserIcon } from 'lucide-react';
+
+const DatePickerWidget = ({ onSelect }) => {
+  const [date, setDate] = useState('');
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <input 
+        type="date" 
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        style={{
+          padding: '0.5rem 1rem',
+          background: 'rgba(0,0,0,0.2)',
+          border: '1px solid var(--accent-teal)',
+          color: 'var(--text-main)',
+          borderRadius: '12px',
+          outline: 'none',
+          colorScheme: 'dark'
+        }}
+      />
+      <button 
+        onClick={() => { if(date) onSelect(date); }}
+        disabled={!date}
+        style={{
+          padding: '0.5rem 1rem',
+          background: date ? 'var(--accent-teal)' : 'transparent',
+          border: '1px solid var(--accent-teal)',
+          color: date ? '#000' : 'var(--accent-teal)',
+          borderRadius: '12px',
+          cursor: date ? 'pointer' : 'not-allowed',
+          fontWeight: 'bold',
+          opacity: date ? 1 : 0.5,
+          transition: 'all 0.2s'
+        }}
+      >
+        Confirm
+      </button>
+    </div>
+  );
+};
 
 const Dashboard = () => {
   const [message, setMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('home');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const location = useLocation();
+  const rescheduleAppt = location.state?.rescheduleAppt;
+  const hasRescheduled = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -15,6 +57,19 @@ const Dashboard = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (rescheduleAppt && !hasRescheduled.current) {
+      hasRescheduled.current = true;
+      const initMsg = `I need to reschedule my appointment with ${rescheduleAppt.doctorName} which was originally on ${rescheduleAppt.date} at ${rescheduleAppt.time}.`;
+      // We set a small timeout to let the UI mount properly
+      setTimeout(() => {
+        sendDirectMessage(initMsg);
+      }, 500);
+      // clean up location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [rescheduleAppt]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -34,12 +89,19 @@ const Dashboard = () => {
       }));
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      
+      const storedProfile = localStorage.getItem('carepulse_profile');
+      let pName = "Patient";
+      if (storedProfile) {
+        try { pName = JSON.parse(storedProfile).full_name; } catch(e){}
+      }
+
       const response = await fetch(`${apiUrl}/api/patient-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: textToSubmit, history }),
+        body: JSON.stringify({ message: textToSubmit, history, patientName: pName }),
       });
 
       if (response.ok) {
@@ -73,6 +135,15 @@ const Dashboard = () => {
     const type = match[1];
     const cleanText = text.replace(/\[(SLOTS|DATES):\s*(.*?)\s*\]/, '');
     const items = match[2].split(',').map(s => s.trim());
+
+    if (type === 'DATES') {
+      return (
+        <>
+          <div>{cleanText}</div>
+          <DatePickerWidget onSelect={(date) => sendDirectMessage(date)} />
+        </>
+      );
+    }
 
     return (
       <>
@@ -108,40 +179,7 @@ const Dashboard = () => {
     );
   };
 
-  const navItems = [
-    { id: 'home', icon: <MessageSquare size={20} />, label: 'Home' },
-    { id: 'explore', icon: <Compass size={20} />, label: 'Explore' },
-    { id: 'profile', icon: <UserIcon size={20} />, label: 'Profile' }
-  ];
-
   return (
-    <div className="dashboard-layout">
-      {/* Desktop Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <div className="avatar-container">
-            <div className="avatar-placeholder">
-               <UserIcon size={24} color="var(--accent-teal)" />
-            </div>
-          </div>
-          <span className="brand-name">CarePulse</span>
-        </div>
-        
-        <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <button 
-              key={item.id}
-              className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.id)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Main Content Area */}
       <main className="main-content">
         {/* Header */}
         <header className="header">
@@ -228,21 +266,6 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
-
-      {/* Mobile Bottom Nav */}
-      <nav className="bottom-nav">
-        {navItems.map(item => (
-          <button 
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(item.id)}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-    </div>
   );
 };
 

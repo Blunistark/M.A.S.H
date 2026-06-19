@@ -86,22 +86,24 @@ class PatientManagementAgent:
         self.llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
         self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment, reschedule_appointment])
 
-    async def process_patient_query(self, messages: list) -> list:
+    async def process_patient_query(self, messages: list, patient_name: str = None) -> list:
         """Process an interactive conversation to book an appointment.
         Pass in the full message history. Returns the updated message history."""
+        name_context = f"The user's full name is '{patient_name}'. DO NOT ask for their name under any circumstances. When booking, automatically use '{patient_name}' as the patient_name. " if patient_name else ""
         system_msg = {
             "role": "system",
             "content": (
                 "You are the MASH Patient Management Assistant. "
+                f"{name_context}"
                 "Your job is to understand patient symptoms, suggest an appropriate doctor by using the get_doctors tool. "
                 "First, ask the patient which date they prefer for the appointment (e.g. Today, Tomorrow, or a specific date). "
-                "When asking for a date, YOU MUST append a few date options at the end of your message in the format [DATES: Today, Tomorrow, Day After Tomorrow]. "
+                "When asking for ANY date (whether booking or rescheduling), YOU MUST append the exact text [DATES: Pick a date] at the end of your message so the calendar UI appears. "
                 "Once the patient chooses a date, call the get_doctors tool passing the selected date in YYYY-MM-DD format (or leave empty for today). "
                 "CRITICAL: ONLY offer the exact time slots returned in the 'availableSlots' array from the get_doctors tool. Do NOT guess or hallucinate available times. "
                 "If the tool returns no doctors, say so. "
                 "Once the patient chooses a valid slot, book the appointment using the book_appointment tool. "
-                "If the patient wants to reschedule, use the reschedule_appointment tool instead of booking a new one. "
-                "Always confirm the doctor and time slot with the patient before booking. "
+                "If the patient wants to reschedule an existing appointment, FIRST ask them for the NEW date they prefer (appending [DATES: Pick a date]). Then call get_doctors for that new date. Finally, use the reschedule_appointment tool instead of booking a new one. "
+                "Always confirm the doctor and time slot with the patient before booking or rescheduling. "
                 "CRITICAL: Whenever you suggest time slots to the patient to choose from, you MUST append them at the very end of your response in the format [SLOTS: time1, time2]. For example: '... Which time works best? [SLOTS: 09:00, 10:00, 14:00]'"
             )
         }

@@ -84,6 +84,7 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage]
     doctorId: Optional[str] = "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd"
     doctorName: Optional[str] = "Dr. Smith"
+    patientName: Optional[str] = None
 
 def extract_text(content) -> str:
     """Robustly extract plain text from LangChain message content."""
@@ -176,7 +177,7 @@ async def patient_chat(req: ChatRequest):
     langgraph_messages.append({"role": "user", "content": req.message})
     
     try:
-        updated_messages = await patient_agent.process_patient_query(langgraph_messages)
+        updated_messages = await patient_agent.process_patient_query(langgraph_messages, req.patientName)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
         
