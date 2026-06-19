@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, MessageSquare, Compass, User as UserIcon, LogOut, Phone, Mail, Calendar, Activity, Info } from 'lucide-react';
+import { Bell, MessageSquare, Compass, Search, User as UserIcon, LogOut, Phone, Mail, Calendar, Activity, Info } from 'lucide-react';
 import VoiceOrb from './VoiceOrb';
 import Navigation from './Navigation';
+import Explore from './Explore';
 
 const TypewriterText = ({ text }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -147,10 +148,15 @@ const Dashboard = ({ userProfile, onLogout }) => {
 
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
 
+  const handleNavigateHome = (text) => {
+    setActiveTab('home');
+    sendDirectMessage(text);
+  };
+
   const navItems = [
     { id: 'home', icon: <MessageSquare size={20} />, label: 'Home' },
-    { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' },
-    { id: 'profile', icon: <UserIcon size={20} />, label: 'Profile' }
+    { id: 'explore', icon: <Search size={20} />, label: 'Explore' },
+    { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' }
   ];
 
   return (
@@ -197,8 +203,10 @@ const Dashboard = ({ userProfile, onLogout }) => {
           </button>
         </header>
 
-        {activeTab === 'navigation' ? (
-          <Navigation 
+        {activeTab === 'explore' ? (
+          <Explore onNavigateHome={handleNavigateHome} />
+        ) : activeTab === 'navigation' ? (
+          <Navigation
             selectedDestination={selectedDestination}
             setSelectedDestination={setSelectedDestination}
             isSpeaking={isSpeaking}
