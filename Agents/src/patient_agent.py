@@ -34,6 +34,7 @@ async def get_doctors(date: str = None) -> list:
 @tool
 async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
     """Book an appointment for a patient with a specific doctor at a given slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow')."""
+    from src.supabase_tools import book_appointment_in_supabase, PatientNotFoundError
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
@@ -51,11 +52,21 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, da
         result = await asyncio.wait_for(future, timeout=10.0)
         return result.get("message", "Booking processed.")
     except asyncio.TimeoutError:
-        return "Failed to book appointment: Registration Agent timed out."
+        print("[book_appointment] Registration agent timed out — booking in Supabase directly")
+        try:
+            success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
+            if success:
+                return f"Successfully booked appointment for {patient_name} at {slot_time}."
+            return "Failed to book appointment. Please try again."
+        except PatientNotFoundError as e:
+            return str(e)
+    finally:
+        PENDING_REQUESTS.pop(req_id, None)
 
 @tool
 async def reschedule_appointment(patient_name: str, new_slot_time: str, date: str = None) -> str:
     """Reschedule an existing appointment to a new slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow')."""
+    from src.supabase_tools import reschedule_appointment_in_supabase, PatientNotFoundError
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
@@ -71,7 +82,16 @@ async def reschedule_appointment(patient_name: str, new_slot_time: str, date: st
         result = await asyncio.wait_for(future, timeout=10.0)
         return result.get("message", "Reschedule processed.")
     except asyncio.TimeoutError:
-        return "Failed to reschedule appointment: Registration Agent timed out."
+        print("[reschedule_appointment] Registration agent timed out — rescheduling in Supabase directly")
+        try:
+            success = await reschedule_appointment_in_supabase(patient_name, new_slot_time, date)
+            if success:
+                return f"Successfully rescheduled the appointment for {patient_name} to {new_slot_time}."
+            return f"Failed to reschedule the appointment for {patient_name}. Could not find an existing appointment."
+        except PatientNotFoundError as e:
+            return str(e)
+    finally:
+        PENDING_REQUESTS.pop(req_id, None)
 
 PENDING_ACTIONS = []
 
@@ -93,6 +113,9 @@ async def get_navigation_directions(destination: str) -> str:
     elif "mithun" in dest or "nair" in dest or "ent" in dest:
         doctor_id = "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"
         target_name = "Dr. Mithun Nair (ENT)"
+    elif "quorum" in dest or "dental" in dest or "dentist" in dest:
+        doctor_id = "edb25638-f9b3-40c9-98dd-1799b17a3561"
+        target_name = "Dr. Quorum (Dentist)"
     elif "pharmacy" in dest or "pharmacist" in dest or "med" in dest:
         doctor_id = "pharmacy"
         target_name = "Pharmacy"
@@ -122,7 +145,7 @@ async def get_navigation_directions(destination: str) -> str:
         directions = result.get("directions", "")
     except asyncio.TimeoutError:
         # Offline fallback if navigation agent is not responsive
-        if doctor_id == "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd":
+        if doctor_id in ("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "edb25638-f9b3-40c9-98dd-1799b17a3561"):
             directions = "From Reception Desk: Exit the waiting area, enter the corridor, and take the first right into Doctor Consultation Room 1."
         elif doctor_id in ("f85362c8-5935-4b2e-bff1-e2779d9d78ae", "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"):
             directions = "From Reception Desk: Exit the waiting area, enter the corridor, pass Doctor Consultation Room 1, and take the second right into Doctor Consultation Room 2."

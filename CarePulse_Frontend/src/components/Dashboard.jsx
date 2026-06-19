@@ -60,6 +60,7 @@ const Dashboard = ({ userProfile, onLogout }) => {
     } else {
       const paths = {
         'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd': 'Exit the reception and waiting area, walk straight into the central corridor, and take the first right into Doctor Consultation Room 1.',
+        'edb25638-f9b3-40c9-98dd-1799b17a3561': 'Exit the reception and waiting area, walk straight into the central corridor, and take the first right into Doctor Consultation Room 1.',
         'f85362c8-5935-4b2e-bff1-e2779d9d78ae': 'Exit the reception and waiting area, walk straight into the central corridor, pass Doctor Consultation Room 1 on your right, and take the second right into Doctor Consultation Room 2.',
         '13a4db1b-c1dd-43b2-b1c1-71aa36b5574f': 'Exit the reception and waiting area, walk straight into the central corridor, pass Doctor Consultation Room 1 on your right, and take the second right into Doctor Consultation Room 2.',
         'pharmacy': 'The Pharmacy is located immediately to your right as you enter the main clinic lobby.',

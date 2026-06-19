@@ -333,6 +333,8 @@ def resolve_doctor_id(doctor_id_or_name: str) -> str:
         return "13a4db1b-c1dd-43b2-b1c1-71aa36b5574f"
     elif "kirran" in val or "kumar" in val:
         return "f85362c8-5935-4b2e-bff1-e2779d9d78ae"
+    elif "quorum" in val:
+        return "edb25638-f9b3-40c9-98dd-1799b17a3561"
         
     return doctor_id_or_name
 

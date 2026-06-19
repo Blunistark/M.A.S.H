@@ -2,9 +2,22 @@ import asyncio
 import time
 import os
 import json
+import re
 from typing import Callable, Any, Dict, List, Set
 from dotenv import load_dotenv
 from src.telemetry import Telemetry
+
+def clean_mentions(content: str) -> str:
+    if not content:
+        return content
+    while True:
+        stripped = content.strip()
+        match = re.match(r'^@\[\[[^\]]+\]\]', stripped)
+        if match:
+            content = stripped[match.end():]
+        else:
+            break
+    return content.strip()
 
 # Load environment variables
 load_dotenv()
@@ -222,12 +235,33 @@ async def send_platform_message(room_id: str, message: str, agent_id: str = None
     if not BandSDK.rest_client:
         return
     from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
+    from thenvoi_rest.types import ChatMessageRequestMentionsItem
     try:
+        # We need at least one mention to satisfy the platform validation (minItems: 1)
+        room_agent_ids = BandSDK.room_agent_ids.get(room_id, [])
+        if agent_id:
+            room_agent_ids = [agent_id]
+        elif not room_agent_ids and BandSDK.real_agent:
+            room_agent_ids = [BandSDK.real_agent.agent_id]
+            
+        # Fallback to current config agent id if still empty
+        if not room_agent_ids:
+            try:
+                from band.config import load_agent_config
+                aid, _ = load_agent_config("my_agent", config_path="agent_config.yaml")
+                if aid:
+                    if aid.startswith("Y"):
+                        aid = aid[1:]
+                    room_agent_ids = [aid]
+            except Exception:
+                pass
+                
+        mentions = [ChatMessageRequestMentionsItem(id=aid) for aid in room_agent_ids] if room_agent_ids else []
         await BandSDK.rest_client.agent_api_messages.create_agent_chat_message(
             chat_id=room_id,
             message=ChatMessageRequest(
                 content=message,
-                mentions=[],
+                mentions=mentions,
             ),
             request_options=DEFAULT_REQUEST_OPTIONS
         )
@@ -262,8 +296,9 @@ try:
                 return
 
             try:
-                parsed = json.loads(msg.content)
-                event_name = parsed.get("event", msg.content)
+                cleaned_content = clean_mentions(msg.content)
+                parsed = json.loads(cleaned_content)
+                event_name = parsed.get("event", cleaned_content)
                 payload = parsed.get("payload", {})
             except (json.JSONDecodeError, TypeError):
                 event_name = msg.content
@@ -288,8 +323,9 @@ try:
             room_id: str,
         ) -> None:
             try:
-                parsed = json.loads(msg.content)
-                event_name = parsed.get("event", msg.content)
+                cleaned_content = clean_mentions(msg.content)
+                parsed = json.loads(cleaned_content)
+                event_name = parsed.get("event", cleaned_content)
                 payload = parsed.get("payload", {})
             except (json.JSONDecodeError, TypeError):
                 event_name = msg.content
@@ -433,46 +469,23 @@ class BandSDK:
         updated_rooms_file = False
         for room_name in required_rooms:
             if room_name not in ROOM_NAME_TO_ID:
-                if available_ids:
-                    # Reuse an existing room ID from the platform
-                    rid = available_ids.pop(0)
-                    print(f"[BandSDK] Reusing existing room ID {rid} for '{room_name}'...")
-                    ROOM_NAME_TO_ID[room_name] = rid
-                    ROOM_ID_TO_NAME[rid] = room_name
-                    updated_rooms_file = True
-                else:
-                    # Create a new one
-                    print(f"[BandSDK] Creating platform room for '{room_name}'...")
-                    room_res = await client.agent_api_chats.create_agent_chat(chat=ChatRoomRequest(task_id=None))
-                    rid = room_res.data.id
-                    ROOM_NAME_TO_ID[room_name] = rid
-                    ROOM_ID_TO_NAME[rid] = room_name
-                    updated_rooms_file = True
+                # Create a new one
+                print(f"[BandSDK] Creating platform room for '{room_name}'...")
+                room_res = await client.agent_api_chats.create_agent_chat(chat=ChatRoomRequest(task_id=None))
+                rid = room_res.data.id
+                ROOM_NAME_TO_ID[room_name] = rid
+                ROOM_ID_TO_NAME[rid] = room_name
+                updated_rooms_file = True
 
         if updated_rooms_file:
             with open(rooms_file, "w") as f:
                 for name, rid in ROOM_NAME_TO_ID.items():
                     f.write(f"{name}={rid}\n")
 
-        # 3. Update mock room IDs with real room IDs and announce room names to help user identify them
+        # 3. Update mock room IDs with real room IDs
         for name, rid in ROOM_NAME_TO_ID.items():
             if name in MOCK_ROOMS:
                 MOCK_ROOMS[name].id = rid
-            
-            # Announce the room name in the chat so the user can tell the 7 "New Sessions" apart!
-            try:
-                await client.agent_api_events.create_agent_chat_event(
-                    chat_id=rid,
-                    event=ChatEventRequest(
-                        content=f"**[SYSTEM]** You are viewing the **{name}** session.",
-                        message_type="task",
-                        metadata={}
-                    ),
-                    request_options=DEFAULT_REQUEST_OPTIONS
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger("band_config").exception(f"Failed to send SYSTEM message to room {name}: {e}")
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
@@ -550,6 +563,42 @@ class BandSDK:
         await real_agent.start()
         BandSDK.real_agent = real_agent
         print(f"[BandSDK] Connected to Band Platform as '{real_agent.agent_name}'")
+
+        # 7. Announce room names in the chat so the user can tell the 7 "New Sessions" apart!
+        for name, rid in ROOM_NAME_TO_ID.items():
+            try:
+                # Find another agent ID in this room to mention (we cannot mention self)
+                room_aids = BandSDK.room_agent_ids.get(rid, [])
+                other_aids = [aid for aid in room_aids if aid != agent_id]
+                mention_id = None
+                if other_aids:
+                    mention_id = other_aids[0]
+                else:
+                    # Fallback to any other configured agent in the workspace
+                    for key, aid in BandSDK.agent_config_ids.items():
+                        if aid != agent_id:
+                            mention_id = aid
+                            break
+                            
+                from band.client.rest import ChatMessageRequest
+                from thenvoi_rest.types import ChatMessageRequestMentionsItem
+                
+                mentions = [ChatMessageRequestMentionsItem(id=mention_id)] if mention_id else []
+                # Fallback to self only if no other agents exist at all
+                if not mentions:
+                    mentions = [ChatMessageRequestMentionsItem(id=agent_id)]
+
+                await client.agent_api_messages.create_agent_chat_message(
+                    chat_id=rid,
+                    message=ChatMessageRequest(
+                        content=f"**[SYSTEM]** You are viewing the **{name}** session.",
+                        mentions=mentions,
+                    ),
+                    request_options=DEFAULT_REQUEST_OPTIONS
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger("band_config").exception(f"Failed to send SYSTEM message to room {name}: {e}")
 
     @staticmethod
     async def stop_real_band():
