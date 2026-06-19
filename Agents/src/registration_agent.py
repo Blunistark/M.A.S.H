@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, DoctorDashboardRoom, ReceptionNavigationRoom, BandSDK
+from src.band_config import PatientManagementRoom, DoctorDashboardRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase, reschedule_appointment_in_supabase, PatientNotFoundError
 
@@ -12,7 +12,6 @@ class RegistrationAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("RegistrationAgent")
         PatientManagementRoom.join(self.agent)
-        ReceptionNavigationRoom.join(self.agent)
         self.graph = self._build_graph()
         self.setup_listeners()
 
@@ -152,7 +151,7 @@ class RegistrationAgent:
                 "assignedDoctor": doctor_name
             })
 
-            ReceptionNavigationRoom.broadcast("DOCTOR_ASSIGNED", {
+            PatientManagementRoom.broadcast("DOCTOR_ASSIGNED", {
                 "patientId": patient_id,
                 "doctorId": doctor_id,
                 "doctorName": doctor_name,

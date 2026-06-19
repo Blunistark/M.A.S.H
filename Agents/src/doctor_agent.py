@@ -282,6 +282,12 @@ class DoctorAssistantAgent:
                 patient_name, items, doctor_comments, doctor_id=agent_self.doctor_id
             )
             if success:
+                DoctorDashboardRoom.broadcast("PRESCRIPTION_WRITTEN", {
+                    "patientName": patient_name,
+                    "doctorId": agent_self.doctor_id,
+                    "items": items,
+                    "doctorComments": doctor_comments or ""
+                })
                 return f"Successfully created prescription for {patient_name} in Supabase and pushed it to the pharmacy."
             return f"Failed to create prescription for {patient_name}. Ensure the patient exists and the backend is running."
 
