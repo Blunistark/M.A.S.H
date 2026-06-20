@@ -67,7 +67,6 @@ const Login = ({ onLogin }) => {
       if (user) {
         await supabase.from('profiles').upsert({
           id: user.id,
-          email: user.email,
           full_name: fullName,
           role: 'patient'
         });
