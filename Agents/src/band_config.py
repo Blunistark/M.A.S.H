@@ -176,6 +176,57 @@ class BandRoom:
         if self.name != "Telemetry-Audit-Room":
             TelemetryAuditRoom.broadcast("STATE_UPDATED", {"room": self.name, "key": key, "value": value})
 
+async def _load_rooms_from_supabase() -> Dict[str, str]:
+    """Load room name → ID mappings from Supabase (fallback when .env.rooms is absent)."""
+    import aiohttp
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    if not supabase_url or not supabase_key:
+        return {}
+    headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{supabase_url}/rest/v1/band_room_mappings?select=room_name,room_id",
+                headers=headers
+            ) as resp:
+                if resp.status == 200:
+                    rows = await resp.json()
+                    return {row["room_name"]: row["room_id"] for row in rows}
+                # 404 / 400 means the table doesn't exist yet — not an error
+    except Exception as e:
+        print(f"[BandSDK] Could not load rooms from Supabase: {e}")
+    return {}
+
+
+async def _save_rooms_to_supabase(room_name_to_id: Dict[str, str]) -> None:
+    """Upsert room name → ID mappings to Supabase so they survive Render deploys."""
+    import aiohttp
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    if not supabase_url or not supabase_key:
+        return
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    }
+    rows = [{"room_name": n, "room_id": r} for n, r in room_name_to_id.items()]
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{supabase_url}/rest/v1/band_room_mappings",
+                json=rows,
+                headers=headers
+            ) as resp:
+                if resp.status not in (200, 201):
+                    body = await resp.text()
+                    print(f"[BandSDK] Could not save rooms to Supabase (status {resp.status}): {body}")
+    except Exception as e:
+        print(f"[BandSDK] Could not save rooms to Supabase: {e}")
+
+
 async def send_platform_event(room_id: str, event: str, payload: Any):
     if not BandSDK.rest_client:
         return
@@ -341,6 +392,11 @@ try:
             is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
+            # Only dispatch events from rooms that belong to this session.
+            # Messages from unknown room IDs are backlog replays from old sessions — skip them.
+            if room_id not in ROOM_ID_TO_NAME:
+                return
+
             try:
                 cleaned_content = clean_mentions(msg.content)
                 parsed = json.loads(cleaned_content)
@@ -448,7 +504,7 @@ class BandSDK:
         client = AsyncRestClient(api_key=api_key, base_url=rest_url)
         BandSDK.rest_client = client
 
-        # 1. Load room mappings
+        # 1. Load room mappings (.env.rooms first, then Supabase as fallback)
         rooms_file = ".env.rooms"
         if os.path.exists(rooms_file):
             with open(rooms_file, "r") as f:
@@ -469,6 +525,16 @@ class BandSDK:
             "Telemetry-Audit-Room",
             "Pharmacist-Dashboard-Room"
         ]
+
+        # If .env.rooms didn't cover all rooms (ephemeral Render filesystem), try Supabase
+        if not all(r in ROOM_NAME_TO_ID for r in required_rooms):
+            supabase_rooms = await _load_rooms_from_supabase()
+            for name, rid in supabase_rooms.items():
+                if name not in ROOM_NAME_TO_ID:
+                    ROOM_NAME_TO_ID[name] = rid
+                    ROOM_ID_TO_NAME[rid] = name
+            if supabase_rooms:
+                print(f"[BandSDK] Loaded {len(supabase_rooms)} room mappings from Supabase.")
 
         # Fetch existing chats from the platform to reuse them if needed
         existing_rooms = []
@@ -500,6 +566,9 @@ class BandSDK:
             with open(rooms_file, "w") as f:
                 for name, rid in ROOM_NAME_TO_ID.items():
                     f.write(f"{name}={rid}\n")
+
+        # Persist to Supabase so room IDs survive Render deploys (ephemeral filesystem)
+        await _save_rooms_to_supabase(ROOM_NAME_TO_ID)
 
         # 3. Update mock room IDs with real room IDs
         for name, rid in ROOM_NAME_TO_ID.items():

@@ -194,7 +194,9 @@ async def patient_chat(req: ChatRequest):
     print(f"[DEBUG] Incoming patient-chat message: '{req.message}' patientId='{req.patientId}' patientName='{req.patientName}'")
     if not patient_agent:
         raise HTTPException(status_code=503, detail="Patient Agent is not initialized yet.")
-    
+    if not req.patientId or not req.patientName:
+        return {"reply": "Please log in to use the patient assistant. Your identity is required to book or manage appointments.", "action": None}
+
     # Map input history to LangGraph format
     langgraph_messages = []
     for h in req.history:
