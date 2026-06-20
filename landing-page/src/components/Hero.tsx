@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowDown, Activity } from 'lucide-react'
+import { ArrowDown, Activity, User } from 'lucide-react'
 import { HERO_IMAGE } from '../data/assets'
 import './Hero.css'
 
@@ -38,11 +38,12 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
                 <span className="hero-unisex-badge" style={{ marginBottom: '28px' }}>Decentralized AI Orchestration</span>
                 <h1 className="hero-brand-name" style={{ fontSize: 'clamp(2.2rem, 3.8vw, 3.4rem)', lineHeight: 1.25, letterSpacing: '0.12em', maxWidth: '820px', margin: '0 auto 24px' }}>Multi Agent System for Hospitals</h1>
                 
-                <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                <div className="hero-cta-row" style={{ marginTop: '16px', marginBottom: '8px' }}>
                     <a 
                         href="https://m-a-s-h-frontend.onrender.com" 
                         target="_blank" 
                         rel="noopener noreferrer"
+                        className="btn"
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -68,8 +69,41 @@ export default function Hero({ isAppLoading }: { isAppLoading?: boolean }) {
                             e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.1)'
                         }}
                     >
-                        View Live Example
+                        Doctor Dashboard
                         <Activity size={18} />
+                    </a>
+                    <a 
+                        href="https://m-a-s-h-isf4.onrender.com/" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            background: 'var(--text-primary)',
+                            color: 'var(--bg-primary)',
+                            padding: '18px 40px',
+                            borderRadius: '50px',
+                            textDecoration: 'none',
+                            fontWeight: '600',
+                            fontSize: '14px',
+                            letterSpacing: '1.5px',
+                            textTransform: 'uppercase',
+                            transition: 'all 0.3s ease',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                        }}
+                        onMouseOver={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)'
+                            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'
+                        }}
+                        onMouseOut={(e) => {
+                            e.currentTarget.style.transform = 'none'
+                            e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        Patient Portal
+                        <User size={18} />
                     </a>
                 </div>
 
