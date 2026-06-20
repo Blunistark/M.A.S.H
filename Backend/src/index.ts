@@ -96,20 +96,28 @@ app.post('/api/auth/login', async (req, res) => {
       .single();
 
     let userProfile = profile;
-    if (profileErr) {
-      console.warn('Profile not found for authenticated user, creating default profile');
-      const { data: newProfile } = await supabase
+    if (profileErr || !userProfile) {
+      console.warn('Profile not found, attempting to create one:', profileErr?.message);
+      const { data: newProfile, error: insertErr } = await supabase
         .from('profiles')
         .insert([
           {
             id: authUser.id,
-            full_name: email.split('@')[0],
+            full_name: authUser.user_metadata?.full_name || email.split('@')[0],
             role: 'patient',
           }
         ])
         .select()
         .single();
-      userProfile = newProfile;
+      if (insertErr) {
+        console.warn('Profile insert failed:', insertErr.message);
+      }
+      // Use created profile, or construct a minimal one from auth data as fallback
+      userProfile = newProfile ?? {
+        id: authUser.id,
+        full_name: authUser.user_metadata?.full_name || email.split('@')[0],
+        role: 'patient',
+      };
     }
 
     res.json({
