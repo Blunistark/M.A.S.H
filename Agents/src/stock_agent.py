@@ -12,7 +12,6 @@ class StockManagementState(TypedDict):
 class StockManagementAgent:
     def __init__(self):
         self.agent = BandSDK.create_agent("StockManagementAgent")
-        PatientManagementRoom.join(self.agent)
         PharmacyInventoryRoom.join(self.agent)
         PharmacistDashboardRoom.join(self.agent)
         self.stock_usage: Dict[str, int] = {}

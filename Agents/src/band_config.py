@@ -231,6 +231,25 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
         import logging
         logging.getLogger("band_config").exception(f"Failed to send event {event} to room {room_id}: {e}")
 
+async def send_display_message(room_id: str, content: str):
+    """Send a display-only message to a Band room (visible in UI, not routed to agents)."""
+    if not BandSDK.rest_client:
+        return
+    from band.client.rest import ChatEventRequest, DEFAULT_REQUEST_OPTIONS
+    try:
+        await BandSDK.rest_client.agent_api_events.create_agent_chat_event(
+            chat_id=room_id,
+            event=ChatEventRequest(
+                content=content,
+                message_type="task",
+                metadata={}
+            ),
+            request_options=DEFAULT_REQUEST_OPTIONS
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("band_config").exception(f"Failed to send display message to room {room_id}: {e}")
+
 async def send_platform_message(room_id: str, message: str, agent_id: str = None):
     if not BandSDK.rest_client:
         return
@@ -489,7 +508,7 @@ class BandSDK:
 
         # 4. Sync room participants dynamically to prevent 403 websocket rejections
         room_participants = {
-            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent", "stock_management_agent", "patient_navigation_agent"],
+            "Patient-Management-Room": ["patient_management_agent", "registration_agent", "summary_agent", "patient_navigation_agent"],
             "Doctor-Dashboard-Room": ["doctor_agent", "summary_agent", "medicine_management_agent"],
             "Reception-Navigation-Room": ["patient_navigation_agent", "registration_agent"],
             "Clinical-Consult-Room": ["summary_agent", "doctor_agent"],
@@ -564,35 +583,17 @@ class BandSDK:
         BandSDK.real_agent = real_agent
         print(f"[BandSDK] Connected to Band Platform as '{real_agent.agent_name}'")
 
-        # 7. Announce room names in the chat so the user can tell the 7 "New Sessions" apart!
+        # 7. Announce room names so the user can tell the 7 "New Sessions" apart.
+        # Use events (not messages) so agents don't receive them and no processing
+        # lifecycle is triggered — avoids 422 validation errors on mark_processed.
         for name, rid in ROOM_NAME_TO_ID.items():
             try:
-                # Find another agent ID in this room to mention (we cannot mention self)
-                room_aids = BandSDK.room_agent_ids.get(rid, [])
-                other_aids = [aid for aid in room_aids if aid != agent_id]
-                mention_id = None
-                if other_aids:
-                    mention_id = other_aids[0]
-                else:
-                    # Fallback to any other configured agent in the workspace
-                    for key, aid in BandSDK.agent_config_ids.items():
-                        if aid != agent_id:
-                            mention_id = aid
-                            break
-                            
-                from band.client.rest import ChatMessageRequest
-                from thenvoi_rest.types import ChatMessageRequestMentionsItem
-                
-                mentions = [ChatMessageRequestMentionsItem(id=mention_id)] if mention_id else []
-                # Fallback to self only if no other agents exist at all
-                if not mentions:
-                    mentions = [ChatMessageRequestMentionsItem(id=agent_id)]
-
-                await client.agent_api_messages.create_agent_chat_message(
+                await client.agent_api_events.create_agent_chat_event(
                     chat_id=rid,
-                    message=ChatMessageRequest(
+                    event=ChatEventRequest(
                         content=f"**[SYSTEM]** You are viewing the **{name}** session.",
-                        mentions=mentions,
+                        message_type="task",
+                        metadata={}
                     ),
                     request_options=DEFAULT_REQUEST_OPTIONS
                 )

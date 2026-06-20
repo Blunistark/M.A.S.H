@@ -133,25 +133,23 @@ async def doctor_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
-    from src.band_config import send_platform_message
+    from src.band_config import send_display_message
     try:
-        # Echo the user's message to the Band Platform Room
         from src.band_config import MOCK_ROOMS
         doc_room = next((r for name, r in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
         doc_room_id = doc_room.id if doc_room else None
         if doc_room_id:
-            await send_platform_message(doc_room_id, f"**DOCTOR:** {req.message}")
-            
+            await send_display_message(doc_room_id, f"**DOCTOR:** {req.message}")
+
         # Clear actions before query (handled in process_doctor_query as well)
         agent.pending_actions = []
-        
+
         updated_messages = await agent.process_doctor_query(langgraph_messages)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
-        
-        # Echo the doctor's reply to the Band Platform Room
+
         if doc_room_id:
-            await send_platform_message(doc_room_id, f"**Doctor:** {reply}")
+            await send_display_message(doc_room_id, f"**Doctor:** {reply}")
             
         # Get the first pending action if any was triggered by a tool
         action = agent.pending_actions[0] if agent.pending_actions else None
@@ -205,13 +203,13 @@ async def patient_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
-    from src.band_config import send_platform_message
+    from src.band_config import send_display_message
     try:
         from src.band_config import MOCK_ROOMS
         room = next((r for name, r in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
         room_id = room.id if room else None
         if room_id:
-            await send_platform_message(room_id, f"**PATIENT:** {req.message}")
+            await send_display_message(room_id, f"**PATIENT:** {req.message}")
 
         updated_messages = await patient_agent.process_patient_query(
             langgraph_messages,
@@ -220,9 +218,9 @@ async def patient_chat(req: ChatRequest):
         )
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
-        
+
         if room_id:
-            await send_platform_message(room_id, f"**CarePulse:** {reply}")
+            await send_display_message(room_id, f"**CarePulse:** {reply}")
         
         from src.patient_agent import PENDING_ACTIONS
         action = PENDING_ACTIONS[0] if PENDING_ACTIONS else None
