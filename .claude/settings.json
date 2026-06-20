@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.band.ai)"
+      "WebFetch(domain:docs.band.ai)",
+      "Bash(npm run *)"
     ]
   }
 }
