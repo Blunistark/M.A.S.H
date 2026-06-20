@@ -195,6 +195,9 @@ class PatientManagementAgent:
         
         patient_info = f"The logged-in patient is {patient_name} (ID: {patient_id})." if patient_name and patient_id else ""
         
+        is_after_6pm = now_local.hour >= 18
+        date_options = "Tomorrow, Day After Tomorrow" if is_after_6pm else "Today, Tomorrow, Day After Tomorrow"
+        
         system_msg = {
             "role": "system",
             "content": (
@@ -207,7 +210,7 @@ class PatientManagementAgent:
                 "\n\nFor booking appointments, follow these steps in order:\n"
                 "STEP 1 — Ask reason: If the patient has not mentioned their symptoms or reason for the visit, ask briefly (e.g. 'What brings you in today?'). "
                 "If they have already mentioned a reason, skip to STEP 2.\n"
-                "STEP 2 — Ask date: Ask which date they prefer. YOU MUST append date options in the format [DATES: Today, Tomorrow, Day After Tomorrow].\n"
+                f"STEP 2 — Ask date: Ask which date they prefer. YOU MUST append date options in the format [DATES: {date_options}].\n"
                 "STEP 3 — Select best doctor: Once you have BOTH the reason AND the date, call get_doctors with the date. "
                 "Then automatically pick the single most suitable doctor based on the patient's symptoms using this specialty guide:\n"
                 "  • Chest pain / heart / palpitations / cardiology → Dr. Smith (Cardiologist)\n"

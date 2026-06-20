@@ -77,6 +77,14 @@ async def fetch_doctors_from_supabase(date_str: str = None) -> List[Dict[str, An
                     base_slots = ["09:00", "10:00", "14:00", "15:00", "16:00"]
                     available_slots = [slot for slot in base_slots if slot not in booked_times] if item.get("is_available") else []
                     
+                    # Filter out past slots if target_date is today in GMT+5:30
+                    from datetime import timedelta
+                    local_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+                    today_str = local_now.strftime("%Y-%m-%d")
+                    if target_date == today_str:
+                        current_time_str = local_now.strftime("%H:%M")
+                        available_slots = [slot for slot in available_slots if slot > current_time_str]
+                    
                     profile = item.get("profiles") or {}
                     doctors.append({
                         "id": doc_id,
