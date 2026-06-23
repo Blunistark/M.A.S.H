@@ -280,7 +280,13 @@ async def send_platform_event(room_id: str, event: str, payload: Any):
         )
     except Exception as e:
         import logging
-        logging.getLogger("band_config").exception(f"Failed to send event {event} to room {room_id}: {e}")
+        _log = logging.getLogger("band_config")
+        body = getattr(e, 'body', None) or {}
+        details = body.get('error', {}).get('details', {}) if isinstance(body, dict) else {}
+        if isinstance(details.get('chat_room_id'), list) and 'room is deleted' in details['chat_room_id']:
+            _log.warning(f"Skipped event {event} to deleted room {room_id}")
+        else:
+            _log.exception(f"Failed to send event {event} to room {room_id}: {e}")
 
 async def send_display_message(room_id: str, content: str):
     """Send a display-only message to a Band room (visible in UI, not routed to agents)."""
@@ -299,7 +305,13 @@ async def send_display_message(room_id: str, content: str):
         )
     except Exception as e:
         import logging
-        logging.getLogger("band_config").exception(f"Failed to send display message to room {room_id}: {e}")
+        _log = logging.getLogger("band_config")
+        body = getattr(e, 'body', None) or {}
+        details = body.get('error', {}).get('details', {}) if isinstance(body, dict) else {}
+        if isinstance(details.get('chat_room_id'), list) and 'room is deleted' in details['chat_room_id']:
+            _log.warning(f"Skipped display message to deleted room {room_id}")
+        else:
+            _log.exception(f"Failed to send display message to room {room_id}: {e}")
 
 async def send_platform_message(room_id: str, message: str, agent_id: str = None):
     if not BandSDK.rest_client:
@@ -545,6 +557,18 @@ class BandSDK:
                 print(f"[BandSDK] Found {len(existing_rooms)} existing rooms on the platform.")
         except Exception as e:
             print(f"[BandSDK] Warning: Could not list existing rooms: {e}")
+
+        # Validate existing mappings: remove any room IDs that no longer exist on the platform
+        if existing_rooms:
+            active_room_ids = {room.id for room in existing_rooms}
+            stale_names = [
+                name for name, rid in list(ROOM_NAME_TO_ID.items())
+                if rid not in active_room_ids
+            ]
+            for name in stale_names:
+                rid = ROOM_NAME_TO_ID.pop(name)
+                ROOM_ID_TO_NAME.pop(rid, None)
+                print(f"[BandSDK] Removed stale/deleted room mapping for '{name}' (id={rid})")
 
         # Get set of all currently mapped IDs
         mapped_ids = set(ROOM_NAME_TO_ID.values())
