@@ -558,17 +558,33 @@ class BandSDK:
         except Exception as e:
             print(f"[BandSDK] Warning: Could not list existing rooms: {e}")
 
-        # Validate existing mappings: remove any room IDs that no longer exist on the platform
-        if existing_rooms:
-            active_room_ids = {room.id for room in existing_rooms}
-            stale_names = [
-                name for name, rid in list(ROOM_NAME_TO_ID.items())
-                if rid not in active_room_ids
-            ]
-            for name in stale_names:
-                rid = ROOM_NAME_TO_ID.pop(name)
-                ROOM_ID_TO_NAME.pop(rid, None)
-                print(f"[BandSDK] Removed stale/deleted room mapping for '{name}' (id={rid})")
+        # Validate mapped rooms by probing each one with the SYSTEM label event.
+        # The Band API has no deleted_at field, so a 422 "room is deleted" is the only
+        # reliable signal that a stored room ID is stale. Cleared rooms fall through to
+        # the creation loop below which recreates them with fresh IDs.
+        rooms_labeled = set()
+        for name, rid in list(ROOM_NAME_TO_ID.items()):
+            try:
+                await client.agent_api_events.create_agent_chat_event(
+                    chat_id=rid,
+                    event=ChatEventRequest(
+                        content=f"**[SYSTEM]** You are viewing the **{name}** session.",
+                        message_type="task",
+                        metadata={}
+                    ),
+                    request_options=DEFAULT_REQUEST_OPTIONS
+                )
+                rooms_labeled.add(name)
+            except Exception as e:
+                body = getattr(e, 'body', None) or {}
+                details = body.get('error', {}).get('details', {}) if isinstance(body, dict) else {}
+                if isinstance(details.get('chat_room_id'), list) and 'room is deleted' in details['chat_room_id']:
+                    ROOM_NAME_TO_ID.pop(name)
+                    ROOM_ID_TO_NAME.pop(rid, None)
+                    print(f"[BandSDK] Room '{name}' (id={rid}) is deleted, will recreate.")
+                else:
+                    import logging
+                    logging.getLogger("band_config").warning(f"Probe failed for room '{name}' (id={rid}): {e}")
 
         # Get set of all currently mapped IDs
         mapped_ids = set(ROOM_NAME_TO_ID.values())
@@ -578,13 +594,25 @@ class BandSDK:
         updated_rooms_file = False
         for room_name in required_rooms:
             if room_name not in ROOM_NAME_TO_ID:
-                # Create a new one
                 print(f"[BandSDK] Creating platform room for '{room_name}'...")
                 room_res = await client.agent_api_chats.create_agent_chat(chat=ChatRoomRequest(task_id=None))
                 rid = room_res.data.id
                 ROOM_NAME_TO_ID[room_name] = rid
                 ROOM_ID_TO_NAME[rid] = room_name
                 updated_rooms_file = True
+                try:
+                    await client.agent_api_events.create_agent_chat_event(
+                        chat_id=rid,
+                        event=ChatEventRequest(
+                            content=f"**[SYSTEM]** You are viewing the **{room_name}** session.",
+                            message_type="task",
+                            metadata={}
+                        ),
+                        request_options=DEFAULT_REQUEST_OPTIONS
+                    )
+                    rooms_labeled.add(room_name)
+                except Exception:
+                    pass
 
         if updated_rooms_file:
             with open(rooms_file, "w") as f:
@@ -676,23 +704,7 @@ class BandSDK:
         BandSDK.real_agent = real_agent
         print(f"[BandSDK] Connected to Band Platform as '{real_agent.agent_name}'")
 
-        # 7. Announce room names so the user can tell the 7 "New Sessions" apart.
-        # Use events (not messages) so agents don't receive them and no processing
-        # lifecycle is triggered — avoids 422 validation errors on mark_processed.
-        for name, rid in ROOM_NAME_TO_ID.items():
-            try:
-                await client.agent_api_events.create_agent_chat_event(
-                    chat_id=rid,
-                    event=ChatEventRequest(
-                        content=f"**[SYSTEM]** You are viewing the **{name}** session.",
-                        message_type="task",
-                        metadata={}
-                    ),
-                    request_options=DEFAULT_REQUEST_OPTIONS
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger("band_config").exception(f"Failed to send SYSTEM message to room {name}: {e}")
+        # Room labels were already sent during the probe/creation steps above.
 
     @staticmethod
     async def stop_real_band():
