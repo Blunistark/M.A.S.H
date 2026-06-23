@@ -323,8 +323,8 @@ async def send_platform_message(room_id: str, message: str, agent_id: str = None
         room_agent_ids = BandSDK.room_agent_ids.get(room_id, [])
         if agent_id:
             room_agent_ids = [agent_id]
-        elif not room_agent_ids and BandSDK.real_agent:
-            room_agent_ids = [BandSDK.real_agent.agent_id]
+        elif not room_agent_ids and BandSDK.gateway_agent_id:
+            room_agent_ids = [BandSDK.gateway_agent_id]
             
         # Fallback to current config agent id if still empty
         if not room_agent_ids:
@@ -361,12 +361,12 @@ try:
         async def on_message(
             self,
             msg: PlatformMessage,
-            tools: AgentToolsProtocol,
-            history: Any,
-            participants_msg: str | None,
-            contacts_msg: str | None,
+            _tools: AgentToolsProtocol,
+            _history: Any,
+            _participants_msg: str | None,
+            _contacts_msg: str | None,
             *,
-            is_session_bootstrap: bool,
+            _is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
             room_name = ROOM_ID_TO_NAME.get(room_id)
@@ -396,12 +396,12 @@ try:
         async def on_message(
             self,
             msg: PlatformMessage,
-            tools: AgentToolsProtocol,
-            history: Any,
-            participants_msg: str | None,
-            contacts_msg: str | None,
+            _tools: AgentToolsProtocol,
+            _history: Any,
+            _participants_msg: str | None,
+            _contacts_msg: str | None,
             *,
-            is_session_bootstrap: bool,
+            _is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
             # Only dispatch events from rooms that belong to this session.
@@ -481,7 +481,7 @@ EVENT_AGENT_ROUTING: Dict[str, List[str]] = {
 }
 
 class BandSDK:
-    real_agent = None
+    gateway_agent_id = None
     rest_client = None
     room_agent_ids: Dict[str, List[str]] = {}    # room_id → [all agent UUIDs in room]
     agent_config_ids: Dict[str, str] = {}         # config_key → agent UUID
@@ -688,32 +688,16 @@ class BandSDK:
             if ids:
                 BandSDK.room_agent_ids[rid] = ids
 
-        # 6. Initialize real agent
-        adapter = BandSimpleAdapter()
-        real_agent = Agent.create(
-            adapter=adapter,
-            agent_id=agent_id,
-            api_key=api_key,
-            ws_url=ws_url,
-            rest_url=rest_url,
-            preprocessor=BandPreprocessor(),
-        )
-
-        print("[BandSDK] Starting Real Agent connection...")
-        await real_agent.start()
-        BandSDK.real_agent = real_agent
-        print(f"[BandSDK] Connected to Band Platform as '{real_agent.agent_name}'")
+        # 6. Store gateway agent_id so send_platform_message can use it as a fallback mention.
+        # No WebSocket connection is opened for the gateway — individual BandAgentAdapter
+        # agents handle all message routing via their own connections.
+        BandSDK.gateway_agent_id = agent_id
+        print("[BandSDK] Connected to Band Platform (REST only)")
 
         # Room labels were already sent during the probe/creation steps above.
 
     @staticmethod
     async def stop_real_band():
-        if BandSDK.real_agent:
-            print("[BandSDK] Stopping Real Agent connection...")
-            await BandSDK.real_agent.stop()
-            BandSDK.real_agent = None
-            print("[BandSDK] Stopped Real Agent connection.")
-
         for config_key, real_agent in ACTIVE_REAL_AGENTS.items():
             try:
                 print(f"[BandSDK] Stopping WebSocket connection for real agent role '{config_key}'...")
