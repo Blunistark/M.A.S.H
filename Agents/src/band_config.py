@@ -361,12 +361,12 @@ try:
         async def on_message(
             self,
             msg: PlatformMessage,
-            _tools: AgentToolsProtocol,
-            _history: Any,
-            _participants_msg: str | None,
-            _contacts_msg: str | None,
+            tools: AgentToolsProtocol,
+            history: Any,
+            participants_msg: str | None,
+            contacts_msg: str | None,
             *,
-            _is_session_bootstrap: bool,
+            is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
             room_name = ROOM_ID_TO_NAME.get(room_id)
@@ -396,12 +396,12 @@ try:
         async def on_message(
             self,
             msg: PlatformMessage,
-            _tools: AgentToolsProtocol,
-            _history: Any,
-            _participants_msg: str | None,
-            _contacts_msg: str | None,
+            tools: AgentToolsProtocol,
+            history: Any,
+            participants_msg: str | None,
+            contacts_msg: str | None,
             *,
-            _is_session_bootstrap: bool,
+            is_session_bootstrap: bool,
             room_id: str,
         ) -> None:
             # Only dispatch events from rooms that belong to this session.
