@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, BandSDK
+from src.event_bus import PatientManagementRoom, BandSDK
 from src.telemetry import Telemetry
 
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}

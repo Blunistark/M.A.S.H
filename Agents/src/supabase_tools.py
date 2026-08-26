@@ -113,6 +113,34 @@ async def fetch_medical_records_from_supabase(patient_id: str) -> List[Dict[str,
         print(f"[Supabase Tool Warning] Failed to fetch medical records: {e}")
     return []
 
+async def fetch_all_patients_from_supabase() -> List[Dict[str, Any]]:
+    """Fetch all patient profiles from Supabase."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    url = f"{SUPABASE_URL}/rest/v1/profiles?role=eq.patient&select=id,full_name,email"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=get_headers())
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to fetch patients: {e}")
+    return []
+
+async def fetch_all_medicines_from_supabase() -> List[Dict[str, Any]]:
+    """Fetch all medicine inventory records from Supabase."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    url = f"{SUPABASE_URL}/rest/v1/medicine_inventory?select=id,medicine_name,current_stock,reorder_threshold"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=get_headers())
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to fetch medicines: {e}")
+    return []
+
 async def fetch_medicine_stock_from_supabase(medicine_name: str) -> Dict[str, Any]:
     """Fetch inventory and stock details for a medicine from Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:

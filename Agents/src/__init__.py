@@ -7,7 +7,7 @@ from src.navigation_agent import PatientNavigationAgent
 from src.telemetry_agent import TelemetryAgent
 from src.doctor_agent import DoctorAssistantAgent
 from src.pharmacist_agent import PharmacistAgent, PharmacistAssistantAgent
-from src.band_config import (
+from src.event_bus import (
     PatientManagementRoom,
     DoctorDashboardRoom,
     ReceptionNavigationRoom,
@@ -16,5 +16,3 @@ from src.band_config import (
     TelemetryAuditRoom,
     PharmacistDashboardRoom
 )
-
-

@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, DoctorDashboardRoom, BandSDK
+from src.event_bus import PatientManagementRoom, DoctorDashboardRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_doctors_from_supabase, book_appointment_in_supabase, reschedule_appointment_in_supabase, PatientNotFoundError
 

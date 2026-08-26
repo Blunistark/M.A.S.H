@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import TelemetryAuditRoom, BandSDK
+from src.event_bus import TelemetryAuditRoom, BandSDK
 from src.telemetry import Telemetry
 
 class TelemetryState(TypedDict):

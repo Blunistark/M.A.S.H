@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from src.band_config import PatientManagementRoom, BandSDK
+from src.event_bus import PatientManagementRoom, BandSDK
 from src.telemetry import Telemetry
 
 class PatientNavigationAgent:

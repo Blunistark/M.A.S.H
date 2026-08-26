@@ -6,7 +6,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from src.band_config import DoctorDashboardRoom, PatientManagementRoom, BandSDK
+from src.event_bus import DoctorDashboardRoom, PatientManagementRoom, BandSDK
 from src.supabase_tools import (
     get_doctor_schedule,
     fetch_doctor_schedule_from_supabase,

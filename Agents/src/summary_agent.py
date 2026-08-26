@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, DoctorDashboardRoom, ClinicalConsultRoom, BandSDK
+from src.event_bus import PatientManagementRoom, DoctorDashboardRoom, ClinicalConsultRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medical_records_from_supabase, save_patient_summary_to_supabase
 

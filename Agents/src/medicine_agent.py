@@ -1,6 +1,6 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import (
+from src.event_bus import (
     PatientManagementRoom,
     ClinicalConsultRoom,
     PharmacyInventoryRoom,

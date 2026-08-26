@@ -43,13 +43,8 @@ async def get_or_create_doctor_agent(doctor_id: str, doctor_name: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global summary_agent, pharmacist_agent, patient_agent, registration_agent, stock_agent, navigation_agent
-    use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
-    if use_real_band:
-        from src.band_config import BandSDK
-        print("Connecting to real Band platform...")
-        await BandSDK.init_real_band()
     
-    print("Initializing Agents...")
+    print("Initializing Agents (LangGraph Event Bus)...")
     try:
         summary_agent = SummaryAgent()
         # Pre-initialize Dr. Smith agent
@@ -58,9 +53,8 @@ async def lifespan(app: FastAPI):
         patient_agent = PatientManagementAgent()
         registration_agent = RegistrationAgent()
         navigation_agent = PatientNavigationAgent()
-        print("Agents initialized successfully (Doctor + Pharmacist + Patient + Registration + Navigation).")
         stock_agent = StockManagementAgent()
-        print("Agents initialized successfully (Doctor + Pharmacist + Stock).")
+        print("All agents initialized successfully (Doctor + Pharmacist + Patient + Registration + Navigation + Stock + Summary).")
     except Exception as e:
         print(f"Failed to initialize agents: {e}")
         import traceback
@@ -68,9 +62,7 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    if use_real_band:
-        from src.band_config import BandSDK
-        await BandSDK.stop_real_band()
+    print("Shutting down agents...")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -133,23 +125,13 @@ async def doctor_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
-    from src.band_config import send_display_message
     try:
-        from src.band_config import MOCK_ROOMS
-        doc_room = next((r for name, r in MOCK_ROOMS.items() if name == "Doctor-Dashboard-Room"), None)
-        doc_room_id = doc_room.id if doc_room else None
-        if doc_room_id:
-            await send_display_message(doc_room_id, f"**DOCTOR:** {req.message}")
-
         # Clear actions before query (handled in process_doctor_query as well)
         agent.pending_actions = []
 
         updated_messages = await agent.process_doctor_query(langgraph_messages)
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
-
-        if doc_room_id:
-            await send_display_message(doc_room_id, f"**Doctor:** {reply}")
             
         # Get the first pending action if any was triggered by a tool
         action = agent.pending_actions[0] if agent.pending_actions else None
@@ -205,14 +187,7 @@ async def patient_chat(req: ChatRequest):
     
     langgraph_messages.append({"role": "user", "content": req.message})
     
-    from src.band_config import send_display_message
     try:
-        from src.band_config import MOCK_ROOMS
-        room = next((r for name, r in MOCK_ROOMS.items() if name == "Patient-Management-Room"), None)
-        room_id = room.id if room else None
-        if room_id:
-            await send_display_message(room_id, f"**PATIENT:** {req.message}")
-
         updated_messages = await patient_agent.process_patient_query(
             langgraph_messages,
             patient_id=req.patientId,
@@ -220,9 +195,6 @@ async def patient_chat(req: ChatRequest):
         )
         last_msg = updated_messages[-1]
         reply = extract_text(last_msg.content)
-
-        if room_id:
-            await send_display_message(room_id, f"**CarePulse:** {reply}")
         
         from src.patient_agent import PENDING_ACTIONS
         action = PENDING_ACTIONS[0] if PENDING_ACTIONS else None
@@ -232,6 +204,7 @@ async def patient_chat(req: ChatRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/prescription-event")
 async def prescription_event(req: dict = Body(...)):
     """Called by the backend when a prescription is sent to pharmacy.
@@ -243,7 +216,7 @@ async def prescription_event(req: dict = Body(...)):
     items = req.get("items", [])
     
     # Fire ROUTE_TO_PHARMACY for each prescription item so the stock agent tracks usage
-    from src.band_config import PharmacyInventoryRoom
+    from src.event_bus import PharmacyInventoryRoom
     for item in items:
         medicine_name = item.get("name", item.get("medicine_name", ""))
         if medicine_name:
@@ -251,7 +224,7 @@ async def prescription_event(req: dict = Body(...)):
                 "patientId": patient_id,
                 "prescription": {"medicine": medicine_name},
             }
-            PharmacyInventoryRoom.broadcast_local("ROUTE_TO_PHARMACY", payload)
+            PharmacyInventoryRoom.emit("ROUTE_TO_PHARMACY", payload)
     
     return {"status": "ok", "items_triggered": len(items)}
 
@@ -261,7 +234,7 @@ async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Option
     if doctorId and doctorName:
         await get_or_create_doctor_agent(doctorId, doctorName)
         
-    from src.band_config import MOCK_ROOMS
+    from src.event_bus import event_bus
     rooms_data = []
     
     agent_roles = {
@@ -272,9 +245,9 @@ async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Option
         "ReceptionAgent": "Navigation AI"
     }
 
-    for room_name, room_obj in MOCK_ROOMS.items():
+    for channel_name, channel_obj in event_bus.channels.items():
         agents = []
-        for agent in room_obj.agents:
+        for agent in channel_obj.agents:
             if agent.name.startswith("UI-Listener-"):
                 continue
             role = "Clinical AI" if agent.name.startswith("DoctorAgent_") else agent_roles.get(agent.name, "Agent")
@@ -285,8 +258,8 @@ async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Option
                 "status": "active"
             })
         rooms_data.append({
-            "id": room_obj.id,
-            "name": room_name,
+            "id": channel_obj.id,
+            "name": channel_name,
             "agents": agents,
             "events": []
         })
@@ -295,7 +268,7 @@ async def get_telemetry_state(doctorId: Optional[str] = None, doctorName: Option
 @app.websocket("/api/telemetry-stream")
 async def websocket_telemetry(websocket: WebSocket, doctorId: Optional[str] = None, doctorName: Optional[str] = None):
     await websocket.accept()
-    from src.band_config import BandSDK, TelemetryAuditRoom
+    from src.event_bus import BandSDK, TelemetryAuditRoom
     import datetime
     
     if doctorId and doctorName:
@@ -337,4 +310,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("agent_server:app", host="0.0.0.0", port=port, reload=False)
-

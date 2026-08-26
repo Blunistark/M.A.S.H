@@ -1,8 +1,9 @@
-# Python dependencies for Band of Agents
-band-sdk[langgraph]
+# Python dependencies for M.A.S.H Multi-Agent System
+langgraph
 python-dotenv
 pyyaml
 pydantic
 langchain-google-genai
 fastapi
 uvicorn
+httpx

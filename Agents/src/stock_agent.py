@@ -1,6 +1,6 @@
 from typing import Dict, Any, TypedDict
 from langgraph.graph import StateGraph, START, END
-from src.band_config import PatientManagementRoom, PharmacyInventoryRoom, PharmacistDashboardRoom, BandSDK
+from src.event_bus import PatientManagementRoom, PharmacyInventoryRoom, PharmacistDashboardRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import fetch_medicine_stock_from_supabase, update_medicine_stock_in_supabase
 

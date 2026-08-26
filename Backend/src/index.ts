@@ -1246,16 +1246,22 @@ app.post('/api/tts', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        text,
+        inputs: [text.substring(0, 500)],
         target_language_code: 'en-IN',
-        speaker: 'anushka'
+        speaker: 'anushka',
+        pitch: 0,
+        pace: 1.0,
+        loudness: 1.5,
+        speech_sample_rate: 8000,
+        enable_preprocessing: true,
+        model: 'bulbul:v1'
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
       console.error('Sarvam API error:', errText);
-      return res.status(response.status).json({ message: 'Error from Sarvam API' });
+      return res.status(response.status).json({ message: 'Error from Sarvam API', details: errText });
     }
 
     interface SarvamResponse {
@@ -1271,7 +1277,7 @@ app.post('/api/tts', async (req, res) => {
 
     res.set({
       'Content-Type': 'audio/wav',
-      'Transfer-Encoding': 'chunked'
+      'Content-Length': buffer.length.toString()
     });
     res.send(buffer);
   } catch (err: any) {

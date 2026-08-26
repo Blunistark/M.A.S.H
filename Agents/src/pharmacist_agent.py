@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.band_config import PharmacistDashboardRoom, PharmacyInventoryRoom, BandSDK
+from src.event_bus import PharmacistDashboardRoom, PharmacyInventoryRoom, BandSDK
 from src.telemetry import Telemetry
 from src.supabase_tools import SUPABASE_URL, get_headers
 

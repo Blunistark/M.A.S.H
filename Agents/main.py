@@ -23,6 +23,12 @@ from src import (
     DoctorAssistantAgent,
     PharmacistAgent,
 )
+import uuid
+from src.supabase_tools import (
+    fetch_doctors_from_supabase,
+    fetch_all_patients_from_supabase,
+    fetch_all_medicines_from_supabase,
+)
 
 
 
@@ -43,13 +49,34 @@ def format_js_object(obj):
 
 async def main():
     load_dotenv()
-    use_real_band = os.getenv("USE_REAL_BAND", "false").lower() == "true"
-    if use_real_band:
-        from src.band_config import BandSDK
-        print("Connecting to real Band platform...")
-        await BandSDK.init_real_band()
+    print("Initializing LangGraph Event Bus agents...")
 
-    print("Initializing Band of Agents mesh...")
+    # Dynamically resolve live entities from Supabase backend or generate dynamic entities
+    print("Dynamically discovering active clinic entities...")
+    db_doctors = await fetch_doctors_from_supabase()
+    if db_doctors:
+        primary_doctor = db_doctors[0]
+        doctor_id = primary_doctor.get("id") or str(uuid.uuid4())
+        doctor_name = primary_doctor.get("name") or "Dr. Anita Desai"
+    else:
+        doctor_id = str(uuid.uuid4())
+        doctor_name = "Dr. Active Clinician"
+
+    db_patients = await fetch_all_patients_from_supabase()
+    patient_ids = [p.get("id") for p in db_patients if p.get("id")]
+    patient_id_1 = patient_ids[0] if len(patient_ids) > 0 else str(uuid.uuid4())
+    patient_id_2 = patient_ids[1] if len(patient_ids) > 1 else str(uuid.uuid4())
+    patient_id_3 = patient_ids[2] if len(patient_ids) > 2 else str(uuid.uuid4())
+
+    db_meds = await fetch_all_medicines_from_supabase()
+    in_stock_list = [m["medicine_name"] for m in db_meds if m.get("current_stock", 0) > 0]
+    out_stock_list = [m["medicine_name"] for m in db_meds if m.get("current_stock", 0) == 0]
+
+    med_in_stock = in_stock_list[0] if in_stock_list else "Amoxicillin 500mg Capsule"
+    med_out_of_stock = out_stock_list[0] if out_stock_list else "Lisinopril 10mg Tablet"
+
+    print(f"Dynamic Entities Loaded: Doctor={doctor_name} ({doctor_id}), InStockMed={med_in_stock}, OutOfStockMed={med_out_of_stock}")
+    print(f"Dynamic Patient IDs: P1={patient_id_1}, P2={patient_id_2}, P3={patient_id_3}")
 
     # Instantiate Agents (TelemetryAgent first to capture other agents joining)
     telemetry_agent = TelemetryAgent()
@@ -59,8 +86,9 @@ async def main():
     registration_agent = RegistrationAgent()
     patient_management_agent = PatientManagementAgent()
     patient_navigation_agent = PatientNavigationAgent()
-    doctor_agent = DoctorAssistantAgent("a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd", "Dr. Smith")
+    doctor_agent = DoctorAssistantAgent(doctor_id, doctor_name)
     pharmacist_agent = PharmacistAgent()
+
 
 
     # Log simulation events for visibility
@@ -178,15 +206,7 @@ async def main():
     # Example simulation of orchestration workflow:
     print("--- Simulating Workflow ---")
 
-    # Define dynamic test parameters based on whether we are running in real mode or mock mode
-    patient_id_1 = "53129b25-f3c1-46c3-a3d5-3c41feca402f" if use_real_band else "P-12345"
-    patient_id_2 = "8e114db7-e409-4511-8f4a-d8dcf9661488" if use_real_band else "P-67890"
-    patient_id_3 = "3a1d6743-a49c-40b1-b7d8-09432aaac4f9" if use_real_band else "P-999"
-    med_in_stock = "Amoxicillin 500mg Capsule" if use_real_band else "Ibuprofen 400mg"
-    med_out_of_stock = "Lisinopril 10mg Tablet" if use_real_band else "Rare-Antibiotic 500mg"
-    doctor_id = "22222222-2222-2222-2222-222222222222" if use_real_band else "doc-1"
     HealthcareOrchestrationRoom = PatientManagementRoom  # alias for simulation
-    doctor_name = "Dr. Anita Desai" if use_real_band else "Dr. Smith"
 
     # 1. Patient data arrives, trigger summary
     HealthcareOrchestrationRoom.broadcast('GENERATE_SUMMARY', { 
@@ -376,9 +396,7 @@ async def main():
     print(telemetry_agent.generate_audit_report())
     print("--------------------------------------")
 
-    if use_real_band:
-        from src.band_config import BandSDK
-        await BandSDK.stop_real_band()
+    print("All agent workflows complete.")
 
 if __name__ == "__main__":
     asyncio.run(main())

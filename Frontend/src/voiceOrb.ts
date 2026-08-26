@@ -425,27 +425,87 @@ export class VoiceOrb {
   }
 
   private async speak(text: string) {
-    if (!this.ttsEnabled) return;
+    if (!this.ttsEnabled || !text) return;
+
+    // Clean any markdown formatting / bullets / URLs from spoken text
+    const cleanSpokenText = text
+      .replace(/[*_#`~]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n+/g, '. ')
+      .trim();
+
+    if (!cleanSpokenText) return;
+
+    // 1. Try high-quality backend Sarvam AI TTS first
     try {
       const { synthesizeSpeech } = await import('./api');
-      const arrayBuffer = await synthesizeSpeech(text);
+      const arrayBuffer = await synthesizeSpeech(cleanSpokenText);
 
-      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
 
-      await new Promise((resolve) => {
-        audio.onended = resolve;
-        audio.onerror = resolve;
-        audio.play().catch(resolve);
+      const playSuccess = await new Promise<boolean>((resolve) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          resolve(true);
+        };
+        audio.onerror = (e) => {
+          console.warn('Audio element error during playback:', e);
+          URL.revokeObjectURL(url);
+          resolve(false);
+        };
+        audio.play().catch((e) => {
+          console.warn('Audio play() rejected:', e);
+          URL.revokeObjectURL(url);
+          resolve(false);
+        });
       });
 
-      URL.revokeObjectURL(url);
+      if (playSuccess) {
+        return;
+      }
     } catch (e) {
-      console.warn('Speech synthesis failed:', e);
-      await new Promise(resolve => setTimeout(resolve, Math.max(2000, text.length * 60)));
+      console.warn('Backend TTS failed, falling back to Web Speech API:', e);
     }
+
+    // 2. Native Browser Web Speech API fallback (always works reliably in browser)
+    await this.fallbackBrowserTTS(cleanSpokenText);
   }
+
+  private fallbackBrowserTTS(text: string): Promise<void> {
+    return new Promise((resolve) => {
+      if (!('speechSynthesis' in window)) {
+        console.warn('Speech synthesis not supported in this browser');
+        setTimeout(resolve, Math.max(1500, text.length * 50));
+        return;
+      }
+
+      window.speechSynthesis.cancel(); // Cancel any ongoing speech
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
+
+      // Pick a natural sounding voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny')) && v.lang.startsWith('en')) ||
+        voices.find(v => v.lang.startsWith('en'));
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onend = () => resolve();
+      utterance.onerror = (err) => {
+        console.warn('Browser speech error:', err);
+        resolve();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+
 
   private showTextBubble() {
     if (this.textBubble) {
