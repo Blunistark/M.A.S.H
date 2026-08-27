@@ -1070,8 +1070,9 @@ app.post('/api/patient-chat', async (req, res) => {
         console.log('Response from Python PatientAgent received successfully.');
         return res.json({ reply: agentData.reply, action: agentData.action });
       } else {
-        console.warn('Python agent server (patient) returned non-ok status.');
-        return res.status(500).json({ message: 'Error from patient agent server' });
+        const errorData = (await agentResponse.json().catch(() => ({}))) as { detail?: string };
+        console.warn('Python agent server (patient) returned non-ok status:', agentResponse.status, errorData);
+        return res.status(agentResponse.status).json({ message: errorData.detail || 'Error from patient agent server' });
       }
     } catch (err) {
       console.warn('Python agent server (patient) is unreachable:', err);

@@ -164,6 +164,15 @@ async def get_navigation_directions(destination: str) -> str:
     
     return f"Here are the directions to {target_name}: {directions}"
 
+@tool
+async def register_patient(full_name: str, contact_number: str = "") -> str:
+    """Register a new patient into the hospital database."""
+    from src.supabase_tools import register_patient_in_supabase
+    profile = await register_patient_in_supabase(full_name, contact_number)
+    if profile:
+        return f"Successfully registered patient {full_name}."
+    return f"Failed to register patient {full_name}."
+
 class PatientManagementState(TypedDict):
     event_name: str
     payload: Dict[str, Any]
@@ -179,7 +188,7 @@ class PatientManagementAgent:
         
         # LLM integration for interactive booking
         self.llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
-        self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment, reschedule_appointment, get_navigation_directions])
+        self.react_agent = create_react_agent(self.llm, tools=[get_doctors, book_appointment, reschedule_appointment, get_navigation_directions, register_patient])
 
     async def process_patient_query(self, messages: list, patient_id: str = None, patient_name: str = None) -> list:
         """Process an interactive conversation to book an appointment or get directions.
@@ -193,7 +202,7 @@ class PatientManagementAgent:
         local_date_str = now_local.strftime("%Y-%m-%d")
         local_day_of_week = now_local.strftime("%A")
         
-        patient_info = f"The logged-in patient is {patient_name} (ID: {patient_id})." if patient_name and patient_id else ""
+        patient_info = f"The logged-in patient is {patient_name} (ID: {patient_id})." if patient_name and patient_id and patient_name != "Guest Patient" else "The user is currently an unregistered / guest patient."
         
         is_after_6pm = now_local.hour >= 18
         date_options = "Tomorrow, Day After Tomorrow" if is_after_6pm else "Today, Tomorrow, Day After Tomorrow"
@@ -203,30 +212,30 @@ class PatientManagementAgent:
             "content": (
                 "You are the MASH Patient Management Assistant. "
                 f"{patient_info} "
-                "Your job is to assist patients. You can book/reschedule appointments or provide hospital directions. "
-                "If the patient wants directions, or asks where a doctor, specialty room, or department (like Pharmacy) is located, "
-                "YOU MUST call the get_navigation_directions tool to retrieve and present the directions. "
+                "Your job is to assist patients with booking appointments, discovering doctors, and providing indoor hospital directions. "
                 f"Today's Date: {local_date_str} ({local_day_of_week}). "
-                "\n\nFor booking appointments, follow these steps in order:\n"
-                "STEP 1 — Ask reason: If the patient has not mentioned their symptoms or reason for the visit, ask briefly (e.g. 'What brings you in today?'). "
-                "If they have already mentioned a reason, skip to STEP 2.\n"
-                f"STEP 2 — Ask date: Ask which date they prefer. YOU MUST append date options in the format [DATES: {date_options}].\n"
-                "STEP 3 — Select best doctor: Once you have BOTH the reason AND the date, call get_doctors with the date. "
-                "Then automatically pick the single most suitable doctor based on the patient's symptoms using this specialty guide:\n"
-                "  • Chest pain / heart / palpitations / cardiology → Dr. Smith (Cardiologist)\n"
-                "  • Ear / nose / throat / hearing / sinus / ENT → Dr. Mithun Nair (ENT)\n"
-                "  • Teeth / dental / gum / mouth / jaw → Dr. Quorum (Dentist)\n"
-                "  • Everything else (fever, cold, general, unknown) → Dr. Kirran Kumar (General Medicine)\n"
-                "CRITICAL: Do NOT list all doctors. Pick ONE best match and present only that doctor's available slots.\n"
-                "STEP 4 — Offer slots: Present only the chosen doctor's availableSlots as chips. "
-                "YOU MUST append them at the end of your message in the format [SLOTS: time1, time2, ...]. "
-                "ONLY use slots from the 'availableSlots' field returned by get_doctors. Never invent slots.\n"
-                "STEP 5 — Confirm and book: Once the patient picks a slot, confirm once ('Booking Dr. X at HH:MM on DATE for you — confirm?') "
-                "then call book_appointment with patient_name, doctor_id, slot_time, and date.\n"
-                "If the patient wants to reschedule an existing appointment, use reschedule_appointment instead.\n"
-                "If get_doctors returns no available slots for the chosen doctor, suggest the next best doctor."
+                "\n\n═══ CRITICAL UI BUTTON RULE ═══\n"
+                "The frontend converts specific tags into clickable interactive buttons for the patient. You MUST ALWAYS append these tags at the end of your response:\n"
+                "• When listing doctors or answering 'Which doctors are available?': YOU MUST ALWAYS append [DOCTORS: Dr. Smith (Cardiology), Dr. Kirran Kumar (General Medicine), Dr. Mithun Nair (ENT), Dr. Quorum (Dentist)]\n"
+                "• When asking which location/room the user wants, or answering 'Where is the location of?': YOU MUST ALWAYS append [LOCATIONS: Doctor Consultation Room 1, Doctor Consultation Room 2, Pharmacy, Reception Desk]\n"
+                "• When asking for appointment dates: YOU MUST ALWAYS append [DATES: " + date_options + "]\n"
+                "• When offering appointment time slots: YOU MUST ALWAYS append [SLOTS: slot1, slot2, ...]\n"
+                "\n═══ 1. HOSPITAL NAVIGATION & LOCATIONS ═══\n"
+                "If the patient asks 'Where is the location of?', 'Where is...?', or asks for navigation without specifying a destination, ask 'Which location are you looking for?' and append [LOCATIONS: Doctor Consultation Room 1, Doctor Consultation Room 2, Pharmacy, Reception Desk].\n"
+                "Once the patient specifies or selects a location/room, call get_navigation_directions tool to retrieve and present the directions.\n"
+                "\n═══ 2. APPOINTMENT BOOKING & DOCTOR SELECTION ═══\n"
+                "When the patient wants to book an appointment or ask about doctors:\n"
+                "STEP 1 — Doctor Selection: Call get_doctors. Present the doctors and append [DOCTORS: Dr. Smith (Cardiology), Dr. Kirran Kumar (General Medicine), Dr. Mithun Nair (ENT), Dr. Quorum (Dentist)].\n"
+                f"STEP 2 — Choose Date: Ask which date they prefer. Append [DATES: {date_options}].\n"
+                "STEP 3 — Offer Slots: Present only the selected doctor's availableSlots as chips in the format: [SLOTS: time1, time2, ...]. Only use slots from get_doctors.\n"
+                "STEP 4 — Patient Identity: If you already have the patient's name, proceed. If unknown, ask: 'May I have your name to register you and confirm the appointment?'.\n"
+                "STEP 5 — Confirm and book: Call book_appointment with patient_name, doctor_id, slot_time, and date. book_appointment auto-registers unregistered patients.\n"
+                "CRITICAL RULE: NEVER tell the patient to visit the reception desk to register! You can register them and complete the booking directly right here.\n"
+                "If the patient wants to reschedule an existing appointment, use reschedule_appointment instead."
             )
         }
+
+
         
         has_system = False
         if messages:
@@ -243,6 +252,7 @@ class PatientManagementAgent:
             
         result = await self.react_agent.ainvoke(inputs)
         return result["messages"]
+
 
     def _build_graph(self):
         builder = StateGraph(PatientManagementState)

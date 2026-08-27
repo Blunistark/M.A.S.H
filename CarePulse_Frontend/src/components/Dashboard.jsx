@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, MessageSquare, Compass, Search, User as UserIcon, LogOut, Phone, Mail, Calendar, Activity, Info } from 'lucide-react';
-import VoiceOrb from './VoiceOrb';
+import { 
+  Bell, MessageSquare, Compass, Search, User as UserIcon, LogOut, 
+  Phone, Mail, Activity, Send, Sparkles, Stethoscope, MapPin, Calendar, Clock, ArrowRight 
+} from 'lucide-react';
 import Navigation from './Navigation';
 import Explore from './Explore';
 
@@ -14,7 +16,7 @@ const TypewriterText = ({ text }) => {
       setDisplayedText(text.slice(0, i + 1));
       i++;
       if (i >= text.length) clearInterval(timer);
-    }, 22);
+    }, 18);
     return () => clearInterval(timer);
   }, [text]);
 
@@ -22,17 +24,39 @@ const TypewriterText = ({ text }) => {
 };
 
 const ThinkingDots = () => (
-  <div className="thinking-dots">
-    <span /><span /><span />
+  <div className="thinking-dots-container">
+    <div className="assistant-avatar-small">
+      <Sparkles size={14} color="var(--accent-teal)" />
+    </div>
+    <div className="thinking-bubble">
+      <span /><span /><span />
+    </div>
   </div>
 );
+
+const AUTO_SUGGESTIONS = [
+  { icon: <Stethoscope size={16} />, label: "Book an Appointment", text: "I'd like to book an appointment with a doctor" },
+  { icon: <MapPin size={16} />, label: "Hospital Navigation", text: "Where is the location of?" },
+  { icon: <Calendar size={16} />, label: "Available Doctors & Specialties", text: "Which doctors and specialties are available?" },
+  { icon: <Clock size={16} />, label: "Reschedule Appointment", text: "I want to reschedule my appointment" },
+];
 
 const Dashboard = ({ userProfile, onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [textInput, setTextInput] = useState('');
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   useEffect(() => {
     return () => {
@@ -74,7 +98,10 @@ const Dashboard = ({ userProfile, onLogout }) => {
   };
 
   const sendDirectMessage = async (textToSubmit) => {
-    setMessages(prev => [...prev, { role: 'user', text: textToSubmit }]);
+    if (!textToSubmit || !textToSubmit.trim()) return;
+    const cleanText = textToSubmit.trim();
+
+    setMessages(prev => [...prev, { role: 'user', text: cleanText }]);
     setIsLoading(true);
 
     try {
@@ -91,7 +118,7 @@ const Dashboard = ({ userProfile, onLogout }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: textToSubmit, 
+          message: cleanText, 
           history,
           patientId: userProfile?.id,
           patientName: userProfile?.full_name
@@ -113,41 +140,132 @@ const Dashboard = ({ userProfile, onLogout }) => {
           }
         }
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', text: "Sorry, I couldn't process your request right now." }]);
+        const errData = await response.json().catch(() => ({}));
+        const errReply = errData.message || "Sorry, I couldn't process your request right now. Please try again.";
+        setMessages(prev => [...prev, { role: 'assistant', text: errReply }]);
       }
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', text: "Sorry, I couldn't reach the server." }]);
+      setMessages(prev => [...prev, { role: 'assistant', text: "Sorry, I couldn't reach the server. Please check your connection." }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const renderAssistantContent = (text) => {
-    const match = text.match(/\[(SLOTS|DATES):\s*(.*?)\s*\]/);
-    if (!match) return <TypewriterText text={text} />;
+  const renderInlineBold = (str) => {
+    if (!str) return null;
+    const parts = str.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={idx} style={{ color: 'var(--accent-teal, #2dd4bf)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
 
-    const cleanText = text.replace(/\[(SLOTS|DATES):\s*(.*?)\s*\]/, '');
-    const items = match[2].split(',').map(s => s.trim());
+  const renderAssistantContent = (text, isLatest) => {
+    let tagMatch = text.match(/\[(SLOTS|DATES|DOCTORS|LOCATIONS|OPTIONS):\s*(.*?)\s*\]/);
+    let cleanText = text;
+    let chipType = null;
+    let chips = [];
+
+    if (tagMatch) {
+      chipType = tagMatch[1];
+      cleanText = text.replace(/\[(SLOTS|DATES|DOCTORS|LOCATIONS|OPTIONS):\s*(.*?)\s*\]/, '').trim();
+      chips = tagMatch[2].split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+      // Auto-detect doctors list if present in the text
+      const lower = text.toLowerCase();
+      if ((lower.includes('dr. smith') || lower.includes('dr smith') || lower.includes('cardiologist')) &&
+          (lower.includes('kirran') || lower.includes('mithun') || lower.includes('quorum') || lower.includes('specialt') || lower.includes('doctor'))) {
+        chipType = 'DOCTORS';
+        chips = [
+          "Dr. Smith (Cardiology)",
+          "Dr. Kirran Kumar (General Medicine)",
+          "Dr. Mithun Nair (ENT)",
+          "Dr. Quorum (Dentist)"
+        ];
+      } else if (lower.includes('which location') || lower.includes('looking for') && (lower.includes('room') || lower.includes('pharmacy') || lower.includes('reception'))) {
+        chipType = 'LOCATIONS';
+        chips = [
+          "Doctor Consultation Room 1",
+          "Doctor Consultation Room 2",
+          "Pharmacy",
+          "Reception Desk"
+        ];
+      }
+    }
+
+    const headerLabels = {
+      'DOCTORS': '👨‍⚕️ Choose a Doctor to Book:',
+      'LOCATIONS': '📍 Choose Destination for Directions:',
+      'DATES': '📅 Select Date:',
+      'SLOTS': '⏰ Available Time Slots:',
+      'OPTIONS': '💡 Available Options:'
+    };
+
+    // Format markdown bullets into clean lines
+    const rawLines = cleanText.split('\n').filter(l => l.trim().length > 0);
+    const formattedContent = rawLines.map((line, lIdx) => {
+      let trimmed = line.trim();
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+        return (
+          <div key={lIdx} style={{ paddingLeft: '8px', margin: '4px 0' }}>
+            <span style={{ color: 'var(--accent-teal, #2dd4bf)', marginRight: '6px' }}>•</span>
+            {renderInlineBold(trimmed.replace(/^[*•-]\s*/, ''))}
+          </div>
+        );
+      }
+      return (
+        <div key={lIdx} style={{ margin: '4px 0' }}>
+          {renderInlineBold(trimmed)}
+        </div>
+      );
+    });
 
     return (
-      <>
-        <div><TypewriterText text={cleanText} /></div>
-        <div className="slot-chips">
-          {items.map(item => (
-            <button
-              key={item}
-              className="slot-chip"
-              onClick={() => sendDirectMessage(item)}
-            >
-              {item}
-            </button>
-          ))}
+      <div className="assistant-bubble-body">
+        <div className="assistant-text-content">
+          {isLatest && !tagMatch ? <TypewriterText text={cleanText} /> : formattedContent}
         </div>
-      </>
+        {chips.length > 0 && (
+          <div className="slot-chips-wrapper">
+            <span className="slot-chips-header">
+              {headerLabels[chipType] || 'Select an Option:'}
+            </span>
+            <div className="slot-chips">
+              {chips.map((item, idx) => (
+                <button
+                  key={`${item}-${idx}`}
+                  className="slot-chip"
+                  onClick={() => {
+                    if (chipType === 'DOCTORS') {
+                      sendDirectMessage(`Book an appointment with ${item}`);
+                    } else if (chipType === 'LOCATIONS') {
+                      sendDirectMessage(`Where is ${item}?`);
+                    } else {
+                      sendDirectMessage(item);
+                    }
+                  }}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
-  const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+
+
+  const handleTextSubmit = (e) => {
+    e.preventDefault();
+    if (!textInput.trim() || isLoading) return;
+    const msg = textInput.trim();
+    setTextInput('');
+    sendDirectMessage(msg);
+  };
 
   const handleNavigateHome = (text) => {
     setActiveTab('home');
@@ -155,8 +273,8 @@ const Dashboard = ({ userProfile, onLogout }) => {
   };
 
   const navItems = [
-    { id: 'home', icon: <MessageSquare size={20} />, label: 'Home' },
-    { id: 'explore', icon: <Search size={20} />, label: 'Explore' },
+    { id: 'home', icon: <MessageSquare size={20} />, label: 'Assistant' },
+    { id: 'explore', icon: <Search size={20} />, label: 'Explore Doctors' },
     { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' }
   ];
 
@@ -258,46 +376,121 @@ const Dashboard = ({ userProfile, onLogout }) => {
             </div>
           </div>
         ) : messages.length === 0 ? (
-          /* ── IDLE: Greeting + Centre Orb ── */
-          <div className="idle-view">
-            <section className="greeting-section">
-              <h1 className="greeting-title">Hi, how can I help you<br />today?</h1>
-              <p className="greeting-subtitle">
-                Your personal health assistant is ready to help with appointments or directions.
+          /* ── IDLE / WELCOME VIEW ── */
+          <div className="chat-welcome-container">
+            <div className="welcome-hero-card animate-in">
+              <div className="ai-badge-avatar">
+                <Sparkles size={32} color="var(--accent-teal)" />
+              </div>
+              <h1 className="welcome-title">Hi {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'there'}, how can I help you?</h1>
+              <p className="welcome-subtitle">
+                Your AI healthcare assistant can book appointments, register you with specialists, and provide live hospital directions.
               </p>
-            </section>
- 
-            <div className="orb-container">
-              <div className="orb-glow" />
-              <div className="orb-glow" />
-              <VoiceOrb onCommand={sendDirectMessage} className="orb" />
             </div>
- 
-            <div className="actions-section">
-              <button className="action-btn" onClick={() => sendDirectMessage("I'd like to book an appointment")}>Book Appointment</button>
-              <button className="action-btn" onClick={() => sendDirectMessage("Where is Dr. Smith's room?")}>Navigate to Dr. Smith</button>
+
+            {/* Quick Auto-Suggestion Cards */}
+            <div className="auto-suggest-grid animate-in">
+              <span className="suggest-section-label">Suggested actions:</span>
+              <div className="suggest-cards-wrapper">
+                {AUTO_SUGGESTIONS.map((item, idx) => (
+                  <button 
+                    key={idx} 
+                    className="suggest-card-btn"
+                    onClick={() => sendDirectMessage(item.text)}
+                  >
+                    <div className="suggest-card-icon">{item.icon}</div>
+                    <span className="suggest-card-label">{item.label}</span>
+                    <ArrowRight size={14} className="suggest-arrow" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Chat Input Bar */}
+            <div className="bottom-chat-bar">
+              <form onSubmit={handleTextSubmit} className="modern-chat-form">
+                <input
+                  type="text"
+                  placeholder="Ask a question or type what you need (e.g. book an appointment)..."
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  className="modern-chat-input"
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <button type="submit" className="modern-send-btn" disabled={!textInput.trim() || isLoading}>
+                  <Send size={18} />
+                </button>
+              </form>
             </div>
           </div>
         ) : (
-          /* ── ACTIVE: Response above, Orb at bottom ── */
-          <div className="active-view">
-            <div className="response-area">
-              {isLoading ? (
-                <ThinkingDots />
-              ) : lastAssistantMsg ? (
-                <div className="response-text">
-                  {renderAssistantContent(lastAssistantMsg.text)}
-                </div>
-              ) : null}
+          /* ── ACTIVE CONVERSATIONAL CHAT FEED ── */
+          <div className="chat-feed-container">
+            <div className="chat-messages-scroll">
+              {messages.map((msg, idx) => {
+                const isAssistant = msg.role === 'assistant';
+                const isLatest = isAssistant && idx === messages.length - 1;
+                return (
+                  <div 
+                    key={idx} 
+                    className={`chat-bubble-row ${isAssistant ? 'assistant-row' : 'user-row'} animate-in`}
+                  >
+                    {isAssistant && (
+                      <div className="assistant-avatar-small">
+                        <Sparkles size={16} color="var(--accent-teal)" />
+                      </div>
+                    )}
+                    <div className={`chat-bubble ${isAssistant ? 'assistant-bubble' : 'user-bubble'}`}>
+                      {isAssistant 
+                        ? renderAssistantContent(msg.text, isLatest)
+                        : <span>{msg.text}</span>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isLoading && <ThinkingDots />}
+              <div ref={messagesEndRef} />
             </div>
- 
-            <div className="active-orb-wrap">
-              <VoiceOrb onCommand={sendDirectMessage} className="active-orb" />
+
+            {/* Sticky Bottom Area: Auto-Suggest Pills + Input Bar */}
+            <div className="bottom-chat-bar active-chat-bar">
+              {/* Horizontal Scrollable Suggestion Pills */}
+              <div className="suggest-pills-row">
+                {AUTO_SUGGESTIONS.slice(0, 5).map((item, idx) => (
+                  <button
+                    key={idx}
+                    className="suggest-pill"
+                    onClick={() => sendDirectMessage(item.text)}
+                    disabled={isLoading}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleTextSubmit} className="modern-chat-form">
+                <input
+                  type="text"
+                  placeholder="Type your reply..."
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  className="modern-chat-input"
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <button type="submit" className="modern-send-btn" disabled={!textInput.trim() || isLoading}>
+                  <Send size={18} />
+                </button>
+              </form>
             </div>
           </div>
         )}
       </main>
- 
+
       {/* Mobile Bottom Nav */}
       <nav className="bottom-nav">
         {navItems.map(item => (
@@ -314,5 +507,6 @@ const Dashboard = ({ userProfile, onLogout }) => {
     </div>
   );
 };
- 
+
 export default Dashboard;
+

@@ -9,6 +9,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Synchronize Gemini / Google API key names
+if "GEMINI_API_KEY" in os.environ and "GOOGLE_API_KEY" not in os.environ:
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+elif "GOOGLE_API_KEY" in os.environ and "GEMINI_API_KEY" not in os.environ:
+    os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+
 from typing import Optional
 from src.summary_agent import SummaryAgent
 from src.doctor_agent import DoctorAssistantAgent
@@ -176,8 +182,7 @@ async def patient_chat(req: ChatRequest):
     print(f"[DEBUG] Incoming patient-chat message: '{req.message}' patientId='{req.patientId}' patientName='{req.patientName}'")
     if not patient_agent:
         raise HTTPException(status_code=503, detail="Patient Agent is not initialized yet.")
-    if not req.patientId or not req.patientName:
-        return {"reply": "Please log in to use the patient assistant. Your identity is required to book or manage appointments.", "action": None}
+
 
     # Map input history to LangGraph format
     langgraph_messages = []

@@ -1,9 +1,11 @@
 import os
 import json
+import uuid
 import httpx
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from langchain_core.tools import tool
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -221,8 +223,69 @@ async def save_patient_summary_to_supabase(patient_id: str, summary: str) -> boo
 class PatientNotFoundError(ValueError):
     pass
 
+async def register_patient_in_supabase(full_name: str, contact_number: str = None) -> Optional[Dict[str, Any]]:
+    """Register a new patient in Supabase profiles and add default demographics record."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not full_name:
+        return None
+        
+    new_id = str(uuid.uuid4())
+    headers = get_headers()
+    headers_post = {**headers, "Prefer": "return=representation"}
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Check if profile already exists
+            search_name = full_name.split()[0]
+            check_res = await client.get(
+                f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient",
+                headers=headers
+            )
+            if check_res.status_code == 200 and check_res.json():
+                return check_res.json()[0]
+
+            # Insert profile
+            res = await client.post(
+                f"{SUPABASE_URL}/rest/v1/profiles",
+                headers=headers_post,
+                json={
+                    "id": new_id,
+                    "full_name": full_name,
+                    "role": "patient",
+                    "contact_number": contact_number or None
+                }
+            )
+            if res.status_code in (200, 201):
+                created_profile = res.json()[0] if isinstance(res.json(), list) and len(res.json()) > 0 else {"id": new_id, "full_name": full_name, "role": "patient"}
+                
+                # Insert default medical_records record for demographics
+                try:
+                    await client.post(
+                        f"{SUPABASE_URL}/rest/v1/medical_records",
+                        headers=headers,
+                        json={
+                            "patient_id": new_id,
+                            "doctor_id": "a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd",
+                            "record_type": "demographics",
+                            "description": json.dumps({
+                                "dob": "01/01/1995",
+                                "gender": "Not Specified",
+                                "bloodType": "O+",
+                                "age": 28,
+                                "address": "Not Provided"
+                            })
+                        }
+                    )
+                except Exception as mr_err:
+                    print(f"[Supabase Tool Warning] Could not insert initial medical record: {mr_err}")
+                    
+                print(f"[Supabase Tool] Successfully registered new patient: {full_name} ({new_id})")
+                return created_profile
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to register patient: {e}")
+    return None
+
 async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> bool:
-    """Book a new appointment in Supabase."""
+    """Book a new appointment in Supabase. If the patient is not found, automatically registers them."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
         
@@ -243,7 +306,13 @@ async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_t
             if res.status_code == 200 and res.json():
                 patient_id = res.json()[0]["id"]
             else:
-                raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")
+                # Auto-register patient if not found!
+                print(f"[book_appointment_in_supabase] Patient '{patient_name}' not found. Auto-registering...")
+                new_profile = await register_patient_in_supabase(patient_name)
+                if new_profile:
+                    patient_id = new_profile["id"]
+                else:
+                    raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database and could not be auto-registered.")
     except PatientNotFoundError:
         raise
     except Exception as e:
@@ -326,15 +395,24 @@ async def get_doctors(date: str = None) -> list:
     return docs
 
 @tool
+async def register_patient(full_name: str, contact_number: str = "") -> str:
+    """Register a new patient profile in the hospital system. Pass the full name and optional contact number."""
+    profile = await register_patient_in_supabase(full_name, contact_number)
+    if profile:
+        return f"Successfully registered patient {full_name} with ID {profile.get('id')}."
+    return f"Failed to register patient {full_name}."
+
+@tool
 async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
-    """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), the patient's name, and optionally the date (YYYY-MM-DD or 'tomorrow')."""
+    """Book a new appointment for the patient. Pass the doctor's UUID, the time slot (e.g. 10:00), the patient's name, and optionally the date (YYYY-MM-DD or 'tomorrow'). If the patient is not yet registered, they will be registered automatically."""
     try:
         success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
         if success:
-            return f"Successfully booked appointment for {patient_name} at {slot_time}."
+            return f"Successfully booked appointment for {patient_name} at {slot_time} on {date or 'today'}."
         return "Failed to book appointment. Please try again."
     except PatientNotFoundError as e:
         return str(e)
+
 
 @tool
 async def reschedule_appointment(patient_name: str, new_slot_time: str, date: str = None) -> str:

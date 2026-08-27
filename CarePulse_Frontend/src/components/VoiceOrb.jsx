@@ -53,6 +53,11 @@ export default function VoiceOrb({ onCommand, className = "mash-voice-orb" }) {
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
+      recognition.onstart = () => {
+        setIsListening(true);
+        setTranscript('Listening... Speak now');
+      };
+
       recognition.onresult = (event) => {
         let interimTranscript = '';
         let finalTranscript = '';
@@ -63,18 +68,27 @@ export default function VoiceOrb({ onCommand, className = "mash-voice-orb" }) {
             interimTranscript += event.results[i][0].transcript;
           }
         }
-        setTranscript(interimTranscript || finalTranscript);
+        const text = finalTranscript || interimTranscript;
+        setTranscript(text);
 
-        if (finalTranscript) {
-          handleCommand(finalTranscript);
+        if (finalTranscript && finalTranscript.trim()) {
+          handleCommand(finalTranscript.trim());
         }
       };
 
       recognition.onerror = (event) => {
-        if (event.error !== 'aborted') {
-          console.error('Speech recognition error', event.error);
-        }
         setIsListening(false);
+        if (event.error === 'not-allowed') {
+          setTranscript('Microphone access blocked. Please allow mic in browser.');
+          setTimeout(() => setTranscript(''), 4000);
+        } else if (event.error === 'no-speech') {
+          setTranscript('No speech detected. Click again to speak.');
+          setTimeout(() => setTranscript(''), 3000);
+        } else if (event.error !== 'aborted') {
+          console.error('Speech recognition error:', event.error);
+          setTranscript(`Mic issue: ${event.error}`);
+          setTimeout(() => setTranscript(''), 3000);
+        }
       };
 
       recognition.onend = () => {
@@ -88,7 +102,11 @@ export default function VoiceOrb({ onCommand, className = "mash-voice-orb" }) {
   const handleCommand = async (command) => {
     setIsListening(false);
     setIsProcessing(true);
-    setTranscript(command);
+    setTranscript(`"${command}"`);
+
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
     
     if (onCommand) {
       await onCommand(command);
@@ -97,28 +115,34 @@ export default function VoiceOrb({ onCommand, className = "mash-voice-orb" }) {
     setTimeout(() => {
       setIsProcessing(false);
       setTranscript('');
-    }, 2000);
+    }, 2500);
   };
 
-  const startListening = (e) => {
-    if (e?.type === 'touchstart') e.preventDefault();
-    if (isListening || isProcessing) return;
-    setTranscript('Listening...');
-    setIsListening(true);
-    if (recognitionRef.current) {
-      try { recognitionRef.current.start(); } catch(e) {}
+  const toggleListening = (e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (isProcessing) return;
+
+    if (isListening) {
+      setIsListening(false);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (err) {}
+      }
+    } else {
+      if (!recognitionRef.current) {
+        setTranscript('Microphone recognition not supported in this browser. Please use Chrome or Edge.');
+        setTimeout(() => setTranscript(''), 4000);
+        return;
+      }
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.warn('Speech recognition already started or failed:', err);
+      }
     }
   };
 
-  const stopListening = (e) => {
-    if (e?.type === 'touchend') e.preventDefault();
-    if (!isListening) return;
-    // We let the recognition.onresult handle sending the final transcript
-    // after we stop it here.
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch(e) {}
-    }
-  };
 
   // --- WebGL Logic (Ported from React Bits / voiceOrb.ts) ---
   const initWebGL = () => {
@@ -356,26 +380,21 @@ export default function VoiceOrb({ onCommand, className = "mash-voice-orb" }) {
   const handleMouseEnter = () => { timeStateRef.current.targetHover = 1.0; };
   const handleMouseLeave = () => { timeStateRef.current.targetHover = 0.0; };
 
-  const handleMouseLeaveOrb = (e) => {
-    handleMouseLeave();
-    stopListening(e);
-  };
-
   return (
     <div 
-      className={`${className} ${isProcessing ? 'state-processing' : ''}`} 
-      onMouseDown={startListening} 
-      onMouseUp={stopListening} 
-      onTouchStart={startListening} 
-      onTouchEnd={stopListening} 
+      className={`${className} ${isProcessing ? 'state-processing' : ''} ${isListening ? 'state-listening' : ''}`} 
+      onClick={toggleListening}
+      onTouchEnd={(e) => { e.preventDefault(); toggleListening(e); }}
       onMouseEnter={handleMouseEnter} 
-      onMouseLeave={handleMouseLeaveOrb}
-      style={{ cursor: 'pointer' }}
+      onMouseLeave={handleMouseLeave}
+      style={{ cursor: 'pointer', position: 'relative' }}
+      title={isListening ? "Listening... Click to stop" : "Click to speak"}
     >
       <canvas ref={canvasRef} id="mash-orb-canvas" style={{ width: '100%', height: '100%', display: 'block', borderRadius: '50%' }}></canvas>
       <div className={`transcript-bubble ${transcript ? 'visible' : ''}`}>
-        <span className="spoken-text">{transcript && `"${transcript}"`}</span>
+        <span className="spoken-text">{transcript}</span>
       </div>
     </div>
   );
 }
+
