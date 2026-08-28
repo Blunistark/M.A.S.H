@@ -14,53 +14,115 @@ from src.supabase_tools import (
     book_appointment,
     get_doctors,
     fetch_medical_records_from_supabase,
+    fetch_patient_records_from_supabase,
     save_patient_summary_to_supabase
 )
 
 # Shared state for pending futures keyed by requestId
 PENDING_REQUESTS: Dict[str, asyncio.Future] = {}
 
-def compile_patient_summary_table(patient_name: str, db_records: List[Dict[str, Any]]) -> str:
-    """Build a markdown table from the raw medical records."""
-    history_items, allergy_items, test_rows, surgery_rows = [], [], [], []
+def compile_patient_summary_table(patient_name: str, db_records: List[Dict[str, Any]] = None, patient_records: List[Dict[str, Any]] = None) -> str:
+    """Build a rich markdown report from medical_records and patient_records tables."""
+    history_items, allergy_items, medication_items, family_items = [], [], [], []
+    test_rows, surgery_rows, visit_rows = [], [], []
+    clinical_summaries = []
 
-    for record in db_records:
-        rtype = record.get("record_type", "")
-        desc = record.get("description", "")
-        record_date = record.get("record_date", "")
+    # 1. Process patient_records (AI intake summary + visit reports)
+    if patient_records:
+        for pr in patient_records:
+            report = pr.get("doctor_report") or {}
+            if isinstance(report, str):
+                try:
+                    report = json.loads(report)
+                except Exception:
+                    report = {}
+            
+            intake = report.get("ai_intake_summary") or {}
+            if intake:
+                if intake.get("summary") and intake["summary"] not in clinical_summaries:
+                    clinical_summaries.append(intake["summary"])
+                for c in intake.get("conditions") or []:
+                    if c not in history_items:
+                        history_items.append(c)
+                for a in intake.get("allergies") or []:
+                    if a not in allergy_items:
+                        allergy_items.append(a)
+                for s in intake.get("surgeries") or []:
+                    surgery_rows.append({
+                        "procedure": s,
+                        "date": "Self-reported",
+                        "outcome": "Past procedure"
+                    })
+                for m in intake.get("medications") or []:
+                    if m not in medication_items:
+                        medication_items.append(m)
+                for f in intake.get("family_history") or []:
+                    if f not in family_items:
+                        family_items.append(f)
+            
+            if report.get("source") == "post_visit":
+                visit_date = report.get("visit_date") or pr.get("created_at") or "Past visit"
+                comments = report.get("doctor_comments")
+                rx_list = report.get("prescriptions_given") or []
+                rx_str = ", ".join([f"{r.get('medicine')} ({r.get('dosage')})" for r in rx_list]) if rx_list else "None"
+                visit_rows.append({
+                    "date": str(visit_date)[:10],
+                    "comments": comments or "Routine consultation",
+                    "prescriptions": rx_str
+                })
 
-        desc_data: Dict[str, Any] = {}
-        if isinstance(desc, str) and desc.startswith("{"):
-            try:
-                desc_data = json.loads(desc)
-            except Exception:
-                pass
-        elif isinstance(desc, dict):
-            desc_data = desc
+    # 2. Process medical_records
+    if db_records:
+        for record in db_records:
+            rtype = record.get("record_type", "")
+            desc = record.get("description", "")
+            record_date = record.get("record_date", "")
 
-        if rtype == "chronic_condition":
-            history_items.append(desc if isinstance(desc, str) else str(desc))
-        elif rtype == "allergy":
-            name = desc_data.get("name") or desc
-            severity = desc_data.get("severity", "Unknown")
-            allergy_items.append(f"{name} (Severity: {severity})")
-        elif rtype == "test_result":
-            test_rows.append({
-                "name": desc_data.get("name", "Unknown Test"),
-                "date": desc_data.get("date") or record_date,
-                "result": desc_data.get("result", "—")
-            })
-        elif rtype == "surgical_history":
-            surgery_rows.append({
-                "procedure": desc_data.get("name", "Unknown Procedure"),
-                "date": desc_data.get("date") or record_date,
-                "outcome": desc_data.get("description") or "Successful recovery"
-            })
+            desc_data: Dict[str, Any] = {}
+            if isinstance(desc, str) and desc.startswith("{"):
+                try:
+                    desc_data = json.loads(desc)
+                except Exception:
+                    pass
+            elif isinstance(desc, dict):
+                desc_data = desc
 
-    lines = [f"## Patient Summary: {patient_name}", ""]
+            if rtype == "chronic_condition":
+                val = desc if isinstance(desc, str) else str(desc)
+                if val not in history_items:
+                    history_items.append(val)
+            elif rtype == "allergy":
+                name = desc_data.get("name") or desc
+                severity = desc_data.get("severity", "Unknown")
+                allergy_str = f"{name} (Severity: {severity})"
+                if allergy_str not in allergy_items:
+                    allergy_items.append(allergy_str)
+            elif rtype == "test_result":
+                test_rows.append({
+                    "name": desc_data.get("name", "Unknown Test"),
+                    "date": desc_data.get("date") or record_date,
+                    "result": desc_data.get("result", "—")
+                })
+            elif rtype == "surgical_history":
+                surgery_rows.append({
+                    "procedure": desc_data.get("name", "Unknown Procedure"),
+                    "date": desc_data.get("date") or record_date,
+                    "outcome": desc_data.get("description") or "Successful recovery"
+                })
+            elif rtype == "ai_summary" and isinstance(desc, str):
+                if desc not in clinical_summaries:
+                    clinical_summaries.append(desc)
 
-    # Conditions & Allergies
-    lines.append("### Medical History & Allergies")
+    lines = [f"## Medical Record & History for {patient_name}", ""]
+
+    if clinical_summaries:
+        lines.append("### Clinical Summary")
+        for cs in clinical_summaries:
+            lines.append(f"> {cs}")
+        lines.append("")
+
+    # Conditions & Allergies & Medications
+    lines.append("### Medical Conditions, Medications & Allergies")
     lines.append("| Category | Details |")
     lines.append("|----------|---------|")
     if history_items:
@@ -68,14 +130,29 @@ def compile_patient_summary_table(patient_name: str, db_records: List[Dict[str, 
             lines.append(f"| Condition | {h} |")
     else:
         lines.append("| Condition | No chronic conditions recorded |")
+    if medication_items:
+        for m in medication_items:
+            lines.append(f"| Medication | {m} |")
     if allergy_items:
         for a in allergy_items:
             lines.append(f"| Allergy | {a} |")
     else:
         lines.append("| Allergy | No known allergies |")
+    if family_items:
+        for f in family_items:
+            lines.append(f"| Family History | {f} |")
     lines.append("")
 
-    # Test Results
+    # Past Hospital Visits
+    if visit_rows:
+        lines.append("### Past Hospital Visits")
+        lines.append("| Date | Doctor Notes | Prescriptions Given |")
+        lines.append("|------|--------------|---------------------|")
+        for v in visit_rows:
+            lines.append(f"| {v['date']} | {v['comments']} | {v['prescriptions']} |")
+        lines.append("")
+
+    # Diagnostic Tests
     lines.append("### Diagnostic Tests")
     if test_rows:
         lines.append("| Test Name | Date | Result |")
@@ -178,7 +255,8 @@ class DoctorAssistantAgent:
                 print(f"[get_patient_summary] Timeout waiting for summary response for {resolved_name}. Falling back to direct database retrieval.")
                 try:
                     db_records = await fetch_medical_records_from_supabase(patient_id)
-                    summary_table = compile_patient_summary_table(resolved_name, db_records)
+                    patient_records = await fetch_patient_records_from_supabase(patient_id)
+                    summary_table = compile_patient_summary_table(resolved_name, db_records, patient_records)
                     # Sync to database to keep summaries cached
                     await save_patient_summary_to_supabase(patient_id, summary_table)
                     # Update room state

@@ -2,6 +2,7 @@ import { type View, Router } from '../router';
 import { fetchProfiles, fetchMedicalRecords, fetchAppointments, getPatientPhotoUrl } from '../api';
 import { getIcon } from '../assets/icons';
 import { supabase } from '../supabase';
+import type { Profile } from '../types';
 
 let searchQuery = '';
 
@@ -32,9 +33,19 @@ export class PatientsListView implements View {
       }
     }
 
-    const allProfiles = await fetchProfiles();
-    const allRecords = await fetchMedicalRecords();
-    const allAppointments = await fetchAppointments({ doctor_id: activeDoctorId });
+    let allProfiles: Profile[] = [];
+    let allRecords: any[] = [];
+    let allAppointments: any[] = [];
+
+    try {
+      [allProfiles, allRecords, allAppointments] = await Promise.all([
+        fetchProfiles(),
+        fetchMedicalRecords(),
+        fetchAppointments({ doctor_id: activeDoctorId })
+      ]);
+    } catch (err) {
+      console.error('Failed to fetch patients list data in parallel:', err);
+    }
 
     // Collect all unique patient IDs assigned to this doctor
     const assignedPatientIds = new Set<string>();

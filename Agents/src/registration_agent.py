@@ -38,13 +38,14 @@ class RegistrationAgent:
             payload = state["payload"]
             req_id = payload.get("requestId")
             patient_name = payload.get("patientName")
+            patient_id = payload.get("patientId")
             doctor_id = payload.get("doctorId")
             slot_time = payload.get("slotTime")
             date = payload.get("date")
             reason = payload.get("reason", "")
             
             try:
-                success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
+                success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason, patient_id=patient_id)
                 if success:
                     msg = f"Successfully booked appointment for {patient_name} at {slot_time}."
                     PatientManagementRoom.broadcast("BOOKING_CONFIRMED", {

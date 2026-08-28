@@ -71,3 +71,35 @@ export interface DashboardMetrics {
   notificationsCount: number;
   stockAlertsCount: number;
 }
+
+export interface PatientRecord {
+  id: string;
+  patient_id: string;
+  appointment_id?: string | null;
+  doctor_report: {
+    ai_intake_summary?: {
+      conditions: string[];
+      allergies: string[];
+      surgeries: string[];
+      medications: string[];
+      family_history: string[];
+      summary: string;
+    };
+    raw_patient_input?: string;
+    source?: 'registration' | 'post_visit';
+    summarized_at?: string;
+    visit_date?: string;
+    doctor_comments?: string | null;
+    prescriptions_given?: Array<{
+      medicine: string;
+      dosage: string;
+      quantity: number;
+    }>;
+    completed_at?: string;
+  };
+  prescription_id?: string | null;
+  medical_tests: any[];
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}

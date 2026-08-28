@@ -6,7 +6,8 @@ import type {
   MedicineInventory,
   Prescription,
   PrescriptionItem,
-  DashboardMetrics
+  DashboardMetrics,
+  PatientRecord
 } from './types';
 
 import { supabase } from './supabase';
@@ -230,6 +231,10 @@ export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
   }
 
   return response.arrayBuffer();
+}
+
+export async function fetchPatientRecords(patientId: string): Promise<PatientRecord[]> {
+  return fetchJson<PatientRecord[]>(`${API_BASE}/patient-records/${patientId}`);
 }
 
 export function getPatientPhotoUrl(fullName: string, gender?: string): string {

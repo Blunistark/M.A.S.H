@@ -92,11 +92,29 @@ export class PrescriptionsView implements View {
 
   public async render(params?: { patientId: string; forceReload?: boolean }): Promise<string> {
     let allProfiles: Profile[] = [];
+    let allRecords: any[] = [];
+    let inventoryList: any[] = [];
+    let activeRxList: any[] = [];
+    let activeItemsList: any[] = [];
+
     try {
-      allProfiles = await fetchProfiles();
+      [
+        allProfiles,
+        allRecords,
+        inventoryList,
+        activeRxList,
+        activeItemsList
+      ] = await Promise.all([
+        fetchProfiles(),
+        fetchMedicalRecords(),
+        fetchMedicineInventory(),
+        fetchPrescriptions(),
+        fetchPrescriptionItems()
+      ]);
     } catch (err) {
-      console.error('Failed to fetch profiles:', err);
+      console.error('Failed to fetch prescription data in parallel:', err);
     }
+
     const patients = allProfiles.filter(p => p.role === 'patient');
 
     if (patients.length === 0) {
@@ -117,28 +135,13 @@ export class PrescriptionsView implements View {
       delete rxState[patientId];
     }
 
-    let patient: Profile;
-    try {
-      patient = await fetchProfileById(patientId);
-    } catch (err) {
-      return `
-        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
-          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">Patient not found.</h3>
-        </div>
-      `;
-    }
+    const patient = allProfiles.find(p => p.id === patientId) || patients[0];
 
-    const allRecords = await fetchMedicalRecords();
     const allergies = allRecords.filter(r => r.patient_id === patientId && r.record_type === 'Allergy');
-
-    const inventoryList = await fetchMedicineInventory();
     this.inventory = inventoryList;
 
     // Ensure state exists for this patient
     if (!rxState[patient.id]) {
-      const activeRxList = await fetchPrescriptions();
-      const activeItemsList = await fetchPrescriptionItems();
-
       const activeRxListFiltered = activeRxList.filter(p => p.patient_id === patientId && (p.status === 'active' || p.status === 'alternative_requested'));
       // Sort descending by created_at to get the latest one
       activeRxListFiltered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

@@ -31,10 +31,21 @@ async def get_doctors(date: str = None) -> list:
     finally:
         PENDING_REQUESTS.pop(req_id, None)
 
+CURRENT_PATIENT_ID = None
+
 @tool
-async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> str:
-    """Book an appointment for a patient with a specific doctor at a given slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow')."""
+async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "", patient_id: str = None) -> str:
+    """Book an appointment for a patient with a specific doctor at a given slot_time on a specific date (YYYY-MM-DD or relative like 'tomorrow').
+    Args:
+        patient_name: The exact full name of the patient. MUST be the logged-in patient's name if known.
+        doctor_id: The ID or name of the doctor to book with.
+        slot_time: The time slot (e.g. '09:00' or '14:30').
+        date: The date for the appointment (e.g. 'tomorrow' or '2026-08-29').
+        reason: Optional reason for the visit (e.g. 'mild fever').
+        patient_id: The UUID of the logged-in patient if available.
+    """
     from src.supabase_tools import book_appointment_in_supabase, PatientNotFoundError
+    resolved_patient_id = patient_id or CURRENT_PATIENT_ID
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     req_id = str(uuid.uuid4())
@@ -43,6 +54,7 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, da
     PatientManagementRoom.broadcast("BOOKING_REQUESTED", {
         "requestId": req_id,
         "patientName": patient_name,
+        "patientId": resolved_patient_id,
         "doctorId": doctor_id,
         "slotTime": slot_time,
         "date": date,
@@ -54,7 +66,7 @@ async def book_appointment(patient_name: str, doctor_id: str, slot_time: str, da
     except asyncio.TimeoutError:
         print("[book_appointment] Registration agent timed out — booking in Supabase directly")
         try:
-            success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason)
+            success = await book_appointment_in_supabase(patient_name, doctor_id, slot_time, date, reason, patient_id=resolved_patient_id)
             if success:
                 return f"Successfully booked appointment for {patient_name} at {slot_time}."
             return "Failed to book appointment. Please try again."
@@ -193,8 +205,9 @@ class PatientManagementAgent:
     async def process_patient_query(self, messages: list, patient_id: str = None, patient_name: str = None) -> list:
         """Process an interactive conversation to book an appointment or get directions.
         Pass in the full message history. Returns the updated message history."""
-        global PENDING_ACTIONS
+        global PENDING_ACTIONS, CURRENT_PATIENT_ID
         PENDING_ACTIONS.clear()
+        CURRENT_PATIENT_ID = patient_id
         
         from datetime import datetime, timedelta
         # Local system timezone offset relative to user's local date
@@ -202,7 +215,8 @@ class PatientManagementAgent:
         local_date_str = now_local.strftime("%Y-%m-%d")
         local_day_of_week = now_local.strftime("%A")
         
-        patient_info = f"The logged-in patient is {patient_name} (ID: {patient_id})." if patient_name and patient_id and patient_name != "Guest Patient" else "The user is currently an unregistered / guest patient."
+        is_known_patient = bool(patient_name and patient_id and patient_name != "Guest Patient")
+        patient_info = f"The currently logged-in patient is {patient_name} (Patient ID: {patient_id}). When booking an appointment, YOU MUST ALWAYS use '{patient_name}' as the patient_name and '{patient_id}' as the patient_id. NEVER use mock or placeholder names like 'Bob Smith' or 'John Doe'." if is_known_patient else "The user is currently an unregistered / guest patient. Ask for their name before booking."
         
         is_after_6pm = now_local.hour >= 18
         date_options = "Tomorrow, Day After Tomorrow" if is_after_6pm else "Today, Tomorrow, Day After Tomorrow"
@@ -215,11 +229,12 @@ class PatientManagementAgent:
                 "Your job is to assist patients with booking appointments, discovering doctors, and providing indoor hospital directions. "
                 f"Today's Date: {local_date_str} ({local_day_of_week}). "
                 "\n\n═══ CRITICAL UI BUTTON RULE ═══\n"
-                "The frontend converts specific tags into clickable interactive buttons for the patient. You MUST ALWAYS append these tags at the end of your response:\n"
-                "• When listing doctors or answering 'Which doctors are available?': YOU MUST ALWAYS append [DOCTORS: Dr. Smith (Cardiology), Dr. Kirran Kumar (General Medicine), Dr. Mithun Nair (ENT), Dr. Quorum (Dentist)]\n"
-                "• When asking which location/room the user wants, or answering 'Where is the location of?': YOU MUST ALWAYS append [LOCATIONS: Doctor Consultation Room 1, Doctor Consultation Room 2, Pharmacy, Reception Desk]\n"
-                "• When asking for appointment dates: YOU MUST ALWAYS append [DATES: " + date_options + "]\n"
-                "• When offering appointment time slots: YOU MUST ALWAYS append [SLOTS: slot1, slot2, ...]\n"
+                "The frontend converts specific tags into clickable interactive buttons for the patient. Append these tags ONLY when asking the user to make a choice:\n"
+                "• When listing doctors or asking the user to choose a doctor: append [DOCTORS: Dr. Smith (Cardiology), Dr. Kirran Kumar (General Medicine), Dr. Mithun Nair (ENT), Dr. Quorum (Dentist)]\n"
+                "• When asking which location/room the user wants, or answering 'Where is the location of?': append [LOCATIONS: Doctor Consultation Room 1, Doctor Consultation Room 2, Pharmacy, Reception Desk]\n"
+                "• When asking for appointment dates: append [DATES: " + date_options + "]\n"
+                "• When offering appointment time slots: append [SLOTS: slot1, slot2, ...]\n"
+                "• IMPORTANT: Once an appointment is successfully booked or confirmed, DO NOT append any [DOCTORS:], [DATES:], or [SLOTS:] tags. Just give a warm confirmation message.\n"
                 "\n═══ 1. HOSPITAL NAVIGATION & LOCATIONS ═══\n"
                 "If the patient asks 'Where is the location of?', 'Where is...?', or asks for navigation without specifying a destination, ask 'Which location are you looking for?' and append [LOCATIONS: Doctor Consultation Room 1, Doctor Consultation Room 2, Pharmacy, Reception Desk].\n"
                 "Once the patient specifies or selects a location/room, call get_navigation_directions tool to retrieve and present the directions.\n"
@@ -228,8 +243,8 @@ class PatientManagementAgent:
                 "STEP 1 — Doctor Selection: Call get_doctors. Present the doctors and append [DOCTORS: Dr. Smith (Cardiology), Dr. Kirran Kumar (General Medicine), Dr. Mithun Nair (ENT), Dr. Quorum (Dentist)].\n"
                 f"STEP 2 — Choose Date: Ask which date they prefer. Append [DATES: {date_options}].\n"
                 "STEP 3 — Offer Slots: Present only the selected doctor's availableSlots as chips in the format: [SLOTS: time1, time2, ...]. Only use slots from get_doctors.\n"
-                "STEP 4 — Patient Identity: If you already have the patient's name, proceed. If unknown, ask: 'May I have your name to register you and confirm the appointment?'.\n"
-                "STEP 5 — Confirm and book: Call book_appointment with patient_name, doctor_id, slot_time, and date. book_appointment auto-registers unregistered patients.\n"
+                "STEP 4 — Patient Identity: If you already have the logged-in patient's name (" + (patient_name if is_known_patient else "unknown") + "), proceed directly. If unknown, ask: 'May I have your name to register you and confirm the appointment?'.\n"
+                "STEP 5 — Confirm and book: Call book_appointment with patient_name, doctor_id, slot_time, and date. Use patient_id=" + (f"'{patient_id}'" if is_known_patient else "None") + ".\n"
                 "CRITICAL RULE: NEVER tell the patient to visit the reception desk to register! You can register them and complete the booking directly right here.\n"
                 "If the patient wants to reschedule an existing appointment, use reschedule_appointment instead."
             )

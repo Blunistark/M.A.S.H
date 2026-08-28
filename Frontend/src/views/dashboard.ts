@@ -74,14 +74,34 @@ export class DashboardView implements View {
 
     const activeDoctorId = doctorId || 'a6bb7c5b-ef00-4ea7-8b01-b66b8df815bd';
 
-    queueAppointments = await fetchAppointments({ doctor_id: activeDoctorId });
-    profiles = await fetchProfiles();
-    metrics = await fetchMetrics(activeDoctorId);
-    const allPrescriptions = await fetchPrescriptions();
-    const allPrescriptionItems = await fetchPrescriptionItems();
-    const allInventory = await fetchMedicineInventory();
-    const allDoctorDetails = await fetchDoctorDetails();
+    let allPrescriptions: any[] = [];
+    let allPrescriptionItems: any[] = [];
+    let allInventory: any[] = [];
+    let allDoctorDetails: any[] = [];
+
+    try {
+      [
+        queueAppointments,
+        profiles,
+        metrics,
+        allPrescriptions,
+        allPrescriptionItems,
+        allInventory,
+        allDoctorDetails
+      ] = await Promise.all([
+        fetchAppointments({ doctor_id: activeDoctorId }),
+        fetchProfiles(),
+        fetchMetrics(activeDoctorId),
+        fetchPrescriptions(),
+        fetchPrescriptionItems(),
+        fetchMedicineInventory(),
+        fetchDoctorDetails()
+      ]);
+    } catch (err) {
+      console.error('Failed to load dashboard data in parallel:', err);
+    }
     const doctorDetails = allDoctorDetails.find(d => d.doctor_id === activeDoctorId);
+
 
     // Find all prescriptions with status 'alternative_requested' for the active doctor
     const shortageRx = allPrescriptions.filter(rx => rx.status === 'alternative_requested' && rx.doctor_id === activeDoctorId);

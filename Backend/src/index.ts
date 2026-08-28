@@ -14,12 +14,148 @@ const AGENTS_URL = process.env.AGENTS_URL || (process.env.RENDER === 'true' ? 'h
 app.use(cors());
 app.use(express.json());
 
+// ─── Medical History AI Summarization Helper ───────────────────────────────
+async function summarizeMedicalHistory(rawText: string): Promise<{
+  conditions: string[];
+  allergies: string[];
+  surgeries: string[];
+  medications: string[];
+  family_history: string[];
+  summary: string;
+}> {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    console.warn('GEMINI_API_KEY not set, returning raw text as summary');
+    return {
+      conditions: [],
+      allergies: [],
+      surgeries: [],
+      medications: [],
+      family_history: [],
+      summary: rawText
+    };
+  }
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+
+  const prompt = `You are a medical data extraction assistant. A patient has described their medical history in plain text. Extract and structure the information into the following JSON format. Be thorough but concise. If a category has no relevant information, use an empty array.
+
+Patient's input:
+"""
+${rawText}
+"""
+
+Respond with ONLY valid JSON in this exact format (no markdown, no code fences):
+{
+  "conditions": ["list of medical conditions/diagnoses"],
+  "allergies": ["list of allergies"],
+  "surgeries": ["list of surgeries with year if mentioned"],
+  "medications": ["list of current medications with dosage if mentioned"],
+  "family_history": ["list of family medical history items"],
+  "summary": "A brief 2-3 sentence clinical summary of the patient's medical history"
+}`;
+
+  try {
+    const response = await globalThis.fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Gemini summarization error:', errText);
+      return {
+        conditions: [],
+        allergies: [],
+        surgeries: [],
+        medications: [],
+        family_history: [],
+        summary: rawText
+      };
+    }
+
+    const resData = await response.json();
+    const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    
+    // Parse the JSON response, handling potential markdown code fences
+    const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleanText);
+
+    return {
+      conditions: parsed.conditions || [],
+      allergies: parsed.allergies || [],
+      surgeries: parsed.surgeries || [],
+      medications: parsed.medications || [],
+      family_history: parsed.family_history || [],
+      summary: parsed.summary || rawText
+    };
+  } catch (err) {
+    console.error('Failed to summarize medical history with Gemini:', err);
+    return {
+      conditions: [],
+      allergies: [],
+      surgeries: [],
+      medications: [],
+      family_history: [],
+      summary: rawText
+    };
+  }
+}
+
+async function createPatientRecordFromHistory(
+  patientId: string,
+  rawText: string,
+  appointmentId?: string,
+  createdBy?: string
+): Promise<{ success: boolean; record?: any; error?: string }> {
+  try {
+    const aiSummary = await summarizeMedicalHistory(rawText);
+
+    const doctorReport = {
+      ai_intake_summary: aiSummary,
+      raw_patient_input: rawText,
+      source: appointmentId ? 'post_visit' : 'registration',
+      summarized_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('patient_records')
+      .insert({
+        patient_id: patientId,
+        appointment_id: appointmentId || null,
+        doctor_report: doctorReport,
+        prescription_id: null,
+        medical_tests: [],
+        created_by: createdBy || null
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error inserting patient record:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, record: data };
+  } catch (err: any) {
+    console.error('Error creating patient record from history:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 // Routes
 
 // POST /api/auth/signup
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, password, full_name, contact_number } = req.body;
+    const { email, password, full_name, contact_number, medical_history } = req.body;
     if (!email || !password || !full_name) {
       return res.status(400).json({ message: 'Email, password and full name are required' });
     }
@@ -56,10 +192,24 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(500).json({ message: `Profile creation failed: ${profileErr.message}` });
     }
 
+    // If patient provided medical history, summarize it with AI and store in patient_records
+    let patientRecord = null;
+    if (medical_history && medical_history.trim().length > 0) {
+      console.log(`[Signup] Processing medical history for ${full_name} (${authUser.id})...`);
+      const result = await createPatientRecordFromHistory(authUser.id, medical_history);
+      if (result.success) {
+        patientRecord = result.record;
+        console.log(`[Signup] Medical history summarized and stored for ${full_name}`);
+      } else {
+        console.warn(`[Signup] Failed to store medical history: ${result.error}`);
+      }
+    }
+
     res.status(201).json({
       user: authUser,
       profile,
       session: data.session,
+      patientRecord,
     });
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Internal server error' });
@@ -242,7 +392,7 @@ app.get('/api/profiles/:id', async (req, res) => {
 // POST /api/profiles
 app.post('/api/profiles', async (req, res) => {
   try {
-    const { full_name, contact_number } = req.body;
+    const { full_name, contact_number, medical_history } = req.body;
     if (!full_name) {
       return res.status(400).json({ message: 'Full name is required' });
     }
@@ -309,7 +459,60 @@ app.post('/api/profiles', async (req, res) => {
       console.error('Demographics creation warning:', mrErr);
     }
 
+    // If patient provided medical history, summarize with AI and store
+    if (medical_history && medical_history.trim().length > 0) {
+      console.log(`[Profile Create] Processing medical history for ${full_name} (${newId})...`);
+      const result = await createPatientRecordFromHistory(newId, medical_history);
+      if (result.success) {
+        console.log(`[Profile Create] Medical history summarized and stored for ${full_name}`);
+      } else {
+        console.warn(`[Profile Create] Failed to store medical history: ${result.error}`);
+      }
+    }
+
     res.status(201).json(profile);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// POST /api/patient-records/from-history
+app.post('/api/patient-records/from-history', async (req, res) => {
+  try {
+    const { patient_id, raw_medical_history } = req.body;
+    if (!patient_id || !raw_medical_history) {
+      return res.status(400).json({ message: 'patient_id and raw_medical_history are required' });
+    }
+
+    console.log(`[Patient Records] Summarizing medical history for patient ${patient_id}...`);
+    const result = await createPatientRecordFromHistory(patient_id, raw_medical_history);
+
+    if (!result.success) {
+      return res.status(500).json({ message: result.error || 'Failed to create patient record' });
+    }
+
+    console.log(`[Patient Records] Successfully stored AI-summarized medical history`);
+    res.status(201).json(result.record);
+  } catch (err: any) {
+    console.error('Error in /api/patient-records/from-history:', err);
+    res.status(500).json({ message: err.message || 'Internal server error' });
+  }
+});
+
+// GET /api/patient-records/:patientId
+app.get('/api/patient-records/:patientId', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { data, error } = await supabase
+      .from('patient_records')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ message: error.message });
+    }
+    res.json(data || []);
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Internal server error' });
   }
@@ -425,7 +628,75 @@ app.patch('/api/appointments/patient/:patientId/complete', async (req, res) => {
     if (error) {
       return res.status(500).json({ message: error.message });
     }
-    res.json(data || []);
+
+    // Auto-create patient_records for each completed appointment
+    const completedAppointments = data || [];
+    for (const appt of completedAppointments) {
+      try {
+        // Find the most recent prescription for this patient from this visit
+        const { data: recentRx } = await supabase
+          .from('prescriptions')
+          .select('id, doctor_comments, doctor_id')
+          .eq('patient_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Fetch prescription items if a prescription exists
+        let prescriptionDetails: any[] = [];
+        if (recentRx) {
+          const { data: rxItems } = await supabase
+            .from('prescription_items')
+            .select('dosage, quantity, medicine_id')
+            .eq('prescription_id', recentRx.id);
+
+          if (rxItems && rxItems.length > 0) {
+            // Resolve medicine names
+            const { data: inventory } = await supabase
+              .from('medicine_inventory')
+              .select('id, medicine_name');
+
+            prescriptionDetails = rxItems.map(item => {
+              const med = (inventory || []).find(m => m.id === item.medicine_id);
+              return {
+                medicine: med ? med.medicine_name : 'Unknown',
+                dosage: item.dosage,
+                quantity: item.quantity
+              };
+            });
+          }
+        }
+
+        const visitReport = {
+          visit_date: appt.scheduled_time,
+          source: 'post_visit',
+          doctor_comments: recentRx?.doctor_comments || null,
+          prescriptions_given: prescriptionDetails,
+          completed_at: new Date().toISOString()
+        };
+
+        const { error: prErr } = await supabase
+          .from('patient_records')
+          .insert({
+            patient_id: patientId,
+            appointment_id: appt.id,
+            doctor_report: visitReport,
+            prescription_id: recentRx?.id || null,
+            medical_tests: [],
+            created_by: appt.doctor_id
+          });
+
+        if (prErr) {
+          console.warn(`[Appointment Complete] Failed to create patient record for appointment ${appt.id}:`, prErr.message);
+        } else {
+          console.log(`[Appointment Complete] Created patient record for appointment ${appt.id}`);
+        }
+      } catch (prError) {
+        console.warn(`[Appointment Complete] Error creating patient record:`, prError);
+      }
+    }
+
+    res.json(completedAppointments);
   } catch (err) {
     res.status(500).json({ message: 'Internal server error' });
   }
@@ -832,10 +1103,11 @@ app.post('/api/doctor-chat', async (req, res) => {
       .from('profiles')
       .select('id, full_name, role');
 
-    // 3. Fetch medical records
-    const { data: medicalRecords } = await supabase
-      .from('medical_records')
-      .select('*');
+    // 3. Fetch medical records and patient_records (AI intake & visit summaries)
+    const [{ data: medicalRecords }, { data: patientRecords }] = await Promise.all([
+      supabase.from('medical_records').select('*'),
+      supabase.from('patient_records').select('*')
+    ]);
 
     // 4. Fetch inventory details
     const { data: inventory } = await supabase
@@ -849,13 +1121,33 @@ app.post('/api/doctor-chat', async (req, res) => {
       return `- Time: ${appt.scheduled_time}, Patient: ${patientName}, Status: ${appt.status}`;
     }).join('\n');
 
-    // Format medical records
-    const recordsStr = (medicalRecords || []).map(record => {
+    // Format medical records from both medical_records and patient_records
+    const legacyRecordsStr = (medicalRecords || []).map(record => {
       const patient = (profiles || []).find(p => p.id === record.patient_id);
       if (!patient) return null;
       let desc = record.description;
       return `- Patient: ${patient.full_name}, Record Type: ${record.record_type}, Details: ${desc}`;
-    }).filter(Boolean).join('\n');
+    }).filter(Boolean);
+
+    const patientRecordsStr = (patientRecords || []).map(record => {
+      const patient = (profiles || []).find(p => p.id === record.patient_id);
+      if (!patient) return null;
+      const report = record.doctor_report || {};
+      const intake = report.ai_intake_summary || {};
+      const parts = [];
+      if (intake.summary) parts.push(`Summary: ${intake.summary}`);
+      if (intake.conditions?.length) parts.push(`Conditions: ${intake.conditions.join(', ')}`);
+      if (intake.medications?.length) parts.push(`Medications: ${intake.medications.join(', ')}`);
+      if (intake.allergies?.length) parts.push(`Allergies: ${intake.allergies.join(', ')}`);
+      if (intake.family_history?.length) parts.push(`Family History: ${intake.family_history.join(', ')}`);
+      if (intake.surgeries?.length) parts.push(`Surgeries: ${intake.surgeries.join(', ')}`);
+      if (report.source === 'post_visit') {
+        parts.push(`Visit Notes: ${report.doctor_comments || 'N/A'}`);
+      }
+      return `- Patient: ${patient.full_name}, Medical History (patient_records): ${parts.join(' | ')}`;
+    }).filter(Boolean);
+
+    const recordsStr = [...legacyRecordsStr, ...patientRecordsStr].join('\n');
 
     // Format inventory
     const inventoryStr = (inventory || []).map(item => {

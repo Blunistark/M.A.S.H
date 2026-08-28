@@ -115,6 +115,21 @@ async def fetch_medical_records_from_supabase(patient_id: str) -> List[Dict[str,
         print(f"[Supabase Tool Warning] Failed to fetch medical records: {e}")
     return []
 
+async def fetch_patient_records_from_supabase(patient_id: str) -> List[Dict[str, Any]]:
+    """Fetch patient_records (AI medical history intake, visit reports) for a patient from Supabase."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    
+    url = f"{SUPABASE_URL}/rest/v1/patient_records?patient_id=eq.{patient_id}&order=created_at.desc"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=get_headers())
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"[Supabase Tool Warning] Failed to fetch patient_records: {e}")
+    return []
+
 async def fetch_all_patients_from_supabase() -> List[Dict[str, Any]]:
     """Fetch all patient profiles from Supabase."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -284,39 +299,50 @@ async def register_patient_in_supabase(full_name: str, contact_number: str = Non
         print(f"[Supabase Tool Warning] Failed to register patient: {e}")
     return None
 
-async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "") -> bool:
+async def book_appointment_in_supabase(patient_name: str, doctor_id: str, slot_time: str, date: str = None, reason: str = "", patient_id: str = None) -> bool:
     """Book a new appointment in Supabase. If the patient is not found, automatically registers them."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return False
         
     doctor_id = resolve_doctor_id(doctor_id)
         
-    # First, lookup patient_id by name (case insensitive)
-    patient_id = None
-    try:
-        async with httpx.AsyncClient() as client:
-            # Only use first name for matching to be robust
-            search_name = patient_name.split()[0] if patient_name else ""
-            if not search_name:
-                raise PatientNotFoundError("Patient name cannot be empty.")
-            res = await client.get(
-                f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{search_name}*&role=eq.patient", 
-                headers=get_headers()
-            )
-            if res.status_code == 200 and res.json():
-                patient_id = res.json()[0]["id"]
-            else:
-                # Auto-register patient if not found!
-                print(f"[book_appointment_in_supabase] Patient '{patient_name}' not found. Auto-registering...")
-                new_profile = await register_patient_in_supabase(patient_name)
-                if new_profile:
-                    patient_id = new_profile["id"]
+    # If patient_id is not directly provided, lookup patient_id by name (case insensitive)
+    if not patient_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                # Use exact or first name for matching
+                search_name = patient_name.strip() if patient_name else ""
+                if not search_name:
+                    raise PatientNotFoundError("Patient name cannot be empty.")
+                
+                # Check for exact full_name first
+                res = await client.get(
+                    f"{SUPABASE_URL}/rest/v1/profiles?full_name=eq.{search_name}&role=eq.patient", 
+                    headers=get_headers()
+                )
+                if res.status_code == 200 and res.json():
+                    patient_id = res.json()[0]["id"]
                 else:
-                    raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database and could not be auto-registered.")
-    except PatientNotFoundError:
-        raise
-    except Exception as e:
-        print(f"[Supabase Tool Warning] Error resolving patient: {e}")
+                    # Fallback to first name match
+                    first_name = search_name.split()[0]
+                    res2 = await client.get(
+                        f"{SUPABASE_URL}/rest/v1/profiles?full_name=ilike.*{first_name}*&role=eq.patient", 
+                        headers=get_headers()
+                    )
+                    if res2.status_code == 200 and res2.json():
+                        patient_id = res2.json()[0]["id"]
+                    else:
+                        # Auto-register patient if not found!
+                        print(f"[book_appointment_in_supabase] Patient '{patient_name}' not found. Auto-registering...")
+                        new_profile = await register_patient_in_supabase(patient_name)
+                        if new_profile:
+                            patient_id = new_profile["id"]
+                        else:
+                            raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database and could not be auto-registered.")
+        except PatientNotFoundError:
+            raise
+        except Exception as e:
+            print(f"[Supabase Tool Warning] Error resolving patient: {e}")
         
     if not patient_id:
         raise PatientNotFoundError(f"Patient '{patient_name}' is not in the database.")

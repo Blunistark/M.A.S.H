@@ -1,16 +1,16 @@
 import { type View, Router } from '../router';
 import {
   fetchProfiles,
-  fetchProfileById,
   fetchMedicalRecords,
   fetchPrescriptions,
   fetchPrescriptionItems,
   fetchMedicineInventory,
   fetchDoctorDetails,
   fetchAppointments,
+  fetchPatientRecords,
   getPatientPhotoUrl
 } from '../api';
-import type { Profile } from '../types';
+import type { Profile, PatientRecord } from '../types';
 import { getIcon } from '../assets/icons';
 
 function getInitials(name: string): string {
@@ -20,11 +20,36 @@ function getInitials(name: string): string {
 export class PatientProfileView implements View {
   public async render(params?: { patientId: string }): Promise<string> {
     let allProfiles: Profile[] = [];
+    let allRecords: any[] = [];
+    let allPrescriptions: any[] = [];
+    let allPrescriptionItems: any[] = [];
+    let allInventory: any[] = [];
+    let allDoctorDetails: any[] = [];
+    let allAppointments: any[] = [];
+    let patientRecords: PatientRecord[] = [];
+
     try {
-      allProfiles = await fetchProfiles();
+      [
+        allProfiles,
+        allRecords,
+        allPrescriptions,
+        allPrescriptionItems,
+        allInventory,
+        allDoctorDetails,
+        allAppointments
+      ] = await Promise.all([
+        fetchProfiles(),
+        fetchMedicalRecords(),
+        fetchPrescriptions(),
+        fetchPrescriptionItems(),
+        fetchMedicineInventory(),
+        fetchDoctorDetails(),
+        fetchAppointments()
+      ]);
     } catch (err) {
-      console.error('Failed to fetch profiles:', err);
+      console.error('Failed to fetch patient profile data:', err);
     }
+
     const patients = allProfiles.filter(p => p.role === 'patient');
 
     if (patients.length === 0) {
@@ -40,26 +65,9 @@ export class PatientProfileView implements View {
       patientId = patients[0].id;
     }
 
-    let patient: Profile;
-    try {
-      patient = await fetchProfileById(patientId);
-    } catch (err) {
-      return `
-        <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #64748b; font-family: var(--font-sans); padding: 40px; box-sizing: border-box; height: 100%;">
-          <h3 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">Patient not found.</h3>
-        </div>
-      `;
-    }
+    const patient = allProfiles.find(p => p.id === patientId) || patients[0];
 
     const initials = getInitials(patient.full_name);
-
-    // Fetch database tables asynchronously
-    const allRecords = await fetchMedicalRecords();
-    const allPrescriptions = await fetchPrescriptions();
-    const allPrescriptionItems = await fetchPrescriptionItems();
-    const allInventory = await fetchMedicineInventory();
-    const allDoctorDetails = await fetchDoctorDetails();
-    const allAppointments = await fetchAppointments();
 
     // Get medical records for this patient
     const records = allRecords.filter(r => r.patient_id === patientId);
@@ -70,6 +78,13 @@ export class PatientProfileView implements View {
     const surgeries = records.filter(r => r.record_type === 'Surgery');
     const aiSummaries = records.filter(r => r.record_type === 'ai_summary');
     const latestAiSummary = aiSummaries.length > 0 ? aiSummaries[aiSummaries.length - 1] : null;
+
+    // Fetch patient_records (AI intake summaries + visit records)
+    try {
+      patientRecords = await fetchPatientRecords(patientId);
+    } catch (err) {
+      console.warn('Failed to fetch patient records:', err);
+    }
 
     const demoRec = records.find(r => r.record_type === 'demographics');
     let gender = 'Not Specified';
@@ -201,10 +216,6 @@ export class PatientProfileView implements View {
           
           <div class="profile-actions">
             <button class="btn-secondary" id="write-prescription-action" data-patient-id="${patient.id}">Write Prescription</button>
-            <button class="btn-primary" id="book-appointment-action">
-              ${getIcon('plus', 'nav-icon')}
-              <span>New Appointment</span>
-            </button>
           </div>
         </div>
 
@@ -286,9 +297,9 @@ export class PatientProfileView implements View {
         <div class="floating-actions-right">
           <button class="btn-secondary-dark" id="view-history-btn">View History</button>
           <button class="btn-secondary-dark" id="write-prescription-floating" data-patient-id="${patient.id}">Write Prescription</button>
-          <button class="btn-teal" id="book-appt-floating">Book Appointment</button>
         </div>
       </section>
+
 
       ${aiSummaryCardHTML}
 
@@ -400,6 +411,104 @@ export class PatientProfileView implements View {
         </div>
 
       </div>
+
+      <!-- Patient Records Timeline (AI Intake + Visit History) -->
+      ${(() => {
+        if (patientRecords.length === 0) return '';
+
+        // Find the registration intake record
+        const intakeRecord = patientRecords.find(r => r.doctor_report?.source === 'registration');
+        const visitRecords = patientRecords.filter(r => r.doctor_report?.source === 'post_visit');
+
+        let intakeHTML = '';
+        if (intakeRecord && intakeRecord.doctor_report?.ai_intake_summary) {
+          const intake = intakeRecord.doctor_report.ai_intake_summary;
+          const summarizedDate = intakeRecord.doctor_report.summarized_at 
+            ? new Date(intakeRecord.doctor_report.summarized_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : new Date(intakeRecord.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+          const conditionPills = (intake.conditions || []).map((c: string) => 
+            `<span style="display: inline-block; padding: 3px 10px; border-radius: 20px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; font-size: 12px; font-weight: 500; margin: 2px 4px 2px 0; border: 1px solid rgba(59, 130, 246, 0.15);">${c}</span>`
+          ).join('');
+          const allergyPills = (intake.allergies || []).map((a: string) => 
+            `<span style="display: inline-block; padding: 3px 10px; border-radius: 20px; background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 12px; font-weight: 500; margin: 2px 4px 2px 0; border: 1px solid rgba(239, 68, 68, 0.15);">${a}</span>`
+          ).join('');
+          const surgeryPills = (intake.surgeries || []).map((s: string) => 
+            `<span style="display: inline-block; padding: 3px 10px; border-radius: 20px; background: rgba(168, 85, 247, 0.1); color: #a855f7; font-size: 12px; font-weight: 500; margin: 2px 4px 2px 0; border: 1px solid rgba(168, 85, 247, 0.15);">${s}</span>`
+          ).join('');
+          const medPills = (intake.medications || []).map((m: string) => 
+            `<span style="display: inline-block; padding: 3px 10px; border-radius: 20px; background: rgba(20, 184, 166, 0.1); color: #14b8a6; font-size: 12px; font-weight: 500; margin: 2px 4px 2px 0; border: 1px solid rgba(20, 184, 166, 0.15);">${m}</span>`
+          ).join('');
+          const familyPills = (intake.family_history || []).map((f: string) => 
+            `<span style="display: inline-block; padding: 3px 10px; border-radius: 20px; background: rgba(245, 158, 11, 0.1); color: #f59e0b; font-size: 12px; font-weight: 500; margin: 2px 4px 2px 0; border: 1px solid rgba(245, 158, 11, 0.15);">${f}</span>`
+          ).join('');
+
+          intakeHTML = `
+            <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(99, 102, 241, 0.12); border-radius: 16px; padding: 20px; margin-bottom: 16px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #3b82f6); display: flex; align-items: center; justify-content: center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                </div>
+                <span style="font-weight: 600; font-size: 14px; color: #0f172a;">AI-Summarized Patient Intake</span>
+                <span style="margin-left: auto; font-size: 11px; color: #94a3b8;">${summarizedDate}</span>
+              </div>
+
+              ${intake.summary ? `<p style="font-size: 13px; color: #334155; line-height: 1.6; margin: 0 0 14px 0; padding: 10px 14px; background: rgba(255,255,255,0.6); border-radius: 10px; border-left: 3px solid #6366f1;">${intake.summary}</p>` : ''}
+
+              ${conditionPills ? `<div style="margin-bottom: 10px;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Conditions</span><div style="margin-top: 4px;">${conditionPills}</div></div>` : ''}
+              ${allergyPills ? `<div style="margin-bottom: 10px;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Allergies</span><div style="margin-top: 4px;">${allergyPills}</div></div>` : ''}
+              ${medPills ? `<div style="margin-bottom: 10px;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Medications</span><div style="margin-top: 4px;">${medPills}</div></div>` : ''}
+              ${surgeryPills ? `<div style="margin-bottom: 10px;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Surgeries</span><div style="margin-top: 4px;">${surgeryPills}</div></div>` : ''}
+              ${familyPills ? `<div style="margin-bottom: 0;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Family History</span><div style="margin-top: 4px;">${familyPills}</div></div>` : ''}
+            </div>
+          `;
+        }
+
+        const visitEntriesHTML = visitRecords.map(vr => {
+          const report = vr.doctor_report;
+          const visitDate = report?.visit_date 
+            ? new Date(report.visit_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : new Date(vr.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          
+          const doctorProfile = vr.created_by ? allProfiles.find(p => p.id === vr.created_by) : null;
+          const doctorName = doctorProfile?.full_name || 'Doctor';
+          
+          const rxList = (report?.prescriptions_given || []).map((rx: any) => 
+            `<div style="display: flex; align-items: center; gap: 6px; padding: 4px 0;">
+              <span style="width: 5px; height: 5px; border-radius: 50%; background: #14b8a6; flex-shrink: 0;"></span>
+              <span style="font-size: 12px; color: #334155;">${rx.medicine} — ${rx.dosage} (qty: ${rx.quantity})</span>
+            </div>`
+          ).join('');
+
+          return `
+            <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 10px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></div>
+                  <span style="font-weight: 600; font-size: 13px; color: #0f172a;">Hospital Visit</span>
+                </div>
+                <span style="font-size: 11px; color: #94a3b8;">${visitDate}</span>
+              </div>
+              <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Attended by: <strong>${doctorName}</strong></div>
+              ${report?.doctor_comments ? `<p style="font-size: 12px; color: #475569; margin: 6px 0; padding: 8px 10px; background: #f8fafc; border-radius: 8px; border-left: 2px solid #3b82f6;">"${report.doctor_comments}"</p>` : ''}
+              ${rxList ? `<div style="margin-top: 6px;"><span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Prescribed</span>${rxList}</div>` : ''}
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="dashboard-card" style="margin: 0 40px 40px 40px; box-sizing: border-box;">
+            <div class="section-title" style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 16px;">
+              ${getIcon('file-text', 'nav-icon')}
+              <span>Patient Records Timeline</span>
+              <span style="margin-left: auto; font-size: 12px; font-weight: 500; color: #94a3b8; background: #f1f5f9; padding: 3px 10px; border-radius: 12px;">${patientRecords.length} record${patientRecords.length !== 1 ? 's' : ''}</span>
+            </div>
+            ${intakeHTML}
+            ${visitEntriesHTML}
+            ${!intakeHTML && !visitEntriesHTML ? '<p style="font-size: 13px; color: #64748b;">No patient records yet.</p>' : ''}
+          </div>
+        `;
+      })()}
     `;
   }
 
@@ -412,9 +521,7 @@ export class PatientProfileView implements View {
     }
 
     const buttons = [
-      '#book-appointment-action',
       '#view-history-btn',
-      '#book-appt-floating',
       '#view-all-tests-btn'
     ];
 

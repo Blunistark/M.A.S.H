@@ -14,26 +14,32 @@ export class ScheduleView implements View {
   private hasAnyAppointments = false;
 
   public async render(): Promise<string> {
-    // 1. Fetch doctor session
+    // 1. Fetch doctor session and identity
+    let loggedInName = 'Doctor';
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         this.activeDoctorId = user.id;
+        loggedInName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Doctor';
       } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         const cachedId = localStorage.getItem('medconnect_doctor_id');
         if (cachedId) this.activeDoctorId = cachedId;
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
       }
     } catch (e) {
       if (localStorage.getItem('medconnect_mock_auth') === 'true') {
         const cachedId = localStorage.getItem('medconnect_doctor_id');
         if (cachedId) this.activeDoctorId = cachedId;
+        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
       }
     }
 
-    // 2. Fetch data filtered by doctor_id
+    // 2. Fetch schedule data concurrently
     try {
-      this.appointments = await fetchAppointments({ doctor_id: this.activeDoctorId });
-      this.profiles = await fetchProfiles();
+      [this.appointments, this.profiles] = await Promise.all([
+        fetchAppointments({ doctor_id: this.activeDoctorId }),
+        fetchProfiles()
+      ]);
     } catch (err) {
       console.error('Failed to fetch schedule data:', err);
     }
@@ -46,20 +52,6 @@ export class ScheduleView implements View {
     doctorAppointments.sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime());
     this.filteredAppointments = doctorAppointments;
 
-    // Resolve logged-in user's name dynamically
-    let loggedInName = 'Doctor';
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        loggedInName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Doctor';
-      } else if (localStorage.getItem('medconnect_mock_auth') === 'true') {
-        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
-      }
-    } catch (e) {
-      if (localStorage.getItem('medconnect_mock_auth') === 'true') {
-        loggedInName = localStorage.getItem('medconnect_mock_user') || 'Doctor';
-      }
-    }
 
     // 4. Calculate metrics
     const totalSessions = doctorAppointments.length;

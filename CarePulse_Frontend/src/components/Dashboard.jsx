@@ -173,25 +173,34 @@ const Dashboard = ({ userProfile, onLogout }) => {
       cleanText = text.replace(/\[(SLOTS|DATES|DOCTORS|LOCATIONS|OPTIONS):\s*(.*?)\s*\]/, '').trim();
       chips = tagMatch[2].split(',').map(s => s.trim()).filter(Boolean);
     } else {
-      // Auto-detect doctors list if present in the text
       const lower = text.toLowerCase();
-      if ((lower.includes('dr. smith') || lower.includes('dr smith') || lower.includes('cardiologist')) &&
-          (lower.includes('kirran') || lower.includes('mithun') || lower.includes('quorum') || lower.includes('specialt') || lower.includes('doctor'))) {
-        chipType = 'DOCTORS';
-        chips = [
-          "Dr. Smith (Cardiology)",
-          "Dr. Kirran Kumar (General Medicine)",
-          "Dr. Mithun Nair (ENT)",
-          "Dr. Quorum (Dentist)"
-        ];
-      } else if (lower.includes('which location') || lower.includes('looking for') && (lower.includes('room') || lower.includes('pharmacy') || lower.includes('reception'))) {
-        chipType = 'LOCATIONS';
-        chips = [
-          "Doctor Consultation Room 1",
-          "Doctor Consultation Room 2",
-          "Pharmacy",
-          "Reception Desk"
-        ];
+      // Do NOT auto-detect chips if this is an appointment confirmation message
+      const isBookingDone = lower.includes('successfully booked') || 
+                            lower.includes('has been booked') || 
+                            lower.includes('appointment has been confirmed') || 
+                            lower.includes('successfully rescheduled');
+
+      if (!isBookingDone) {
+        // Auto-detect doctors list if asking the user to choose
+        if ((lower.includes('which doctor') || lower.includes('select a doctor') || lower.includes('choose a doctor') || lower.includes('available doctors') || lower.includes('specialt')) &&
+            (lower.includes('kirran') || lower.includes('smith') || lower.includes('doctor') || lower.includes('mithun'))) {
+          chipType = 'DOCTORS';
+          chips = [
+            "Dr. Smith (Cardiology)",
+            "Dr. Kirran Kumar (General Medicine)",
+            "Dr. Mithun Nair (ENT)",
+            "Dr. Quorum (Dentist)"
+          ];
+        } else if ((lower.includes('which location') || lower.includes('where would you like') || lower.includes('select a destination')) && 
+                   (lower.includes('room') || lower.includes('pharmacy') || lower.includes('reception'))) {
+          chipType = 'LOCATIONS';
+          chips = [
+            "Doctor Consultation Room 1",
+            "Doctor Consultation Room 2",
+            "Pharmacy",
+            "Reception Desk"
+          ];
+        }
       }
     }
 
@@ -275,7 +284,8 @@ const Dashboard = ({ userProfile, onLogout }) => {
   const navItems = [
     { id: 'home', icon: <MessageSquare size={20} />, label: 'Assistant' },
     { id: 'explore', icon: <Search size={20} />, label: 'Explore Doctors' },
-    { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' }
+    { id: 'navigation', icon: <Compass size={20} />, label: 'Navigation' },
+    { id: 'profile', icon: <UserIcon size={20} />, label: 'Profile' }
   ];
 
   return (
@@ -302,6 +312,14 @@ const Dashboard = ({ userProfile, onLogout }) => {
             </button>
           ))}
         </nav>
+
+        {/* Sidebar Footer with Log Out */}
+        <div className="sidebar-footer">
+          <button className="sidebar-logout-btn" onClick={onLogout} title="Sign Out">
+            <LogOut size={18} />
+            <span>Log Out</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -309,7 +327,7 @@ const Dashboard = ({ userProfile, onLogout }) => {
         {/* Header */}
         <header className="header">
           <div className="header-left mobile-only">
-            <div className="avatar-container">
+            <div className="avatar-container" onClick={() => setActiveTab('profile')} style={{ cursor: 'pointer' }}>
               <div className="avatar-placeholder">
                 <UserIcon size={20} color="var(--accent-teal)" />
               </div>
@@ -317,9 +335,12 @@ const Dashboard = ({ userProfile, onLogout }) => {
             <span className="brand-name">CarePulse</span>
           </div>
           <div className="desktop-spacer" />
-          <button className="notification-btn">
-            <Bell size={20} />
-          </button>
+          <div className="header-actions">
+            <button className="header-logout-btn" onClick={onLogout} title="Sign Out">
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
+          </div>
         </header>
 
         {activeTab === 'explore' ? (
